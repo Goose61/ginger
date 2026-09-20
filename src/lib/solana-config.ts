@@ -17,6 +17,15 @@ function env(): EnvLike {
   return typeof process !== "undefined" ? process.env : {};
 }
 
+/** Treat blank Vercel env values as unset so ?? fallbacks still apply. */
+function pickEnv(...values: (string | undefined)[]): string | undefined {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
 /** Active cluster — defaults to devnet when unset (safer for testing). */
 export function getSolanaNetwork(from?: EnvLike): SolanaNetwork {
   const e = from ?? env();
@@ -50,15 +59,13 @@ export function getRpcUrl(network?: SolanaNetwork, from?: EnvLike): string {
 
   if (net === "devnet") {
     return (
-      e.SOLANA_RPC_URL_DEVNET ??
-      e.NEXT_PUBLIC_SOLANA_RPC_URL_DEVNET ??
+      pickEnv(e.SOLANA_RPC_URL_DEVNET, e.NEXT_PUBLIC_SOLANA_RPC_URL_DEVNET) ??
       SOLANA_RPC_DEVNET
     );
   }
 
   return (
-    e.SOLANA_RPC_URL_MAINNET ??
-    e.NEXT_PUBLIC_SOLANA_RPC_URL_MAINNET ??
+    pickEnv(e.SOLANA_RPC_URL_MAINNET, e.NEXT_PUBLIC_SOLANA_RPC_URL_MAINNET) ??
     SOLANA_RPC_MAINNET
   );
 }
@@ -69,14 +76,12 @@ export function getDirectRpcUrl(network?: SolanaNetwork, from?: EnvLike): string
   const net = network ?? getSolanaNetwork(e);
   if (net === "devnet") {
     return (
-      e.NEXT_PUBLIC_SOLANA_RPC_URL_DEVNET ??
-      e.SOLANA_RPC_URL_DEVNET ??
+      pickEnv(e.NEXT_PUBLIC_SOLANA_RPC_URL_DEVNET, e.SOLANA_RPC_URL_DEVNET) ??
       SOLANA_RPC_DEVNET
     );
   }
   return (
-    e.NEXT_PUBLIC_SOLANA_RPC_URL_MAINNET ??
-    e.SOLANA_RPC_URL_MAINNET ??
+    pickEnv(e.NEXT_PUBLIC_SOLANA_RPC_URL_MAINNET, e.SOLANA_RPC_URL_MAINNET) ??
     SOLANA_RPC_MAINNET
   );
 }

@@ -17,8 +17,14 @@ import { getRpcUrl, SOLANA_RPC_DEVNET, SOLANA_RPC_MAINNET } from "@/lib/solana-c
  * @see https://docs.metamask.io/metamask-connect/solana/guides/use-wallet-adapter/
  * @see https://docs.solflare.com/solflare/technical/integrate-solflare
  */
+function resolveEndpoint(): string {
+  const url = getRpcUrl();
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return SOLANA_RPC_DEVNET;
+}
+
 export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
-  const endpoint = useMemo(() => getRpcUrl(), []);
+  const endpoint = useMemo(() => resolveEndpoint(), []);
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new BackpackWalletAdapter()],
     [],
