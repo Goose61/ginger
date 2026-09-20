@@ -17,6 +17,7 @@ export type MarketCard = {
   stats: CollectionMarketStats;
   hasListings: boolean;
   featuredUntil?: string | null;
+  createdAt: string;
 };
 
 export function toMarketCard(collection: Collection): MarketCard {
@@ -35,6 +36,7 @@ export function toMarketCard(collection: Collection): MarketCard {
     hasListings:
       Boolean(collection.secondaryEnabled) && tokens.some((t) => Boolean(t.listing)),
     featuredUntil: collection.featuredUntil ?? null,
+    createdAt: collection.createdAt ?? "",
   };
 }
 
