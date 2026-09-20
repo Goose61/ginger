@@ -18,7 +18,7 @@ const Footer: FC = () => {
               trading in-ecosystem.
             </p>
             <div className="relative z-1 flex items-center gap-6">
-              <Link href="/market" className="group">
+              <Link href="/" className="group">
                 <Icon
                   icon="mdi:storefront-outline"
                   width="24"

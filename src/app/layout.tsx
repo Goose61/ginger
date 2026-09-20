@@ -33,6 +33,7 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://gingernft.store"),
   title: "Ginger · NFT marketplace",
   description:
     "Launch NFT collections on Solana. Auto metadata, permanent storage, programmable fees, and in-ecosystem secondary trading.",

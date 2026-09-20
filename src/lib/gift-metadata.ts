@@ -7,7 +7,7 @@ export const GIFT_SYMBOL = "$PIZZA";
 
 export const GIFT_NAME = "Dough Boi";
 
-export const GIFT_EXTERNAL_URL = "https://www.thecrust.io";
+export const GIFT_EXTERNAL_URL = "https://gingernft.store";
 
 export const GIFT_DESCRIPTION =
   "A 1/1 $PIZZA collectible from Dough Boi. Minted on Solana.";

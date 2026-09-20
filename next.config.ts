@@ -22,24 +22,6 @@ const nextConfig: NextConfig = {
     "@solana/wallet-adapter-solflare",
     "@metamask/connect-solana",
   ],
-
-  // Static marketing HTML at / — but never intercept Next.js RSC (?_rsc=) requests.
-  async rewrites() {
-    return {
-      beforeFiles: [
-        {
-          source: "/",
-          missing: [{ type: "query", key: "_rsc" }],
-          destination: "/thecrust/index.html",
-        },
-        { source: "/contact", destination: "/thecrust/contact.html" },
-        { source: "/terms", destination: "/thecrust/terms.html" },
-        { source: "/privacy", destination: "/thecrust/privacy.html" },
-      ],
-      afterFiles: [],
-      fallback: [],
-    };
-  },
 };
 
 export default nextConfig;
