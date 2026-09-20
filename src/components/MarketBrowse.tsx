@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { formatUsd, formatUsdAmount, thumbSrc } from "@/lib/collection-ui";
+import { formatUsd, formatUsdAmount } from "@/lib/collection-ui";
 import type { MarketCard } from "@/lib/market-card";
 
 type SortKey = "volume" | "floor" | "minted" | "newest";
@@ -201,7 +201,7 @@ function FeaturedHero({ slides }: { slides: MarketCard[] }) {
       <div className="absolute inset-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={thumbSrc(active.coverSrc, 1600)}
+          src={active.coverSrc}
           alt=""
           className="h-full w-full scale-105 object-cover opacity-35 blur-xl"
         />
@@ -247,7 +247,7 @@ function FeaturedHero({ slides }: { slides: MarketCard[] }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={thumbSrc(active.coverSrc, 900)}
+            src={active.coverSrc}
             alt={active.name}
             className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-[1.03]"
           />
@@ -363,7 +363,7 @@ function MintCard({ collection }: { collection: MarketCard }) {
       <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-white/5 p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={thumbSrc(collection.coverSrc, 640)}
+          src={collection.coverSrc}
           alt={collection.name}
           loading="lazy"
           decoding="async"
@@ -441,9 +441,9 @@ function SecondaryTable({ collections }: { collections: MarketCard[] }) {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={thumbSrc(collection.coverSrc, 96)}
+                    src={collection.coverSrc}
                     alt=""
-                    className="h-9 w-9 rounded-lg object-cover"
+                    className="h-9 w-9 rounded-lg object-contain"
                   />
                   <span className="font-medium">{collection.name}</span>
                 </Link>
@@ -475,9 +475,9 @@ function MoverTile({ rank, collection }: { rank: number; collection: MarketCard 
       <span className="w-6 font-[family-name:var(--font-mono)] text-sm text-white/35">{rank}</span>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={thumbSrc(collection.coverSrc, 128)}
+        src={collection.coverSrc}
         alt=""
-        className="h-12 w-12 rounded-xl object-cover"
+        className="h-12 w-12 rounded-xl object-contain"
       />
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-white">{collection.name}</p>
@@ -503,7 +503,7 @@ function GiftStrip({ collection }: { collection: MarketCard }) {
         <div className="relative flex min-h-[220px] items-center justify-center bg-white/5 p-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={thumbSrc(collection.coverSrc, 800)}
+            src={collection.coverSrc}
             alt={collection.name}
             className="max-h-56 object-contain transition duration-500 group-hover:scale-[1.03]"
           />

@@ -56,6 +56,8 @@ export function logoImageSrc(collection: Collection): string | null {
 
 export function thumbSrc(src: string, width = 400): string {
   if (!src || src.startsWith("blob:") || src.startsWith("data:")) return src;
+  // Static public files are not accepted by /api/image-thumb.
+  if (src.startsWith("/images/")) return src;
   return `/api/image-thumb?u=${encodeURIComponent(src)}&w=${width}`;
 }
 
