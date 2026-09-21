@@ -89,6 +89,8 @@ export async function transferCreatorShareFromPlatform(params: {
 const HOLDERS_PER_TX = 12;
 /** Conservative v0 multi-transfer fee per batch — deducted from the holder pool. */
 const HOLDER_DIST_FEE_LAMPORTS_PER_BATCH = 8_000;
+/** Platform wallet must stay rent-exempt after paying holders. */
+const PLATFORM_RENT_RESERVE_LAMPORTS = 890_880 + 50_000;
 
 export type HolderDistributionResult = {
   ok: boolean;
@@ -166,10 +168,13 @@ export async function distributeHolderRoundFromPlatform(params: {
   }
 
   const balance = await connection.getBalance(payer.publicKey);
-  if (balance < grossLamports) {
+  const required = grossLamports + PLATFORM_RENT_RESERVE_LAMPORTS;
+  if (balance < required) {
+    const have = (balance / LAMPORTS_PER_SOL).toFixed(4);
+    const need = (required / LAMPORTS_PER_SOL).toFixed(4);
     return {
       ok: false,
-      error: `Platform balance too low to pay holders ($${params.round.poolUsd.toFixed(2)} pool)`,
+      error: `Platform wallet needs ~${need} SOL to pay holders (has ${have}); fund ${payer.publicKey.toBase58()} and retry`,
     };
   }
 
