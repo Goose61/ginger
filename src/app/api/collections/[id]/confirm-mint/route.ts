@@ -9,6 +9,8 @@ import { explorerClusterQuery, serverNetwork } from "@/lib/solana-config";
 import { verifyMintTransaction } from "@/lib/verify-mint";
 import { applySaleTreasury } from "@/lib/milestones";
 import { toPublicCollection } from "@/lib/public-collection";
+import { processAllPendingHolderDistributions } from "@/lib/platform-disbursement";
+import { executeSplTokenBuyback } from "@/lib/spl-buyback";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: verified.reason }, { status: 400 });
     }
 
-    const collection = await updateCollection(id, (c) => {
+    let collection = await updateCollection(id, (c) => {
       const resolvedTokenId = tokenId ?? c.pendingMint?.tokenId;
       if (resolvedTokenId == null) {
         throw new Error("tokenId required — no pending mint");
@@ -65,7 +67,52 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, collection: toPublicCollection(collection) });
+    // Retry buyback if payment-time disbursement failed (e.g. platform SOL too low).
+    let buyback: Awaited<ReturnType<typeof executeSplTokenBuyback>> | null = null;
+    if (collection.treasuryBuybackActive && (collection.feeLedger?.buybackTreasuryUsd ?? 0) > 0.009) {
+      buyback = await executeSplTokenBuyback(id, network);
+      if (buyback.collection) collection = buyback.collection;
+      if (!buyback.purchased && buyback.reason) {
+        console.warn("[confirm-mint] Pending buyback not executed:", buyback.reason);
+      }
+    }
+
+    let holderDistribution: Awaited<ReturnType<typeof processAllPendingHolderDistributions>> | null =
+      null;
+    if (collection.feeClaimsOpen) {
+      holderDistribution = await processAllPendingHolderDistributions({ collectionId: id, network });
+      if (holderDistribution.collection) collection = holderDistribution.collection;
+      for (const r of holderDistribution.results) {
+        if (!r.ok && r.error) {
+          console.warn("[confirm-mint] Holder distribution not executed:", r.error);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      collection: toPublicCollection(collection),
+      buyback: buyback
+        ? {
+            purchased: buyback.purchased,
+            usdSpent: buyback.usdSpent ?? null,
+            tokenAmount: buyback.tokenAmount ?? null,
+            txSignature: buyback.txSignature ?? null,
+            txUrl: buyback.txUrl ?? null,
+            reason: buyback.reason ?? null,
+          }
+        : null,
+      holderDistribution: holderDistribution
+        ? {
+            rounds: holderDistribution.results.map((r) => ({
+              ok: r.ok,
+              roundId: r.roundId ?? null,
+              payouts: r.payouts ?? null,
+              error: r.error ?? null,
+            })),
+          }
+        : null,
+    });
   } catch (err) {
     console.error("[PATCH /api/collections/confirm-mint]", err);
     const message = err instanceof Error ? err.message : "Failed to confirm mint";

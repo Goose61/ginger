@@ -35,7 +35,7 @@ function roundUsd(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-function roundUsdShare(poolUsd: number, shares: number, totalShares: number) {
+export function roundUsdShare(poolUsd: number, shares: number, totalShares: number) {
   if (totalShares <= 0) return 0;
   return roundUsd((poolUsd * shares) / totalShares);
 }
@@ -200,6 +200,80 @@ export function getOpenDistributionRound(collection: Collection) {
   return rounds.length > 0 ? rounds[rounds.length - 1] : null;
 }
 
+/** Most recent round not yet paid on-chain (the one opened by the latest sale). */
+export function getLatestUndistributedRound(collection: Collection) {
+  const rounds = collection.feeLedger?.distributionRounds ?? [];
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    const round = rounds[i];
+    if (!round.distributedAt && round.poolUsd > 0 && round.snapshot.length > 0) {
+      return round;
+    }
+  }
+  return null;
+}
+
+/** All unpaid rounds, oldest first (for backfill). */
+export function getUndistributedRounds(collection: Collection) {
+  return (collection.feeLedger?.distributionRounds ?? []).filter(
+    (round) => !round.distributedAt && round.poolUsd > 0 && round.snapshot.length > 0,
+  );
+}
+
+/** Per-wallet USD owed for a distribution round (last wallet absorbs rounding remainder). */
+export function holderPayoutsForRound(round: {
+  poolUsd: number;
+  totalShares: number;
+  snapshot: { wallet: string; count: number }[];
+}): { wallet: string; amountUsd: number }[] {
+  if (round.poolUsd <= 0 || round.totalShares <= 0 || round.snapshot.length === 0) return [];
+  const payouts: { wallet: string; amountUsd: number }[] = [];
+  let assigned = 0;
+  for (let i = 0; i < round.snapshot.length; i++) {
+    const { wallet, count } = round.snapshot[i];
+    const amountUsd =
+      i === round.snapshot.length - 1
+        ? roundUsd(round.poolUsd - assigned)
+        : roundUsdShare(round.poolUsd, count, round.totalShares);
+    if (i < round.snapshot.length - 1) assigned = roundUsd(assigned + amountUsd);
+    if (amountUsd > 0) payouts.push({ wallet, amountUsd });
+  }
+  return payouts;
+}
+
+export function applyRoundPayouts(
+  collection: Collection,
+  roundId: string,
+  payouts: {
+    wallet: string;
+    amountUsd: number;
+    grossAmountUsd?: number;
+    feeUsd?: number;
+    txSignature: string;
+    txUrl?: string;
+    paidAt?: string;
+  }[],
+): Collection {
+  const ledger = ensureLedger(collection);
+  const round = ledger.distributionRounds.find((r) => r.id === roundId);
+  if (!round) return collection;
+  const now = new Date().toISOString();
+  round.payouts = payouts.map((p) => ({
+    wallet: p.wallet,
+    amountUsd: p.amountUsd,
+    grossAmountUsd: p.grossAmountUsd,
+    feeUsd: p.feeUsd,
+    txSignature: p.txSignature,
+    txUrl: p.txUrl,
+    paidAt: p.paidAt ?? now,
+  }));
+  round.distributedAt = now;
+  for (const p of payouts) {
+    if (p.amountUsd <= 0) continue;
+    round.claims.push({ wallet: p.wallet, amountUsd: p.amountUsd, claimedAt: now });
+  }
+  return collection;
+}
+
 export function previewHolderClaim(collection: Collection, wallet: string): HolderClaimPreview | null {
   if (!collection.feeClaimsOpen) return null;
 
@@ -211,11 +285,17 @@ export function previewHolderClaim(collection: Collection, wallet: string): Hold
   for (const round of rounds) {
     const snap = round.snapshot.find((h) => h.wallet === wallet);
     const entitled = snap ? roundUsdShare(round.poolUsd, snap.count, round.totalShares) : 0;
+    const paidOnChain = roundUsd(
+      (round.payouts ?? [])
+        .filter((p) => p.wallet === wallet)
+        .reduce((s, p) => s + p.amountUsd, 0),
+    );
     const claimed = roundUsd(
       round.claims.filter((c) => c.wallet === wallet).reduce((s, c) => s + c.amountUsd, 0),
     );
-    alreadyClaimedUsd = roundUsd(alreadyClaimedUsd + claimed);
-    claimableUsd = roundUsd(claimableUsd + Math.max(0, entitled - claimed));
+    const settled = roundUsd(Math.max(claimed, paidOnChain));
+    alreadyClaimedUsd = roundUsd(alreadyClaimedUsd + settled);
+    claimableUsd = roundUsd(claimableUsd + Math.max(0, entitled - settled));
   }
 
   return { wallet, heldCount, claimableUsd, alreadyClaimedUsd };
@@ -239,10 +319,16 @@ export function claimHolderFees(collection: Collection, wallet: string): {
   for (const round of rounds) {
     const snap = round.snapshot.find((h) => h.wallet === wallet);
     const entitled = snap ? roundUsdShare(round.poolUsd, snap.count, round.totalShares) : 0;
+    const paidOnChain = roundUsd(
+      (round.payouts ?? [])
+        .filter((p) => p.wallet === wallet)
+        .reduce((s, p) => s + p.amountUsd, 0),
+    );
     const already = roundUsd(
       round.claims.filter((c) => c.wallet === wallet).reduce((s, c) => s + c.amountUsd, 0),
     );
-    const due = roundUsd(Math.max(0, entitled - already));
+    const settled = roundUsd(Math.max(already, paidOnChain));
+    const due = roundUsd(Math.max(0, entitled - settled));
     if (due <= 0) continue;
     round.claims.push({ wallet, amountUsd: due, claimedAt: now });
     claimedUsd = roundUsd(claimedUsd + due);

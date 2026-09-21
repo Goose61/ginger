@@ -216,6 +216,17 @@ export type FeeLedgerEntry = {
   tradeTaxUsd?: number;
 };
 
+export type HolderPayoutRecord = {
+  wallet: string;
+  /** Net USD received after this wallet's share of distribution gas. */
+  amountUsd: number;
+  grossAmountUsd?: number;
+  feeUsd?: number;
+  txSignature: string;
+  txUrl?: string;
+  paidAt: string;
+};
+
 export type FeeDistributionRound = {
   id: string;
   openedAt: string;
@@ -224,6 +235,9 @@ export type FeeDistributionRound = {
   totalShares: number;
   snapshot: { wallet: string; count: number }[];
   claims: { wallet: string; amountUsd: number; claimedAt: string }[];
+  /** On-chain SOL sent automatically to holders for this round. */
+  payouts?: HolderPayoutRecord[];
+  distributedAt?: string;
 };
 
 export type TreasuryBuybackRecord = {

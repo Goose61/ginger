@@ -28,6 +28,8 @@ import {
 } from "@/lib/fee-distribution";
 import {
   getMintPaymentRecipient,
+  processAllPendingHolderDistributions,
+  processLatestHolderDistribution,
   processPrimaryMintProceeds,
   processSaleBuyback,
 } from "@/lib/platform-disbursement";
@@ -303,6 +305,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       const network = serverNetwork(body.network);
       let creatorDisburse: Awaited<ReturnType<typeof processPrimaryMintProceeds>>["creatorDisburse"];
       let buyback: Awaited<ReturnType<typeof processPrimaryMintProceeds>>["buyback"] = null;
+      let holderDistribution: Awaited<
+        ReturnType<typeof processPrimaryMintProceeds>
+      >["holderDistribution"] = null;
       const paysOnChainFromPlatform =
         (method === "sol" || method === "slicepay") && collection.payments.creatorWallet;
       if (paysOnChainFromPlatform) {
@@ -314,11 +319,17 @@ export async function POST(req: NextRequest, { params }: Params) {
         });
         creatorDisburse = proceeds.creatorDisburse;
         buyback = proceeds.buyback;
+        holderDistribution = proceeds.holderDistribution ?? null;
         if (buyback?.collection) collection = buyback.collection;
-      } else if (collection.treasuryBuybackActive) {
-        const buybackUsd = feeBreakdowns.reduce((sum, b) => sum + b.buybackUsd, 0);
-        buyback = await processSaleBuyback({ collectionId: id, network, buybackUsd });
-        if (buyback?.collection) collection = buyback.collection;
+        if (holderDistribution?.collection) collection = holderDistribution.collection;
+      } else {
+        if (collection.treasuryBuybackActive) {
+          const buybackUsd = feeBreakdowns.reduce((sum, b) => sum + b.buybackUsd, 0);
+          buyback = await processSaleBuyback({ collectionId: id, network, buybackUsd });
+          if (buyback?.collection) collection = buyback.collection;
+        }
+        holderDistribution = await processLatestHolderDistribution({ collectionId: id, network });
+        if (holderDistribution?.collection) collection = holderDistribution.collection;
       }
 
       return NextResponse.json({
@@ -344,6 +355,14 @@ export async function POST(req: NextRequest, { params }: Params) {
               txSignature: buyback.txSignature ?? null,
               txUrl: buyback.txUrl ?? null,
               reason: buyback.reason ?? null,
+            }
+          : null,
+        holderDistribution: holderDistribution
+          ? {
+              ok: holderDistribution.ok,
+              roundId: holderDistribution.roundId ?? null,
+              payouts: holderDistribution.payouts ?? null,
+              error: holderDistribution.error ?? null,
             }
           : null,
       });
@@ -456,15 +475,18 @@ export async function POST(req: NextRequest, { params }: Params) {
         return applySaleTreasury(current);
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      const network = serverNetwork(body.network);
       let buyback: Awaited<ReturnType<typeof processSaleBuyback>> = null;
       if (collection.treasuryBuybackActive && secondaryCtx.breakdown) {
         buyback = await processSaleBuyback({
           collectionId: id,
-          network: serverNetwork(body.network),
+          network,
           buybackUsd: secondaryCtx.breakdown.buybackUsd,
         });
         if (buyback?.collection) collection = buyback.collection;
       }
+      const holderDistribution = await processLatestHolderDistribution({ collectionId: id, network });
+      if (holderDistribution?.collection) collection = holderDistribution.collection;
       return NextResponse.json({
         collection: toPublicCollection(collection),
         tokenId,
@@ -478,6 +500,14 @@ export async function POST(req: NextRequest, { params }: Params) {
               txSignature: buyback.txSignature ?? null,
               txUrl: buyback.txUrl ?? null,
               reason: buyback.reason ?? null,
+            }
+          : null,
+        holderDistribution: holderDistribution
+          ? {
+              ok: holderDistribution.ok,
+              roundId: holderDistribution.roundId ?? null,
+              payouts: holderDistribution.payouts ?? null,
+              error: holderDistribution.error ?? null,
             }
           : null,
       });
@@ -550,6 +580,28 @@ export async function POST(req: NextRequest, { params }: Params) {
         txSignature: result.txSignature ?? null,
         txUrl: result.txUrl ?? null,
         reason: result.reason ?? null,
+      });
+    }
+
+    if (body.action === "distribute_holder_rewards") {
+      const existing = await getCollection(id);
+      if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      if (!existing.feeClaimsOpen) {
+        return NextResponse.json({ error: "Holder rewards are not open" }, { status: 400 });
+      }
+      const { results, collection } = await processAllPendingHolderDistributions({
+        collectionId: id,
+        network: serverNetwork(body.network),
+      });
+      if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json({
+        collection: toPublicCollection(collection),
+        rounds: results.map((r) => ({
+          ok: r.ok,
+          roundId: r.roundId ?? null,
+          payouts: r.payouts ?? null,
+          error: r.error ?? null,
+        })),
       });
     }
 

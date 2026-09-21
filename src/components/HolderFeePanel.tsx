@@ -58,7 +58,7 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMessage(`Claimed ${formatUsd(data.claimedUsd)} — payout processed off-chain.`);
+      setMessage(`Claimed ${formatUsd(data.claimedUsd)} — any remaining balance is sent automatically on future sales.`);
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Claim failed");
@@ -74,8 +74,9 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
       <div>
         <h2 className="text-xl font-semibold text-white">Treasury & rewards</h2>
         <p className="mt-1 text-xs text-white/40">
-          Holder fees accrue on every sale and pay out to current holders.
-          The buyback share market-buys the collection token into the creator treasury wallet.
+          Holder fees accrue on every sale and are sent automatically in SOL to current holders
+          (pro-rata by NFTs held). Network fees for those transfers are deducted from the holder pool —
+          each wallet receives its share minus gas. The buyback share market-buys the token into the treasury wallet.
         </p>
       </div>
 
