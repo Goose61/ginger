@@ -188,7 +188,7 @@ export async function executeSplTokenBuyback(
   collectionId: string,
   network: SolanaNetwork,
   opts?: SplBuybackOptions,
-): Promise<BuybackResult & { collection: Collection | null }> {
+): Promise<Omit<BuybackResult, "collection"> & { collection: Collection | null }> {
   const existing = await getCollection(collectionId);
   if (!existing) return { collection: null, purchased: false, reason: "Collection not found" };
   if (!existing.treasuryBuybackActive) {

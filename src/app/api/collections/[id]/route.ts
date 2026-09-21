@@ -20,7 +20,12 @@ import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { nftPrice } from "@/lib/collection-ui";
 import { buildPendingMintForToken } from "@/lib/collection-mint-on-chain";
 import { getPlatformSecretKey } from "@/lib/platform-key";
-import { accrueSaleFees, claimHolderFees, previewHolderClaim } from "@/lib/fee-distribution";
+import {
+  accrueSaleFees,
+  claimHolderFees,
+  previewHolderClaim,
+  type SaleFeeBreakdown,
+} from "@/lib/fee-distribution";
 import {
   getMintPaymentRecipient,
   processPrimaryMintProceeds,
@@ -429,7 +434,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
       }
 
-      let secondaryBreakdown: ReturnType<typeof accrueSaleFees>["breakdown"] | null = null;
+      const secondaryCtx = { breakdown: null as SaleFeeBreakdown | null };
       const sellerWallet = token.owner ?? undefined;
 
       let collection = await updateCollection(id, (current) => {
@@ -447,16 +452,16 @@ export async function POST(req: NextRequest, { params }: Params) {
           payer: payerAddr,
           seller: sellerWallet,
         });
-        secondaryBreakdown = accrued.breakdown;
+        secondaryCtx.breakdown = accrued.breakdown;
         return applySaleTreasury(current);
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
       let buyback: Awaited<ReturnType<typeof processSaleBuyback>> = null;
-      if (collection.treasuryBuybackActive && secondaryBreakdown) {
+      if (collection.treasuryBuybackActive && secondaryCtx.breakdown) {
         buyback = await processSaleBuyback({
           collectionId: id,
           network: serverNetwork(body.network),
-          buybackUsd: secondaryBreakdown.buybackUsd,
+          buybackUsd: secondaryCtx.breakdown.buybackUsd,
         });
         if (buyback?.collection) collection = buyback.collection;
       }
@@ -464,7 +469,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         collection: toPublicCollection(collection),
         tokenId,
         buyer: payerAddr,
-        feeBreakdown: secondaryBreakdown,
+        feeBreakdown: secondaryCtx.breakdown,
         buyback: buyback
           ? {
               purchased: buyback.purchased,

@@ -267,9 +267,9 @@ function runInstantSimulation() {
 
   console.log("1. Alice mints #1 — only holder, gets 100% of that sale's holder pool");
   mintTo(c, 1, ALICE);
-  assert(c.feeClaimsOpen === true, "claims open after the first sale");
-  assert(c.treasuryBuybackActive === true, "buyback armed after the first sale");
-  assert(c.secondaryEnabled === true, "secondary listings enabled (no enable_secondary milestone)");
+  assert(c.feeClaimsOpen, "claims open after the first sale");
+  assert(c.treasuryBuybackActive, "buyback armed after the first sale");
+  assert(c.secondaryEnabled, "secondary listings enabled (no enable_secondary milestone)");
   assert(c.feeLedger!.distributionRounds.length === 1, "round 1 opened immediately");
   assert(c.feeLedger!.holderTreasuryUsd === 0, "holder pool emptied into round 1");
   const r1 = c.feeLedger!.distributionRounds[0];

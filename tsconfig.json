@@ -25,6 +25,7 @@
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/types/**/*.d.ts"],
   "exclude": [
     "node_modules",
+    "scripts",
     "src/components/Auth",
     "src/components/SharedComponent/Blog",
     "src/components/Documentation",
