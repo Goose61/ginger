@@ -26,6 +26,7 @@ import {
 } from "@solana/web3.js";
 import { applyLedgerBuyback, type BuybackResult } from "./fee-distribution";
 import { getPlatformSecretKey } from "./platform-key";
+import { platformSpendableLamports } from "./platform-treasury-reserve";
 import { getQuote } from "./quotes";
 import { explorerClusterQuery, getDirectRpcUrl, type SolanaNetwork } from "./solana-config";
 import { getCollection, updateCollection } from "./store";
@@ -230,14 +231,14 @@ export async function executeSplTokenBuyback(
     const quote = await getQuote(usd);
     lamports = Math.max(1, Math.floor(quote.sol * LAMPORTS_PER_SOL));
     solSpent = quote.sol;
-    if (balance < lamports + 50_000) {
+    if (platformSpendableLamports(balance) < lamports) {
       return {
         collection: existing,
         purchased: false,
-        reason: `Platform wallet needs ~${(lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL to buy the token`,
+        reason: `Platform wallet needs ~${(lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL to buy the token (treasury floor reserved)`,
       };
     }
-  } else if (balance < 15_000_000) {
+  } else if (platformSpendableLamports(balance) < 15_000_000) {
     return {
       collection: existing,
       purchased: false,

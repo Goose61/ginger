@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { getMintPaymentRecipient } from "@/lib/platform-disbursement";
+import { formatTreasuryFloorSol } from "@/lib/platform-treasury-reserve";
 import { getSolanaNetwork } from "@/lib/solana-config";
 
 export async function GET() {
@@ -15,5 +16,7 @@ export async function GET() {
     network: getSolanaNetwork(),
     /** Primary mint SOL is paid here before creator payout + SPL buyback. */
     platformWallet: getMintPaymentRecipient(),
+    /** Minimum SOL kept on the platform wallet (rent + accrual float). */
+    platformTreasuryFloorSol: formatTreasuryFloorSol(),
   });
 }

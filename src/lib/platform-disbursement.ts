@@ -19,6 +19,7 @@ import {
   holderPayoutsForRound,
 } from "./fee-distribution";
 import { getPlatformPublicKey, getPlatformSecretKey } from "./platform-key";
+import { formatTreasuryFloorSol, platformSpendableLamports } from "./platform-treasury-reserve";
 import { getQuote } from "./quotes";
 import { explorerClusterQuery, getDirectRpcUrl, type SolanaNetwork } from "./solana-config";
 import { executeSplTokenBuyback } from "./spl-buyback";
@@ -57,10 +58,11 @@ export async function transferCreatorShareFromPlatform(params: {
   const lamports = Math.max(1, Math.floor(quote.sol * LAMPORTS_PER_SOL));
   const connection = new Connection(getDirectRpcUrl(params.network), "confirmed");
   const balance = await connection.getBalance(payer.publicKey);
-  if (balance < lamports + 50_000) {
+  const spendable = platformSpendableLamports(balance);
+  if (spendable < lamports) {
     return {
       ok: false,
-      error: `Platform balance too low to pay creator ($${params.usd.toFixed(2)})`,
+      error: `Platform balance too low to pay creator ($${params.usd.toFixed(2)}); need ~${formatTreasuryFloorSol()} SOL treasury floor + payout`,
     };
   }
 
@@ -89,8 +91,6 @@ export async function transferCreatorShareFromPlatform(params: {
 const HOLDERS_PER_TX = 12;
 /** Conservative v0 multi-transfer fee per batch — deducted from the holder pool. */
 const HOLDER_DIST_FEE_LAMPORTS_PER_BATCH = 8_000;
-/** Platform wallet must stay rent-exempt after paying holders. */
-const PLATFORM_RENT_RESERVE_LAMPORTS = 890_880 + 50_000;
 
 export type HolderDistributionResult = {
   ok: boolean;
@@ -168,13 +168,15 @@ export async function distributeHolderRoundFromPlatform(params: {
   }
 
   const balance = await connection.getBalance(payer.publicKey);
-  const required = grossLamports + PLATFORM_RENT_RESERVE_LAMPORTS;
-  if (balance < required) {
+  const spendable = platformSpendableLamports(balance);
+  if (spendable < grossLamports) {
     const have = (balance / LAMPORTS_PER_SOL).toFixed(4);
-    const need = (required / LAMPORTS_PER_SOL).toFixed(4);
+    const floor = formatTreasuryFloorSol();
     return {
       ok: false,
-      error: `Platform wallet needs ~${need} SOL to pay holders (has ${have}); fund ${payer.publicKey.toBase58()} and retry`,
+      error:
+        `Platform wallet needs ~${floor} SOL treasury floor plus holder pool (has ${have} SOL). ` +
+        `Each new mint pays holders automatically from buyer SOL; one-time top-up only needed for backfill.`,
     };
   }
 
@@ -278,7 +280,11 @@ export async function processSaleBuyback(params: {
   });
 }
 
-/** After a primary SOL mint: pay creator share, then Jupiter/direct SPL buyback. */
+/**
+ * After a primary mint payment lands on the platform wallet:
+ * pay creator → holders → buyback, leaving the treasury floor (~0.003 SOL) to accrue.
+ * Each sale is self-funding from buyer SOL; no manual top-up between mints.
+ */
 export async function processPrimaryMintProceeds(params: {
   collectionId: string;
   network: SolanaNetwork;
@@ -297,6 +303,11 @@ export async function processPrimaryMintProceeds(params: {
         })
       : undefined;
 
+  const holderDistribution = await processLatestHolderDistribution({
+    collectionId: params.collectionId,
+    network: params.network,
+  });
+
   const buyback =
     buybackUsd > 0
       ? await processSaleBuyback({
@@ -305,11 +316,6 @@ export async function processPrimaryMintProceeds(params: {
           buybackUsd,
         })
       : null;
-
-  const holderDistribution = await processLatestHolderDistribution({
-    collectionId: params.collectionId,
-    network: params.network,
-  });
 
   return { creatorDisburse, buyback, holderDistribution };
 }
