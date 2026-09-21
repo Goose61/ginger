@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken } from "@/lib/types";
-import { useWallet, networkName } from "./WalletProvider";
+import { useWallet } from "./WalletProvider";
+import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
 import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
@@ -38,6 +39,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [isDemoCheckout, setIsDemoCheckout] = useState(false);
   const [slicePayLive, setSlicePayLive] = useState<boolean | null>(null);
+  const [clientNetwork, setClientNetwork] = useState<SolanaNetwork>("devnet");
   const [paymentMethod, setPaymentMethod] = useState<"slicepay" | "sol">(() =>
     initial.payments.acceptSlicePay ? "slicepay" : "sol",
   );
@@ -128,6 +130,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     (collection.payments.giftMintEnabled ||
       collection.supply > 1 ||
       Boolean(collection.pendingMint));
+
+  useEffect(() => {
+    void getClientNetwork().then(setClientNetwork);
+  }, []);
 
   useEffect(() => {
     if (!collection.payments.acceptSlicePay && collection.payments.acceptSol) {
@@ -254,7 +260,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             collectionId: col.id,
             tokenId: resolvedTokenId,
             payer: publicKey,
-            network: networkName(),
+            network: clientNetwork,
           }),
         });
         const data = await readJsonResponse<{
@@ -268,7 +274,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       }
 
       setMessage("Approve the mint in your wallet…");
-      const txSignature = await signMintTx(col.id, networkName());
+      const txSignature = await signMintTx(col.id, clientNetwork);
 
       const confirmEndpoint = isGiftBundle(col)
         ? "/api/gift/mint"
@@ -281,7 +287,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           collectionId: col.id,
           tokenId: resolvedTokenId,
           txSignature,
-          network: networkName(),
+          network: clientNetwork,
         }),
       });
       const confirmed = await readJsonResponse<{ collection?: Collection; error?: string }>(confirm);
@@ -419,7 +425,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         method,
         invoiceId: method === "slicepay" ? (confirmedInvoiceId ?? invoiceId) : undefined,
         txSignature: method === "sol" ? txSignature : undefined,
-        network: networkName(),
+        network: clientNetwork,
       }),
     });
     const data = await res.json();

@@ -230,7 +230,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       let txResult: BuildTxResult | null = null;
       if (useOnChain) {
         const tokenId = mintedTokenIds[0];
-        const network = parseNetwork(body.network);
+        const network = serverNetwork(body.network);
         try {
           const built = await buildPendingMintForToken({
             collection: pre,
@@ -621,7 +621,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       let txResult: BuildTxResult | null = null;
       if (useOnChain) {
-        const network = parseNetwork(body.network);
+        const network = serverNetwork(body.network);
         try {
           const built = await buildPendingMintForToken({
             collection: existing,

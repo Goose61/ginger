@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCollection } from "@/lib/store";
 import { cosignAndSubmitGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
 import { resolvePendingMint } from "@/lib/gift-pending";
-import { parseNetwork } from "@/lib/solana-config";
+import { serverNetwork } from "@/lib/solana-config";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const collectionId = String(body.collectionId || "").trim();
     const signedTxBase64 = String(body.signedTxBase64 || "").trim();
-    const network = parseNetwork(body.network);
+    const network = serverNetwork(body.network);
 
     if (!collectionId) {
       return NextResponse.json({ error: "collectionId required" }, { status: 400 });

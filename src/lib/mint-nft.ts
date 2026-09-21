@@ -375,20 +375,24 @@ export async function buildGiftTransaction(params: {
   if (!getPlatformSecretKey()) return null;
 
   const network = params.network ?? getSolanaNetwork();
-  const { txBase64, assetAddress, assetSecretKey, coreCollectionAddress } =
+  const coreCollectionAddress =
+    params.coreCollectionAddress === undefined
+      ? getCoreCollectionAddress(network)
+      : params.coreCollectionAddress;
+  const { txBase64, assetAddress, assetSecretKey, coreCollectionAddress: resolvedCore } =
     await buildUnsignedGiftTx({
       name: params.name,
       metadataUri: params.metadataUri,
       recipient: params.recipient,
       payer: params.payer,
       network,
-      coreCollectionAddress: params.coreCollectionAddress,
+      coreCollectionAddress,
     });
 
   return {
     txBase64,
     assetAddress,
-    coreCollectionAddress,
+    coreCollectionAddress: resolvedCore,
     pendingMint: {
       assetSecretKeyB64: secretKeyToB64(assetSecretKey),
       assetAddress,
@@ -396,7 +400,7 @@ export async function buildGiftTransaction(params: {
       metadataUri: params.metadataUri,
       recipient: params.recipient,
       payer: params.payer,
-      ...(coreCollectionAddress ? { coreCollectionAddress } : {}),
+      ...(resolvedCore ? { coreCollectionAddress: resolvedCore } : {}),
     },
   };
 }

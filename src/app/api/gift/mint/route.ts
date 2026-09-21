@@ -8,6 +8,7 @@ import { getCollection, updateCollection, saveCollection } from "@/lib/store";
 import { buildGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
 import { findGiftToken, isGiftBundle, syncGiftBundleCounts } from "@/lib/gift-bundle";
 import { giftMintName } from "@/lib/gift-metadata";
+import { tokenName } from "@/lib/collection-ui";
 import { explorerClusterQuery, parseNetwork, serverNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import {
   resetStaleMintState,
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     };
     const collectionId = String(body.collectionId || "").trim();
     const payer = String(body.payer || "").trim();
-    const network = parseNetwork(body.network);
+    const network = serverNetwork(body.network);
 
     if (!collectionId)
       return NextResponse.json({ error: "collectionId required" }, { status: 400 });
@@ -88,9 +89,16 @@ export async function POST(req: NextRequest) {
     if (!recipient || !isValidSolanaAddress(recipient))
       return NextResponse.json({ error: "Recipient address missing" }, { status: 400 });
 
-    const noteAttr = token.attributes.find((a) => a.trait_type === "Note")?.value;
-    const label = typeof noteAttr === "string" && noteAttr.trim() ? noteAttr.trim() : collection.name;
-    const nftName = giftMintName(label);
+    const nftName = isGiftBundle(collection)
+      ? giftMintName(
+          (() => {
+            const noteAttr = token.attributes.find((a) => a.trait_type === "Note")?.value;
+            const label =
+              typeof noteAttr === "string" && noteAttr.trim() ? noteAttr.trim() : collection.name;
+            return label;
+          })(),
+        )
+      : tokenName(collection, token);
 
     const txResult = await buildGiftTransaction({
       name: nftName,
@@ -98,7 +106,8 @@ export async function POST(req: NextRequest) {
       recipient,
       payer,
       network,
-      coreCollectionAddress: collection.coreCollectionAddress,
+      coreCollectionAddress:
+        collection.coreCollectionAddress ?? (isGiftBundle(collection) ? undefined : null),
     });
 
     if (!txResult) {

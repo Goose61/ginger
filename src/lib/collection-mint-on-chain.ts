@@ -1,7 +1,6 @@
 import type { Collection } from "./types";
 import { buildGiftTransaction } from "./mint-nft";
 import { tokenName } from "./collection-ui";
-import { getCoreCollectionAddress } from "./core-collection";
 import type { SolanaNetwork } from "./solana-config";
 
 /** Build Metaplex Core pending mint for a marketplace token after payment. */
@@ -19,11 +18,8 @@ export async function buildPendingMintForToken(params: {
     throw new Error("Token metadata not published — run go-live publish first");
   }
 
-  const networkCore = process.env[`CORE_COLLECTION_ADDRESS_${network.toUpperCase()}`]?.trim();
-  const coreCollectionAddress =
-    network === "mainnet"
-      ? (collection.coreCollectionAddress ?? getCoreCollectionAddress(network))
-      : (networkCore || null);
+  /** Only mint into a Core collection when this drop has its own on-chain collection. */
+  const coreCollectionAddress = collection.coreCollectionAddress ?? null;
 
   const txResult = await buildGiftTransaction({
     name: tokenName(collection, token),
