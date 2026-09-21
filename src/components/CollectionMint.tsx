@@ -52,6 +52,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [rarityFilter, setRarityFilter] = useState<OverallRarityFilter>("all");
   const [solUsd, setSolUsd] = useState<number | null>(null);
   const [platformWallet, setPlatformWallet] = useState<string | null>(null);
+  const [platformWalletReady, setPlatformWalletReady] = useState(false);
   const [visibleCount, setVisibleCount] = useState(COLLECTION_GRID_PAGE_SIZE);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -100,16 +101,36 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         if (!cancelled && data.quote?.solUsd) setSolUsd(data.quote.solUsd);
       })
       .catch(() => {});
-    void fetch("/api/network")
+    void fetch("/api/network", { cache: "no-store" })
       .then((r) => r.json())
       .then((data: { platformWallet?: string | null }) => {
-        if (!cancelled) setPlatformWallet(data.platformWallet ?? null);
+        if (!cancelled) {
+          setPlatformWallet(data.platformWallet ?? null);
+          setPlatformWalletReady(true);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setPlatformWalletReady(true);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function resolvePlatformWallet(): Promise<string | null> {
+    if (platformWallet) return platformWallet;
+    try {
+      const res = await fetch("/api/network", { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { platformWallet?: string | null };
+      const wallet = data.platformWallet ?? null;
+      setPlatformWallet(wallet);
+      setPlatformWalletReady(true);
+      return wallet;
+    } catch {
+      return null;
+    }
+  }
 
   const pendingOnChainToken = useMemo(() => {
     if (!publicKey) return null;
@@ -363,8 +384,11 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       await connect();
       return;
     }
-    if (!platformWallet) {
-      setMessage("Platform payment wallet not configured.");
+    const payTo = await resolvePlatformWallet();
+    if (!payTo) {
+      setMessage(
+        "Platform payment wallet not configured on the server (ARWEAVE_SOLANA_KEY on Vercel). Try SlicePay or refresh and retry.",
+      );
       return;
     }
     if (!collection.payments.creatorWallet) {
@@ -387,7 +411,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(publicKey),
-          toPubkey: new PublicKey(platformWallet),
+          toPubkey: new PublicKey(payTo),
           lamports: Math.ceil(quote.sol * LAMPORTS_PER_SOL),
         }),
       );
@@ -1073,11 +1097,19 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
                     {paymentMethod === "sol" && collection.payments.acceptSol ? (
                       <button
-                        disabled={busy}
+                        disabled={busy || !platformWalletReady || !platformWallet}
                         onClick={() => void payWithSol(selected)}
                         className="w-full bg-primary py-3 text-sm font-medium text-primary-foreground disabled:opacity-40"
                       >
-                        {busy ? "Processing…" : publicKey ? `Pay ${formatUsdAndSol(nftPrice(collection, selected), solUsd)}` : "Connect wallet"}
+                        {!platformWalletReady
+                          ? "Loading payment config…"
+                          : !platformWallet
+                            ? "SOL pay unavailable (server wallet not set)"
+                            : busy
+                              ? "Processing…"
+                              : publicKey
+                                ? `Pay ${formatUsdAndSol(nftPrice(collection, selected), solUsd)}`
+                                : "Connect wallet"}
                       </button>
                     ) : checkoutPending ? (
                       <>

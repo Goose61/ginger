@@ -37,15 +37,29 @@ function decodeBase58(b58: string): Uint8Array {
   return new Uint8Array(bytes.reverse());
 }
 
-export function getPlatformSecretKey(): Uint8Array | null {
-  const rawKey = process.env.ARWEAVE_SOLANA_KEY;
+function readPlatformPublicFromEnv(): string | null {
+  const explicit = process.env.PLATFORM_WALLET?.trim();
+  if (explicit) return explicit;
+  const rawKey = process.env.ARWEAVE_SOLANA_KEY?.trim();
   if (!rawKey) return null;
-  return parseSecretKey(rawKey);
+  try {
+    return Keypair.fromSecretKey(parseSecretKey(rawKey)).publicKey.toBase58();
+  } catch {
+    return null;
+  }
+}
+
+export function getPlatformSecretKey(): Uint8Array | null {
+  const rawKey = process.env.ARWEAVE_SOLANA_KEY?.trim();
+  if (!rawKey) return null;
+  try {
+    return parseSecretKey(rawKey);
+  } catch {
+    return null;
+  }
 }
 
 /** Base58 public key of the platform update authority (safe to expose to clients). */
 export function getPlatformPublicKey(): string | null {
-  const secret = getPlatformSecretKey();
-  if (!secret) return null;
-  return Keypair.fromSecretKey(secret).publicKey.toBase58();
+  return readPlatformPublicFromEnv();
 }
