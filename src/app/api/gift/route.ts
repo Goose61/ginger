@@ -23,7 +23,7 @@ import {
   giftMintName,
   sanitizeForPhantomMetadata,
 } from "@/lib/gift-metadata";
-import { explorerClusterQuery, parseNetwork } from "@/lib/solana-config";
+import { explorerClusterQuery, parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { verifyMintTransaction } from "@/lib/verify-mint";
 import { toPublicCollection } from "@/lib/public-collection";
 
@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest) {
   };
   const { collectionId, txSignature } = body;
   const tokenId = Number(body.tokenId);
-  const network = parseNetwork(body.network);
+  const network = serverNetwork(body.network);
 
   if (!collectionId || !txSignature)
     return NextResponse.json({ error: "collectionId and txSignature required" }, { status: 400 });

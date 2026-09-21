@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { committedCount, getCollection, updateCollection } from "@/lib/store";
-import { explorerClusterQuery, parseNetwork } from "@/lib/solana-config";
+import { explorerClusterQuery, serverNetwork } from "@/lib/solana-config";
 import { verifyMintTransaction } from "@/lib/verify-mint";
 import { applySaleTreasury } from "@/lib/milestones";
 import { toPublicCollection } from "@/lib/public-collection";
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const body = await req.json();
     const txSignature = String(body.txSignature || "").trim();
-    const network = parseNetwork(body.network);
+    const network = serverNetwork(body.network);
 
     if (!txSignature) {
       return NextResponse.json({ error: "txSignature required" }, { status: 400 });

@@ -98,9 +98,17 @@ export function isDevnetNetwork(network?: SolanaNetwork): boolean {
   return (network ?? getSolanaNetwork()) === "devnet";
 }
 
-/** Solana Explorer `?cluster=` query suffix for the active network. */
+/** Solana Explorer `?cluster=` query suffix for the active network. Mainnet omits the param. */
 export function explorerClusterQuery(network?: SolanaNetwork): string {
   return isDevnetNetwork(network) ? "?cluster=devnet" : "";
+}
+
+export function solanaExplorerAddressUrl(address: string, network?: SolanaNetwork): string {
+  return `https://explorer.solana.com/address/${address}${explorerClusterQuery(network)}`;
+}
+
+export function solanaExplorerTxUrl(signature: string, network?: SolanaNetwork): string {
+  return `https://explorer.solana.com/tx/${signature}${explorerClusterQuery(network)}`;
 }
 
 let clientNetworkCache: SolanaNetwork | null = null;

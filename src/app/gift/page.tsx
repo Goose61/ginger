@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useWallet } from "@/components/WalletProvider";
-import { explorerClusterQuery, getClientNetwork } from "@/lib/solana-config";
+import { getClientNetwork } from "@/lib/solana-config";
+import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { uploadGiftWithPhantom } from "@/lib/irys-client";
 import { readJsonResponse } from "@/lib/fetch-json";
 import { buildGiftMetadataForUpload, GIFT_NAME, parseGiftMetadataFile } from "@/lib/gift-metadata";
@@ -68,6 +69,7 @@ type BalanceCheck = {
 
 export default function GiftPage() {
   const { publicKey, connecting, connect, signMintTx } = useWallet();
+  const explorerCluster = useExplorerCluster();
 
   const [file, setFile] = useState<File | null>(null);
   const [imagePayload, setImagePayload] = useState<ImagePayload | null>(null);
@@ -377,7 +379,6 @@ export default function GiftPage() {
   }
 
   if (result) {
-    const cluster = explorerClusterQuery();
     return (
       <main className="container mx-auto max-w-2xl px-4 py-16 text-center">
         <div className="text-6xl mb-4">{result.onChain ? "🎁" : "📋"}</div>
@@ -410,7 +411,7 @@ export default function GiftPage() {
                 <p className="font-mono text-xs text-white break-all">{result.assetAddress}</p>
               </div>
               <a
-                href={`https://explorer.solana.com/address/${result.assetAddress}${cluster}`}
+                href={`https://explorer.solana.com/address/${result.assetAddress}${explorerCluster}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block rounded border border-white/10 bg-white/5 px-4 py-3 text-sm text-primary hover:border-primary/40"
@@ -421,7 +422,7 @@ export default function GiftPage() {
           )}
           {result.txSignature && (
             <a
-              href={`https://explorer.solana.com/tx/${result.txSignature}${cluster}`}
+              href={`https://explorer.solana.com/tx/${result.txSignature}${explorerCluster}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded border border-white/10 bg-white/5 px-4 py-3 text-sm text-primary hover:border-primary/40"

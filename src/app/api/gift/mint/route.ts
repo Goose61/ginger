@@ -8,7 +8,7 @@ import { getCollection, updateCollection, saveCollection } from "@/lib/store";
 import { buildGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
 import { findGiftToken, isGiftBundle, syncGiftBundleCounts } from "@/lib/gift-bundle";
 import { giftMintName } from "@/lib/gift-metadata";
-import { explorerClusterQuery, parseNetwork, type SolanaNetwork } from "@/lib/solana-config";
+import { explorerClusterQuery, parseNetwork, serverNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import {
   resetStaleMintState,
   txSignatureFromMintUrl,
@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest) {
     };
     const { collectionId, txSignature } = body;
     const tokenId = Number(body.tokenId);
-    const network = parseNetwork(body.network);
+    const network = serverNetwork(body.network);
 
     if (!collectionId || !txSignature)
       return NextResponse.json({ error: "collectionId and txSignature required" }, { status: 400 });

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken } from "@/lib/types";
 import { useWallet, networkName } from "./WalletProvider";
-import { explorerClusterQuery } from "@/lib/solana-config";
+import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
 import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
 import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityRankByTokenId, tokenOverallRarity, tokenRarityRank } from "@/lib/rarity";
@@ -76,6 +76,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const remaining = stats.available;
   const visibleTokens = tokens.slice(0, visibleCount);
   const logoSrc = logoImageSrc(collection);
+  const explorerCluster = useExplorerCluster();
   const fees = collection.fees;
   const buybackTreasuryWallet =
     collection.buybackTreasuryWallet?.trim() ||
@@ -654,7 +655,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 SPL from each buyback lands in this wallet.
               </p>
               <a
-                href={`https://explorer.solana.com/address/${buybackTreasuryWallet}${explorerClusterQuery()}`}
+                href={`https://explorer.solana.com/address/${buybackTreasuryWallet}${explorerCluster}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 block break-all font-mono text-xs text-white/80 hover:text-[#f5c542] hover:underline"
@@ -932,7 +933,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                     )}
                     {selected.assetAddress && (
                       <a
-                        href={`https://explorer.solana.com/address/${selected.assetAddress}${explorerClusterQuery()}`}
+                        href={`https://explorer.solana.com/address/${selected.assetAddress}${explorerCluster}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block text-primary hover:underline"
