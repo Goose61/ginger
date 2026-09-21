@@ -93,3 +93,42 @@ export function isMobileDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
+
+/** True when the page runs inside a wallet's in-app browser (provider injected). */
+export function isInWalletBrowser(id: WalletOptionId): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as Window & {
+    solana?: { isPhantom?: boolean };
+    phantom?: { solana?: { isPhantom?: boolean } };
+    solflare?: { isSolflare?: boolean };
+    backpack?: unknown;
+  };
+  switch (id) {
+    case "phantom":
+      return Boolean(w.phantom?.solana?.isPhantom || w.solana?.isPhantom);
+    case "solflare":
+      return Boolean(w.solflare?.isSolflare);
+    case "backpack":
+      return Boolean(w.backpack);
+    case "metamask":
+      return Boolean(navigator.userAgent.endsWith("MetaMaskMobile"));
+    default:
+      return false;
+  }
+}
+
+/**
+ * Opens the current page in a wallet's in-app browser.
+ * Must run synchronously inside a user click — universal links fail when
+ * triggered from async callbacks (Safari / iOS).
+ */
+export function openWalletBrowseUrl(id: WalletOptionId, pageUrl: string): void {
+  const href = buildWalletBrowseUrl(id, pageUrl);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.rel = "noopener noreferrer";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+}

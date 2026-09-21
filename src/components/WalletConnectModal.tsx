@@ -14,7 +14,9 @@ import {
 import {
   WALLET_OPTIONS,
   buildWalletBrowseUrl,
+  isInWalletBrowser,
   isMobileDevice,
+  openWalletBrowseUrl,
   type WalletOptionId,
 } from "@/lib/connect-wallets";
 
@@ -80,13 +82,13 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
     return wallets.find((w) => adapterNames.includes(w.adapter.name));
   }
 
-  function canConnect(adapterNames: string[]) {
+  function canConnect(id: WalletOptionId, adapterNames: string[]) {
     const w = matchWallet(adapterNames);
     if (!w) return false;
-    return (
-      w.readyState === WalletReadyState.Installed ||
-      w.readyState === WalletReadyState.Loadable
-    );
+    if (w.readyState === WalletReadyState.Installed) return true;
+    // On mobile Safari/Chrome, Loadable wallets need the in-app browser — not adapter connect.
+    if (mobile && !isInWalletBrowser(id)) return false;
+    return w.readyState === WalletReadyState.Loadable;
   }
 
   function pick(id: WalletOptionId, adapterNames: string[], installUrl: string) {
@@ -94,14 +96,23 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
 
     setError(null);
     const w = matchWallet(adapterNames);
-    if (w && (w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable)) {
+    const installed = w?.readyState === WalletReadyState.Installed;
+
+    // Mobile external browser: open in wallet app on tap (user gesture required for universal links).
+    if (mobile && pageUrl && !installed && !isInWalletBrowser(id)) {
+      openWalletBrowseUrl(id, pageUrl);
+      return;
+    }
+
+    if (w && (installed || w.readyState === WalletReadyState.Loadable)) {
       const name = w.adapter.name as WalletName;
       setPickedWallet(name);
       select(name);
       return;
     }
+
     if (mobile && pageUrl) {
-      window.location.href = buildWalletBrowseUrl(id, pageUrl);
+      openWalletBrowseUrl(id, pageUrl);
       return;
     }
     window.open(installUrl, "_blank", "noopener,noreferrer");
@@ -126,9 +137,9 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
           <DialogTitle>Connect wallet</DialogTitle>
           <DialogDescription className="text-white/60">
             {busy
-              ? "Approve the connection in your wallet extension…"
+              ? "Approve the connection in your wallet…"
               : mobile
-                ? "Open this site in a wallet app, or connect if you are already inside one."
+                ? "Tap a wallet to open this page in its app, then connect again. MetaMask and Solflare only work inside their in-app browser on mobile."
                 : "Choose a Solana wallet to sign in and approve transactions."}
           </DialogDescription>
         </DialogHeader>
@@ -142,11 +153,14 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
         <div className="grid grid-cols-1 gap-2">
           {WALLET_OPTIONS.map((opt) => {
             const w = matchWallet(opt.adapterNames);
-            const ready = canConnect(opt.adapterNames);
+            const ready = canConnect(opt.id, opt.adapterNames);
+            const inApp = isInWalletBrowser(opt.id);
             const hint = busy && pickedWallet && w?.adapter.name === pickedWallet
               ? "Waiting for approval…"
               : ready
-                ? "Detected — tap to connect"
+                ? inApp
+                  ? "In-app browser — tap to connect"
+                  : "Detected — tap to connect"
                 : mobile
                   ? "Open in app"
                   : "Install extension";

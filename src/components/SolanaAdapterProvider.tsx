@@ -24,9 +24,12 @@ import {
  */
 export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
   const [endpoint, setEndpoint] = useState(SOLANA_RPC_DEVNET);
+  const [metamaskReady, setMetamaskReady] = useState(false);
+
   useEffect(() => {
     void getClientNetwork().then((network) => setEndpoint(getRpcUrl(network)));
   }, []);
+
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new BackpackWalletAdapter()],
     [],
@@ -46,10 +49,16 @@ export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
             process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEVNET ?? SOLANA_RPC_DEVNET,
         },
       },
-    }).catch((err) => {
-      console.warn("[wallet] MetaMask Solana client failed to register", err);
-    });
+    })
+      .catch((err) => {
+        console.warn("[wallet] MetaMask Solana client failed to register", err);
+      })
+      .finally(() => setMetamaskReady(true));
   }, []);
+
+  if (!metamaskReady) {
+    return null;
+  }
 
   return (
     <ConnectionProvider endpoint={endpoint}>
