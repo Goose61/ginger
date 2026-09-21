@@ -77,6 +77,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const visibleTokens = tokens.slice(0, visibleCount);
   const logoSrc = logoImageSrc(collection);
   const fees = collection.fees;
+  const buybackTreasuryWallet =
+    collection.buybackTreasuryWallet?.trim() ||
+    collection.payments.creatorWallet?.trim() ||
+    null;
   const socials = collection.socials ?? {};
 
   const [mintBusy, setMintBusy] = useState(false);
@@ -643,6 +647,22 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             <FeeRow color="bg-white" label="Holders" percent={fees.holdersPercent} note="Shared with current holders" />
             <FeeRow color="bg-[#f5c542]" label="Buyback" percent={fees.buybackPercent} note="Platform swaps this share into the creator treasury SPL" />
           </ul>
+          {fees.buybackPercent > 0 && buybackTreasuryWallet && (
+            <div className="mt-4 rounded-xl border border-[#f5c542]/25 bg-[#f5c542]/5 px-3 py-2.5">
+              <p className="text-xs font-medium text-[#f5c542]">Buyback treasury wallet</p>
+              <p className="mt-1 text-xs text-white/50">
+                SPL from each buyback lands in this wallet.
+              </p>
+              <a
+                href={`https://explorer.solana.com/address/${buybackTreasuryWallet}${explorerClusterQuery()}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block break-all font-mono text-xs text-white/80 hover:text-[#f5c542] hover:underline"
+              >
+                {buybackTreasuryWallet}
+              </a>
+            </div>
+          )}
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50">
             <p className="font-medium text-white/70">Ginger marketplace (fixed)</p>
             <p className="mt-1">Primary: {PRIMARY_PLATFORM_FEE_PERCENT}% + {PRIMARY_TRADE_TAX_PERCENT}% trade tax ({PRIMARY_PLATFORM_TOTAL_PERCENT}% total)</p>
