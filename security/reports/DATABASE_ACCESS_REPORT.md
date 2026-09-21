@@ -1,35 +1,27 @@
-# Database Access Security Report
+# DATABASE_ACCESS Security Report
 
-## Status: MEDIUM → FIXED
+## Status: MEDIUM
 
 ## Findings
 
-**Before**: All data was in a plain JSON file (`data/collections.json`) on disk with no
-access control, no encryption at rest, and a single-instance mutex that would fail under
-concurrent Vercel serverless invocations.
+This app uses **MongoDB Atlas**, not Supabase/Firebase RLS.
 
-**After**: MongoDB Atlas replaces the JSON file. Atlas provides:
-- Encryption at rest (AES-256).
-- Network access control (IP allowlist).
-- Role-based database users.
-- TLS in transit.
+- Connection is server-side only via `MONGODB_URI` (`src/lib/db.ts`). There is no anon key in the frontend.
+- Collections: `collections`, `rate_limits`, `invoices`, `spent_sol_signatures`. Unique indexes on `id` / invoice ids.
+- There is no Mongo equivalent of RLS. **Every API that can reach Atlas can read/write whatever the driver user is allowed.** Authorization is entirely in route handlers.
+- `.env.example` still documents Atlas Network Access `0.0.0.0/0`, which is common for Vercel but means a leaked URI is enough.
+
+## What's at risk
+
+A leaked `MONGODB_URI` is full database takeover (collections, invoices, rate-limit docs).
 
 ## What's already secure
 
-- No SQL — no SQL injection risk.
-- No Supabase/Firebase RLS to configure.
-- MongoDB Atlas free tier includes all security features above.
+- No public database SDK in the browser.
+- Queries use document fields (`id`, `slug`), not concatenated query strings.
 
-## Fixes applied
+## Recommendations
 
-- `src/lib/db.ts` — MongoDB connection singleton with dev/prod caching.
-- `src/lib/store.ts` — Complete rewrite using MongoDB `findOne`, `replaceOne` (upsert).
-  Unique index on `id`, secondary index on `slug`.
-- `MONGODB_URI` added to `.env.example` with full setup instructions.
-
-## Manual action required
-
-In MongoDB Atlas:
-1. Network Access → Add IP address → `0.0.0.0/0` (or Vercel's IP range for stricter security).
-2. Database Access → Add database user → role: `readWrite` on database `crypgo`.
-3. Connect → Drivers → copy the connection string into `MONGODB_URI`.
+1. Atlas user with least privilege on database `crypgo` only.
+2. Restrict Network Access if you can pin Vercel egress; otherwise treat URI as crown-jewel secret.
+3. Keep application auth on every write (see ACCESS_CONTROL).

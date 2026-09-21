@@ -71,6 +71,8 @@ export function middleware(req: NextRequest) {
       "frame-src https://dexscreener.com https://pay.slicechain.io",
       "frame-ancestors 'none'",
       "base-uri 'self'",
+      "form-action 'self' https://pay.slicechain.io",
+      "object-src 'none'",
     ].join("; "),
   );
   res.headers.set("X-Frame-Options", "DENY");

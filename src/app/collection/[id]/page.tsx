@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getCollection } from "@/lib/store";
-import { toPublicCollection } from "@/lib/public-collection";
+import { isListedPublicly, toPublicCollection } from "@/lib/public-collection";
 import { CollectionMint } from "@/components/CollectionMint";
 import { getSolanaNetwork } from "@/lib/solana-config";
 import {
@@ -20,7 +20,7 @@ export default async function CollectionPage({
   const { id } = await params;
   let collection = await getCollection(id);
   if (!collection) notFound();
-  if (collection.status === "draft" || collection.status === "importing") {
+  if (!isListedPublicly(collection)) {
     notFound();
   }
 

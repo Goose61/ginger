@@ -1,37 +1,37 @@
-# Security Headers Security Report
+# SECURITY_HEADERS Security Report
 
-## Status: HIGH → FIXED
+## Status: MEDIUM
 
 ## Findings
 
-`next.config.ts` had no `headers()` configuration. No middleware set any security headers.
-All five critical headers were missing on every response.
+Live scan of https://www.gingernft.store (matches `src/middleware.ts`):
+
+| Check | Result |
+|-------|--------|
+| CSP `default-src 'self'` | PASS |
+| CSP `script-src` `'unsafe-inline'` + `'unsafe-eval'` | FAIL |
+| CSP `object-src` missing | FAIL → **fixed in code** (`none`) |
+| CSP `form-action` missing | FAIL → **fixed in code** (`'self'` + SlicePay) |
+| CSP `frame-ancestors 'none'` | PASS |
+| HSTS 63072000 includeSubDomains preload | PASS |
+| X-Frame-Options DENY | PASS |
+| X-Content-Type-Options nosniff | PASS |
+| Referrer-Policy | PASS |
+| Static `/_next/static` missing some headers | WARN → `next.config.ts` `headers()` added |
+
+`script-src` still allows `'unsafe-inline'` and `'unsafe-eval'` because Next.js + wallet adapters historically need them. That is the remaining CSP gap vs vibe-check baseline.
+
+HSTS `preload` is already on production. Only keep it if every subdomain is HTTPS.
 
 ## What's at risk
 
-- No `X-Frame-Options` → clickjacking (attacker embeds your app in an iframe).
-- No `Content-Security-Policy` → XSS attack surface expanded.
-- No `X-Content-Type-Options` → MIME sniffing attacks on uploaded files.
-- No `Referrer-Policy` → wallet addresses in query params could leak via Referer header.
-- No `Strict-Transport-Security` → HTTPS downgrade attacks possible.
+XSS is not contained by CSP if an injection exists. Plugin/`form-action` gaps are addressed locally pending deploy.
 
-## Fixes applied
+## What's already secure
 
-`src/middleware.ts` sets all five headers on every response:
+HSTS, framing, nosniff, referrer, Permissions-Policy.
 
-```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://gateway.irys.xyz https://arweave.net https://blob.vercel-storage.com; connect-src 'self' https://api.slicechain.io https://pay.slicechain.io https://api.coingecko.com https://blob.vercel-storage.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-Referrer-Policy: strict-origin-when-cross-origin
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-Permissions-Policy: camera=(), microphone=(), geolocation=()
-```
+## Recommendations
 
-Headers are set in a single global middleware, not per-route.
-
-## Verification goals
-
-- [x] All five headers present on every response
-- [x] Headers set via a single global middleware
-- [ ] Run `curl -I https://your-app.vercel.app` and verify all headers present after deploy
+1. Deploy middleware + next.config changes.
+2. Later: nonce CSP as `Content-Security-Policy-Report-Only`, then drop `unsafe-eval`.

@@ -15,13 +15,14 @@ import { isValidSolanaAddress, prepareGiftTransactionForSigning } from "@/lib/mi
 import { resolvePendingMint } from "@/lib/gift-pending";
 import { serverNetwork } from "@/lib/solana-config";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+    const ip = getClientIp(req);
     const rl = await rateLimit(`gift-prepare-sign:${ip}`, 60, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });

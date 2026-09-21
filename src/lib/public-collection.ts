@@ -1,6 +1,8 @@
 import type { Collection, PendingCoreCollection, PendingMint } from "./types";
+import { isHiddenFromMarket } from "./hidden-from-market";
 
 export function isListedPublicly(collection: Collection): boolean {
+  if (isHiddenFromMarket(collection)) return false;
   return collection.status === "live" || collection.status === "sold_out";
 }
 

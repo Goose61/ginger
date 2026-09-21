@@ -7,7 +7,22 @@ type SpentSolSignature = {
   spentAt: Date;
 };
 
-/** Verify a SOL transfer to the expected recipient meets the minimum amount. */
+const MAX_PAYMENT_AGE_SEC = 20 * 60;
+
+type ParsedIx = {
+  program?: string;
+  parsed?: { type?: string; info?: { destination?: string; lamports?: number | string } };
+};
+
+function transferLamportsTo(ix: ParsedIx, recipient: string): number {
+  if (ix.program !== "system") return 0;
+  const type = ix.parsed?.type;
+  if (type !== "transfer" && type !== "transferWithSeed") return 0;
+  if (ix.parsed?.info?.destination !== recipient) return 0;
+  return Number(ix.parsed.info?.lamports ?? 0);
+}
+
+/** Verify a recent SOL transfer instruction to the expected recipient. */
 export async function verifySolPayment(
   signature: string,
   recipient: string,
@@ -26,18 +41,23 @@ export async function verifySolPayment(
       return { ok: false, error: "Transaction failed or not found" };
     }
 
-    const recipientPk = new PublicKey(recipient);
-    const accountKeys = tx.transaction.message.accountKeys.map((k) => k.pubkey.toBase58());
-    const recipientIdx = accountKeys.indexOf(recipientPk.toBase58());
-    if (recipientIdx < 0) {
-      return { ok: false, error: "Recipient not in transaction" };
+    const nowSec = Date.now() / 1000;
+    if (!tx.blockTime || nowSec - tx.blockTime > MAX_PAYMENT_AGE_SEC) {
+      return { ok: false, error: "Payment is too old" };
     }
 
-    const pre = tx.meta.preBalances[recipientIdx] ?? 0;
-    const post = tx.meta.postBalances[recipientIdx] ?? 0;
-    const received = post - pre;
-    if (received < minLamports) {
-      return { ok: false, error: "Insufficient SOL received" };
+    const dest = new PublicKey(recipient).toBase58();
+    let transferred = 0;
+    for (const ix of tx.transaction.message.instructions) {
+      transferred += transferLamportsTo(ix as ParsedIx, dest);
+    }
+    for (const inner of tx.meta.innerInstructions ?? []) {
+      for (const ix of inner.instructions) {
+        transferred += transferLamportsTo(ix as ParsedIx, dest);
+      }
+    }
+    if (transferred < minLamports) {
+      return { ok: false, error: "No matching SOL transfer to platform wallet" };
     }
     return { ok: true };
   } catch (e) {

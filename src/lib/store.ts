@@ -1,6 +1,7 @@
 import { getCollectionsCol } from "./db";
 import type { Collection } from "./types";
 import { tokenIsCommitted } from "./public-collection";
+import { isHiddenFromMarket } from "./hidden-from-market";
 
 function asCollection(doc: Collection & { _id?: unknown }): Collection {
   const { _id, ...rest } = doc;
@@ -16,7 +17,13 @@ export async function listCollections(): Promise<Collection[]> {
 
 /** Header “Dashboard” link — tiny projection, no tokens. */
 export async function listCollectionNav(): Promise<
-  { id: string; status: Collection["status"]; payments: { creatorWallet?: string } }[]
+  {
+    id: string;
+    slug?: string;
+    name?: string;
+    status: Collection["status"];
+    payments: { creatorWallet?: string };
+  }[]
 > {
   const col = await getCollectionsCol();
   const docs = await col
@@ -26,6 +33,8 @@ export async function listCollectionNav(): Promise<
         projection: {
           _id: 0,
           id: 1,
+          slug: 1,
+          name: 1,
           status: 1,
           "payments.creatorWallet": 1,
         },
@@ -34,6 +43,8 @@ export async function listCollectionNav(): Promise<
     .toArray();
   return docs.map((doc) => ({
     id: doc.id,
+    slug: doc.slug,
+    name: doc.name,
     status: doc.status,
     payments: { creatorWallet: doc.payments?.creatorWallet },
   }));
@@ -66,7 +77,7 @@ export async function listCollectionsForMarket(): Promise<Collection[]> {
       },
     )
     .toArray();
-  return docs.map(asCollection);
+  return docs.map(asCollection).filter((c) => !isHiddenFromMarket(c));
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {

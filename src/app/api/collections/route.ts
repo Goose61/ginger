@@ -2,19 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCollection, listCollectionNav, listCollections, saveCollection, slugify } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
 import { readAuthHeaders, assertCreatorAuth } from "@/lib/wallet-auth";
-import { filterCollectionsForViewer, toPublicCollection, toPublicListCollection } from "@/lib/public-collection";
+import { filterCollectionsForViewer, isListedPublicly, toPublicCollection, toPublicListCollection } from "@/lib/public-collection";
 import type { Collection } from "@/lib/types";
 import { getQuote } from "@/lib/quotes";
 import { verifySolPayment, consumeSolSignature } from "@/lib/verify-payment";
 import { getPlatformPublicKey } from "@/lib/platform-key";
 import { parseNetwork } from "@/lib/solana-config";
 import { FEATURE_ON_MARKET_DAYS, FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
+import { getClientIp } from "@/lib/request-ip";
 
 export async function GET(req: NextRequest) {
   try {
     const view = req.nextUrl.searchParams.get("view");
     if (view === "nav") {
-      return NextResponse.json({ collections: await listCollectionNav() });
+      const nav = await listCollectionNav();
+      return NextResponse.json({
+        collections: nav.filter((c) => isListedPublicly(c as Collection)),
+      });
     }
     const auth = readAuthHeaders(req);
     const collections = await listCollections();
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  const ip = getClientIp(req);
   const rl = await rateLimit(`collections:${ip}`, 30, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -69,13 +73,25 @@ export async function POST(req: NextRequest) {
   const {
     pendingMint: _pendingMint,
     pendingZipUrl: _pendingZipUrl,
+    pendingCoreCollection: _pendingCoreCollection,
     tokens: _tokens,
     featuredUntil: _featuredUntil,
     featureOnMarket: _featureOnMarket,
     featuredTxSignature: _featuredTxSignature,
     network: _network,
+    status: _status,
+    mintedCount: _mintedCount,
+    feeLedger: _feeLedger,
+    feeClaimsOpen: _feeClaimsOpen,
+    treasuryBuybackActive: _treasuryBuybackActive,
     ...safeBody
   } = body;
+  void _pendingCoreCollection;
+  void _status;
+  void _mintedCount;
+  void _feeLedger;
+  void _feeClaimsOpen;
+  void _treasuryBuybackActive;
   void _pendingMint;
   void _pendingZipUrl;
   void _tokens;
@@ -116,7 +132,12 @@ export async function POST(req: NextRequest) {
     revealAtPercent: body.revealAtPercent ?? existing.revealAtPercent,
     blindMint: body.blindMint ?? existing.blindMint,
     launchDraft: body.launchDraft ?? existing.launchDraft,
-    tokens: Array.isArray(body.tokens) ? body.tokens : existing.tokens,
+    tokens:
+      existing.status === "live" || existing.status === "sold_out"
+        ? existing.tokens
+        : Array.isArray(body.tokens)
+          ? body.tokens
+          : existing.tokens,
     pendingMint: existing.pendingMint,
     pendingZipUrl: existing.pendingZipUrl,
   };

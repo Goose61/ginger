@@ -1,98 +1,73 @@
 # Security Audit Summary
 
-Date: 2026-08-20
+Date: 2026-09-21
+
+Source: [benavlabs/vibe-check](https://github.com/benavlabs/vibe-check) (`vibe-check-main` in this workspace).
+
+Live scan (read-only GET/HEAD/OPTIONS):
+
+| Target | Result |
+|--------|--------|
+| https://gingernft.store → https://www.gingernft.store | 4 FAIL, 2 WARN, 15 PASS |
+| https://www.thecrust.io | 4 FAIL, 1 WARN, 14 PASS (marketing site; same CSP gaps) |
+
+Sensitive files (`.env`, `.git`, dumps) are **not** served on production. No public source maps. CORS is not wildcard. Debug/API-docs endpoints are not exposed.
+
+`gitleaks` and `semgrep` are **not installed**. `npm audit --omit=dev` reported **2 critical / 23 high** (mostly transitive: Next.js Windows RCE, protobufjs via Trezor, sharp/libvips, bigint-buffer).
 
 ## Results
 
-| # | Category | Status | Report |
-|---|----------|--------|--------|
-| 1 | SECRETS_EXPOSURE | HIGH → **FIXED** | [report](reports/SECRETS_EXPOSURE_REPORT.md) |
-| 2 | DATABASE_ACCESS | MEDIUM → **FIXED** | [report](reports/DATABASE_ACCESS_REPORT.md) |
-| 3 | AUTH_MIDDLEWARE | CRITICAL → **PARTIALLY MITIGATED** | [report](reports/AUTH_MIDDLEWARE_REPORT.md) |
-| 4 | ACCESS_CONTROL | CRITICAL → **PARTIALLY MITIGATED** | [report](reports/AUTH_MIDDLEWARE_REPORT.md) |
-| 5 | FRONTEND_SECRETS | **PASS** | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 6 | SSRF | LOW | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 7 | CSRF | LOW | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 8 | SECURITY_HEADERS | HIGH → **FIXED** | [report](reports/SECURITY_HEADERS_REPORT.md) |
-| 9 | CORS | MEDIUM → **FIXED** | [report](reports/CORS_REPORT.md) |
-| 10 | RATE_LIMITING | HIGH → **FIXED** | [report](reports/RATE_LIMITING_REPORT.md) |
-| 11 | SQL_INJECTION | **N/A (PASS)** | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 12 | XSS | LOW → **FIXED** | [report](reports/XSS_REPORT.md) |
-| 13 | PAYMENT_WEBHOOKS | CRITICAL → **PARTIALLY MITIGATED** | [report](reports/AUTH_MIDDLEWARE_REPORT.md) |
-| 14 | FILE_UPLOADS | MEDIUM → **FIXED** | [report](reports/FILE_UPLOADS_REPORT.md) |
-| 15 | ERROR_HANDLING | MEDIUM → **PARTIALLY FIXED** | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 16 | PASSWORD_HASHING | **N/A** | [report](reports/PASS_CATEGORIES_REPORT.md) |
-| 17 | DEPENDENCIES | MEDIUM | [report](reports/PASS_CATEGORIES_REPORT.md) |
+| # | Category | Status | Report | Plan |
+|---|----------|--------|--------|------|
+| 1 | SECRETS_EXPOSURE | HIGH | [report](reports/SECRETS_EXPOSURE_REPORT.md) | [plan](plans/SECRETS_EXPOSURE_PLAN.md) |
+| 2 | DATABASE_ACCESS | MEDIUM | [report](reports/DATABASE_ACCESS_REPORT.md) | [plan](plans/DATABASE_ACCESS_PLAN.md) |
+| 3 | AUTH_MIDDLEWARE | HIGH | [report](reports/AUTH_MIDDLEWARE_REPORT.md) | [plan](plans/AUTH_MIDDLEWARE_PLAN.md) |
+| 4 | ACCESS_CONTROL | HIGH | [report](reports/ACCESS_CONTROL_REPORT.md) | [plan](plans/ACCESS_CONTROL_PLAN.md) |
+| 5 | FRONTEND_SECRETS | PASS | [report](reports/FRONTEND_SECRETS_REPORT.md) | — |
+| 6 | SSRF | MEDIUM | [report](reports/SSRF_REPORT.md) | [plan](plans/SSRF_PLAN.md) |
+| 7 | CSRF | PASS | [report](reports/CSRF_REPORT.md) | — |
+| 8 | SECURITY_HEADERS | MEDIUM | [report](reports/SECURITY_HEADERS_REPORT.md) | [plan](plans/SECURITY_HEADERS_PLAN.md) |
+| 9 | CORS | PASS | [report](reports/CORS_REPORT.md) | — |
+| 10 | RATE_LIMITING | MEDIUM | [report](reports/RATE_LIMITING_REPORT.md) | [plan](plans/RATE_LIMITING_PLAN.md) |
+| 11 | SQL_INJECTION | PASS | [report](reports/SQL_INJECTION_REPORT.md) | — |
+| 12 | XSS | PASS | [report](reports/XSS_REPORT.md) | — |
+| 13 | PAYMENT_WEBHOOKS | HIGH | [report](reports/PAYMENT_WEBHOOKS_REPORT.md) | [plan](plans/PAYMENT_WEBHOOKS_PLAN.md) |
+| 14 | FILE_UPLOADS | MEDIUM | [report](reports/FILE_UPLOADS_REPORT.md) | [plan](plans/FILE_UPLOADS_PLAN.md) |
+| 15 | ERROR_HANDLING | MEDIUM | [report](reports/ERROR_HANDLING_REPORT.md) | [plan](plans/ERROR_HANDLING_PLAN.md) |
+| 16 | PASSWORD_HASHING | N/A | [report](reports/PASSWORD_HASHING_REPORT.md) | — |
+| 17 | DEPENDENCIES | HIGH | [report](reports/DEPENDENCIES_REPORT.md) | [plan](plans/DEPENDENCIES_PLAN.md) |
 
----
+## Critical issues
 
-## What was built (production readiness)
+Nothing in this pass is an unauthenticated “read all user data from Supabase” style leak. The issues that can move **real SOL / NFTs** if left unfixed:
 
-### MongoDB Atlas
-- `src/lib/db.ts` — connection singleton (dev caching + prod fresh client)
-- `src/lib/store.ts` — full rewrite using MongoDB (`findOne`, `replaceOne` upsert)
-- Unique index on `id`, secondary index on `slug`
+1. **Rotate `ARWEAVE_SOLANA_KEY` and the MongoDB password now.** They live in local `.env.local` (gitignored). The previous audit already flagged the platform key as having been visible in plaintext. Do not reuse that key in production.
+2. **SOL payment proofs used to accept any historical inbound transfer** to the platform wallet (balance delta only). Code now requires a recent System Program transfer to the platform address. **Redeploy before taking mainnet SOL mints.**
+3. **Unauthenticated `execute_buyback` / `distribute_holder_rewards`** could spend platform SOL. Creator wallet auth is now required. **Redeploy.**
+4. **Draft collections were enumerable** via `GET /api/collections?view=nav` and readable by UUID. Draft GET now 404s unless the creator is signed in; nav only returns live/sold-out. **Redeploy.**
 
-### Vercel Blob file storage
-- `src/lib/blob-storage.ts` — `uploadBlob`, `uploadBlobText`, `downloadBlobToTmp`, `deleteBlob`
-- Local filesystem fallback when `BLOB_READ_WRITE_TOKEN` is not set (dev)
-- `src/app/api/assets-blob/[...path]/route.ts` — dev fallback server
+Gift mint/cosign and SlicePay webhook shared-secret quality still need follow-up (see plans).
 
-### Compositor (Vercel-compatible)
-- `src/lib/compositor.ts` — generates images to `/tmp`, uploads to Blob, stores URLs on tokens
-- Layer files stored in Blob with `blobUrl` on each `LayerCatalog.values` entry
-- `downloadBlobToTmp` fetches layer files to `/tmp` before generation
+## Fixes applied in this audit (local; unverified until deployed)
 
-### Security middleware
-- `src/middleware.ts` — CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CORS
+- CSP: `object-src 'none'`, `form-action 'self' https://pay.slicechain.io`
+- `poweredByHeader: false` and host-level security headers in `next.config.ts`
+- Timing-safe compares for SlicePay webhook and blob purge secrets
+- Rate-limit IP uses Vercel-trusted headers
+- Image-thumb rejects redirects off the allowlist
+- Solana RPC proxy: rate limit + 256 KB body cap
+- SlicePay `redirectUrl` allowlisted to app origins
+- Live collections can no longer have `tokens` / `status` / fee ledger overwritten via generic POST
+- `AGENTS.md` copied into the app root for future AI edits
 
-### Rate limiting
-- `src/lib/rate-limit.ts` — MongoDB sliding window, works across serverless instances
+## Remaining manual verification
 
-### File upload hardening
-- Magic byte validation on logo and gift image endpoints
-- Server-side size limits on all 4 upload endpoints (10–500 MB depending on type)
+See [manual-checklist.md](../../../vibe-check-main/manual-checklist.md). Highest priority:
 
----
-
-## Credentials to add to Vercel project
-
-Go to your Vercel project → Settings → Environment Variables and add:
-
-| Variable | Required | Description |
-|---|---|---|
-| `MONGODB_URI` | ✅ Yes | MongoDB Atlas connection string |
-| `BLOB_READ_WRITE_TOKEN` | ✅ Yes | Vercel Blob token (create via Project → Storage → Blob) |
-| `ALLOWED_ORIGINS` | ✅ Yes | Comma-separated production domains |
-| `ARWEAVE_SOLANA_KEY` | Optional | Solana key for Irys/Arweave publishing |
-| `SLICEPAY_MERCHANT_ID` | Optional | SlicePay merchant ID |
-| `SLICEPAY_API_KEY` | Optional | SlicePay API key |
-
----
-
-## Remaining manual actions (in priority order)
-
-### Immediate (before going live)
-1. **Rotate `ARWEAVE_SOLANA_KEY`** — the current key was visible in `.env.local` in plain text.
-   Create a new Solana wallet, update the key everywhere.
-
-2. **Remove `@solana/web3.js`** from `package.json` — it is a dead dependency (never imported).
-   Run `pnpm remove @solana/web3.js`.
-
-3. **Run dependency audit** — `pnpm audit` and fix any critical/high CVEs.
-
-### Next sprint (wallet signature auth)
-4. **Implement wallet signature verification** for creator operations.
-   See `security/reports/AUTH_MIDDLEWARE_REPORT.md` for the full implementation plan.
-   Until this is done, any user who knows a collection's `id` can modify it.
-
-5. **Implement payment verification** before minting.
-   The mint endpoint currently accepts mints without verifying SlicePay payment.
-   Add a `confirmedInvoiceId` field to the mint request and verify it against the SlicePay API.
-
-### Testing
-6. Verify all security headers present: `curl -I https://your-app.vercel.app`
-7. Test rate limiting: send 11 rapid mint requests, confirm 429 on the 11th.
-8. Test file size limits: upload a 15 MB logo, confirm 413.
-9. Test magic bytes: rename a `.exe` to `.png`, upload as logo, confirm 400.
-10. Test CORS: cross-origin fetch from a disallowed domain should be blocked.
+1. Rotate platform wallet + MongoDB credentials; confirm Vercel env matches.
+2. Confirm `ALLOWED_ORIGINS` and `SLICEPAY_WEBHOOK_SECRET` are set on Vercel.
+3. After deploy: `python3 vibe-check-main/skills/vibe-check/scripts/check.py https://www.gingernft.store`
+4. As creator A, confirm you cannot GET creator B’s draft by ID.
+5. Replay an old SOL transfer signature against mint — must 402.
+6. Two-wallet IDOR test on mint / secondary / gift.
+7. `npm audit` and decide which high/critical transitives to upgrade (sharp, next, wallet-adapter-trezor).

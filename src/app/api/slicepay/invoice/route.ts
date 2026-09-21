@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { storeInvoice, slicePayConfigured } from "@/lib/slicepay";
 import {
   extractSlicePayInvoiceId,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/slicepay-config";
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  const ip = getClientIp(req);
   const rl = await rateLimit(`invoice:${ip}`, 20, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -23,7 +24,20 @@ export async function POST(req: NextRequest) {
   const amountUsd = Number(body.amountUsd ?? 0);
   const orderId = String(body.orderId ?? `mint-${Date.now()}`).slice(0, 128);
   const description = String(body.description ?? "NFT mint").slice(0, 500);
-  const redirectUrl = String(body.redirectUrl ?? "");
+  const redirectUrlRaw = String(body.redirectUrl ?? "");
+  let redirectUrl = "";
+  if (redirectUrlRaw) {
+    try {
+      const parsed = new URL(redirectUrlRaw);
+      const allowed =
+        process.env.ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+      if (parsed.origin === req.nextUrl.origin || allowed.includes(parsed.origin)) {
+        redirectUrl = parsed.toString();
+      }
+    } catch {
+      redirectUrl = "";
+    }
+  }
   const collectionId = body.collectionId ? String(body.collectionId) : undefined;
   const tokenId = body.tokenId != null ? Number(body.tokenId) : undefined;
   const payerWallet = body.payerWallet ? String(body.payerWallet) : undefined;

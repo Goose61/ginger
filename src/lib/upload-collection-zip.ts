@@ -187,13 +187,16 @@ export async function pollImportUntilReady(
   collectionId: string,
   file: File | { name: string; size: number },
   onProgress?: UploadProgressCallback,
+  authHeaders?: Record<string, string>,
 ): Promise<Collection> {
   const started = Date.now();
   const maxMs = 25 * 60 * 1000;
 
   while (Date.now() - started < maxMs) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    const res = await fetch(`/api/collections/${collectionId}`);
+    const res = await fetch(`/api/collections/${collectionId}`, {
+      headers: authHeaders,
+    });
     const data = await readJsonResponse<{ collection: Collection; error?: string }>(res);
     if (!res.ok) {
       throw new Error(data.error ?? "Failed to check import status");
@@ -261,7 +264,7 @@ export async function postImportJson<T>(
     options?.onCollectionCreated?.(data.collection);
     await startImportProcess(data.collection.id, authHeaders);
 
-    const collection = await pollImportUntilReady(data.collection.id, file, onProgress);
+    const collection = await pollImportUntilReady(data.collection.id, file, onProgress, authHeaders);
     return { ...data, collection } as T;
   }
 

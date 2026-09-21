@@ -36,14 +36,23 @@ import {
 import { getPlatformPublicKey } from "@/lib/platform-key";
 import { executeSplTokenBuyback } from "@/lib/spl-buyback";
 import { toPublicCollection, tokenIsCommitted } from "@/lib/public-collection";
+import { getClientIp } from "@/lib/request-ip";
 import type { BuildTxResult } from "@/lib/mint-nft";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const collection = await getCollection(id);
   if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  if (collection.status === "draft" || collection.status === "importing") {
+    try {
+      assertCreatorAuth(readAuthHeaders(req), collection.payments.creatorWallet);
+    } catch {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+  }
 
   const triggered = applyRevealTriggers(collection);
   const revealChanged =
@@ -74,7 +83,7 @@ async function rollbackMint(params: {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  const ip = getClientIp(req);
   const { id } = await params;
   const body = await req.json();
 
@@ -566,6 +575,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (body.action === "execute_buyback") {
       const existing = await getCollection(id);
       if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      try {
+        assertCreatorAuth(readAuthHeaders(req), existing.payments.creatorWallet);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
       if (!existing.treasuryBuybackActive) {
         return NextResponse.json({ error: "Treasury buyback is not active" }, { status: 400 });
       }
@@ -586,6 +601,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (body.action === "distribute_holder_rewards") {
       const existing = await getCollection(id);
       if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      try {
+        assertCreatorAuth(readAuthHeaders(req), existing.payments.creatorWallet);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
       if (!existing.feeClaimsOpen) {
         return NextResponse.json({ error: "Holder rewards are not open" }, { status: 400 });
       }

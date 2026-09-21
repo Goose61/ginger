@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCollection } from "@/lib/store";
+import { isListedPublicly } from "@/lib/public-collection";
 import { HolderFeePanel } from "@/components/HolderFeePanel";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export default async function HoldersPage({
   const { id } = await params;
   const collection = await getCollection(id);
   if (!collection) notFound();
-  if (collection.status === "draft" || collection.status === "importing") {
+  if (!isListedPublicly(collection)) {
     notFound();
   }
   if (!collection.holderPageUnlocked) {

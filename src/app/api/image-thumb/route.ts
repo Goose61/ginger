@@ -67,6 +67,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Upstream not found" }, { status: upstream.status });
     }
 
+    const finalUrl = new URL(upstream.url);
+    const sameOriginAllowed =
+      finalUrl.origin === req.nextUrl.origin && allowedRelativePath(finalUrl.pathname);
+    if (!isAllowedAbsoluteUrl(finalUrl) && !sameOriginAllowed) {
+      return NextResponse.json({ error: "Invalid image" }, { status: 400 });
+    }
+
     const buf = Buffer.from(await upstream.arrayBuffer());
     if (buf.length > MAX_UPSTREAM_BYTES) {
       return NextResponse.json({ error: "Image too large" }, { status: 413 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { newId, saveCollection } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { buildImportingCollectionStub } from "@/lib/import-collection-stub";
 import { requireWalletAuth } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
@@ -18,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+    const ip = getClientIp(req);
     const rl = await rateLimit(`import:${ip}`, 5, 15 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveCollection, getCollection } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { type GeneratedToken } from "@/lib/types";
 import { buildGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
 import {
@@ -30,7 +31,7 @@ import { toPublicCollection } from "@/lib/public-collection";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  const ip = getClientIp(req);
   const rl = await rateLimit(`gift:${ip}`, 20, 60 * 60 * 1000);
   if (!rl.allowed)
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

@@ -11,8 +11,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDirectRpcUrl, parseNetwork } from "@/lib/solana-config";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 
 export async function POST(req: NextRequest) {
+  const rl = await rateLimit(`solana-proxy:${getClientIp(req)}`, 120, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const n = parseNetwork(req.nextUrl.searchParams.get("n") ?? "devnet");
   const upstream = getDirectRpcUrl(n, process.env);
   if (!upstream.startsWith("http")) {
@@ -27,6 +34,9 @@ export async function POST(req: NextRequest) {
     body = await req.text();
   } catch {
     return NextResponse.json({ error: "Could not read request body" }, { status: 400 });
+  }
+  if (body.length > 256 * 1024) {
+    return NextResponse.json({ error: "Request too large" }, { status: 413 });
   }
 
   try {

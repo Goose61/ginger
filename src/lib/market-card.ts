@@ -2,6 +2,7 @@ import type { ChainKey, Collection, CollectionKind } from "./types";
 import { coverImageSrc } from "./collection-ui";
 import { collectionMarketStats, type CollectionMarketStats } from "./collection-stats";
 import { isStandaloneGiftRecord } from "./gift-bundle";
+import { isHiddenFromMarket } from "./hidden-from-market";
 
 /** Collection fields the Market grid needs — never the full token array. */
 export type MarketCard = {
@@ -41,6 +42,7 @@ export function toMarketCard(collection: Collection): MarketCard {
 }
 
 export function isMarketLiveCard(collection: Collection): boolean {
+  if (isHiddenFromMarket(collection)) return false;
   if (collection.status !== "live" && collection.status !== "sold_out") return false;
   if (isStandaloneGiftRecord(collection)) return false;
   return true;

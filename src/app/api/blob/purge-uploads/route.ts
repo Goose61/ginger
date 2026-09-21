@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { purgeCollectionUploadZips } from "@/lib/blob-cleanup";
+import { secretsEqual } from "@/lib/secrets";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   const auth = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  if (auth !== secret) {
+  if (!secretsEqual(auth, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

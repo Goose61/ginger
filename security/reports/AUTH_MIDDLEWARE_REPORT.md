@@ -1,62 +1,49 @@
-# Auth Middleware Security Report
+# AUTH_MIDDLEWARE Security Report
 
-## Status: CRITICAL → PARTIALLY MITIGATED
+## Status: HIGH
 
 ## Findings
 
-All 12 API routes had zero authentication. Any unauthenticated user on the internet could:
-- Modify any collection's name, fees, supply, allowlist, status.
-- Trigger go-live on any draft collection.
-- Trigger reveal on any collection.
-- Mint tokens by self-reporting any wallet address as `body.payer`.
-- Upload new logos to any collection.
-- Create gift NFTs attributed to any wallet.
+Auth is **wallet message signatures** (`X-Wallet`, `X-Signature`, `X-Timestamp`), not cookies (`src/lib/wallet-auth.ts`). Max age is 2 hours. There is no single-use nonce, so a captured header set can be replayed until expiry.
 
-The "auth" on the mint action was:
-```typescript
-const payer = String(body.payer || "");
-if (!current.allowlist.includes(payer)) throw new Error("Not on allowlist");
-```
-This is trivially bypassed — the payer wallet is self-reported in the request body.
+### Route inventory (36 API routes)
+
+**Creator-signed (auth before mutate):**  
+`POST /api/collections`, `DELETE /api/collections/[id]`, allowlist/reveal/set_buyback/creator_gift, logo, uris, import-draft, import-tokens, layers/parse, generate/preview, blob/upload, import/images, arweave-upload, core-collection prepare/cosign, storage-estimate.
+
+**Owner-signed:** `list_secondary`, `unlist_secondary`, `claim_fees`.
+
+**Payment-gated (no wallet sig, invoice/SOL proof):** `mint`, `buy_secondary`.
+
+**Shared secret:** `POST /api/slicepay/webhook`, `POST /api/blob/purge-uploads`.
+
+**Intentionally public:** network, quotes, featured-art, gift/config, gift/estimate, gift/balance-check, slicepay invoice/status, irys-gateway, image-thumb, assets, waitlist, fee_status, GET live collections.
+
+**Still unsigned (state-changing):**
+
+| Route | Risk |
+|-------|------|
+| `POST /api/gift` | Anyone can append a gift token and start a platform-cosigned mint for a self-reported payer |
+| `POST /api/gift/mint`, `PATCH /api/gift` | Confirm/rebuild mint without proving wallet |
+| `POST /api/gift/prepare-sign`, `/api/gift/cosign` | Cosign pipeline; tx is checked against stored pending mint, but caller is unauthenticated |
+| `PATCH /api/collections/[id]/confirm-mint` | Confirms on-chain mint by signature; also retries buyback/distribution |
+| `POST /api/solana-proxy` | Open JSON-RPC proxy (rate-limited this audit) |
+| `POST /api/seed/doughboi` | Blocked when `NODE_ENV === production` |
+
+This audit added creator auth to `execute_buyback` and `distribute_holder_rewards`.
+
+`requireWalletAuth` throws; callers map that to HTTP 401. There is still no global middleware that runs **before** every handler.
 
 ## What's at risk
 
-- Complete collection takeover (rename, reprice, push live prematurely).
-- Allowlist bypass (attacker mints without being on allowlist).
-- Denial of service (drain collection supply by minting all tokens).
-- Fraudulent gift NFTs attributed to legitimate creators.
+Replay of a 2-hour creator signature; unauthenticated gift mint spam; anyone triggering confirm-mint after a real chain tx.
 
 ## What's already secure
 
-- The seed route is properly blocked in production (`NODE_ENV === "production"`).
+Creator mutations and secondary list/unlist require a valid signature matching the resource owner.
 
-## Fixes applied
+## Recommendations
 
-- **Rate limiting on all write routes**: MongoDB-backed sliding window limiter in `src/lib/rate-limit.ts`.
-  - mint: 10 per 15 minutes per wallet/IP
-  - generate/import/layers: 5–15 per hour per IP
-  - invoice: 20 per hour per IP
-  - waitlist: 10 per hour per IP
-- Rate-limited requests return HTTP 429.
-
-## What still needs to be done (next sprint)
-
-Full wallet signature verification is required for production security:
-
-1. **Frontend**: When performing creator operations (go-live, reveal, allowlist, publish),
-   call `wallet.signMessage(Buffer.from("Dough Boi Auth: " + timestamp))` and include
-   the base64 signature + timestamp in the request headers.
-
-2. **Backend**: Verify the signature using `@solana/web3.js`:
-   ```typescript
-   import { PublicKey } from "@solana/web3.js";
-   import nacl from "tweetnacl";
-   const valid = nacl.sign.detached.verify(
-     Buffer.from("Dough Boi Auth: " + timestamp),
-     Buffer.from(signature, "base64"),
-     new PublicKey(wallet).toBytes()
-   );
-   ```
-
-3. **Ownership check**: Add `creatorWallet` field to `Collection` type and verify
-   that the signing wallet matches `collection.payments.creatorWallet`.
+1. Require `requireWalletAuth` on gift POST/mint/prepare/cosign with `auth.wallet === payer`.
+2. Shorten auth TTL or store used timestamps (nonce) per wallet.
+3. Keep seed route production-blocked.

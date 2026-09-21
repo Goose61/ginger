@@ -1,38 +1,28 @@
-# Secrets Exposure Security Report
+# SECRETS_EXPOSURE Security Report
 
-## Status: HIGH → FIXED
+## Status: HIGH
 
 ## Findings
 
-- `.env.local` contained a live Solana private key (`ARWEAVE_SOLANA_KEY`).
-  The associated wallet address was visible in a comment. The key itself is not repeated here.
-- `.env.example` used wrong variable names (`IRYS_SOLANA_KEY`, `NEXT_PUBLIC_SOLANA_RPC`)
-  that don't match what the code actually reads.
+- `.env.local` is gitignored (`/.env*` with `!.env.example`). `git ls-files .env` is empty. Production scan of `/.env`, `/.git/config`, dumps, and common backup paths on https://www.gingernft.store **passed**.
+- `.env.example` uses placeholders except `SLICEPAY_MERCHANT_ID`, which the code treats as a **public** merchant id (`src/lib/slicepay-config.ts`).
+- `NEXT_PUBLIC_*` vars are only cluster/RPC URLs, not secret keys.
+- Wallet JSON files (`.devnet-wallet.json`, `.mainnet-smoke-wallet.json`, etc.) are gitignored and not tracked.
+- `gitleaks` is not installed, so git **history** was not scanned with a dedicated secret hunter.
+- Local `.env.local` still holds a live `ARWEAVE_SOLANA_KEY` and MongoDB URI. A prior audit (2026-08-20) already warned that this platform key had been visible in plaintext. **Rotate it** if that wallet ever held mainnet funds or was pasted into chat/screenshots.
+- `toPublicCollection` strips `assetSecretKeyB64` and `collectionSecretKeyB64` before API responses (`src/lib/public-collection.ts`). Those keys must never be logged.
 
 ## What's at risk
 
-If `.env.local` was ever shared, emailed, or accidentally committed, an attacker could:
-- Drain all SOL and Arweave credits from that wallet.
-- Upload arbitrary content to Arweave at your expense.
+Anyone with the platform secret can mint as update authority, cosign Core collections, run Jupiter buybacks, and pay creator/holder disbursements.
 
 ## What's already secure
 
-- `.gitignore` correctly excluded `.env*` files (except `.env.example`).
-- No secret keys found in any source file.
-- No `NEXT_PUBLIC_*` env vars holding secret values.
-- No git repository was found, so the key was never committed to history.
+- `.env*` gitignore, example file with placeholders, no public source maps, no `.env` served on the live host.
+- Platform secret is read only in server modules (`src/lib/platform-key.ts`).
 
-## Fixes applied
+## Recommendations
 
-- Added rotation warning comment to `.env.local`.
-- Rewrote `.env.example` with correct variable names and setup instructions.
-- Verified no secrets exist in source code.
-
-## Manual action required
-
-⚠️  **Rotate `ARWEAVE_SOLANA_KEY` immediately**:
-1. Create a new Solana wallet (Phantom → Settings → Add/Connect Wallet → Create New).
-2. Export the new private key.
-3. Update `ARWEAVE_SOLANA_KEY` in `.env.local` and in your Vercel project environment variables.
-4. Fund the new wallet with SOL for Arweave uploads if needed.
-5. The old wallet should be considered compromised.
+1. Rotate `ARWEAVE_SOLANA_KEY` and MongoDB user password; update Vercel env.
+2. Install `gitleaks` and run `gitleaks detect --source . --verbose` on `Crypgo/web`.
+3. Keep test wallet JSON files untracked (already in `.gitignore`).

@@ -1,24 +1,28 @@
 # CORS Security Report
 
-## Status: MEDIUM → FIXED
+## Status: PASS
 
 ## Findings
 
-No explicit CORS configuration. Relied on Next.js framework defaults (same-origin).
-Safe by accident, but not explicitly locked down.
+`src/middleware.ts`:
 
-## Fixes applied
+- Production with empty `ALLOWED_ORIGINS` does **not** echo Origin.
+- Production with allowlist only reflects listed origins (else first allowlist entry — not the request origin).
+- Methods: `GET, POST, PATCH, OPTIONS` (DELETE is used for drafts; browsers may preflight DELETE without it on the allow list). Worth adding `DELETE`.
+- Live scan: foreign origin not allowed on page or static asset.
 
-`src/middleware.ts` handles CORS for all `/api/` routes:
-- In development (`ALLOWED_ORIGINS` not set): echoes the request origin (allows all, for dev convenience).
-- In production: restricts to the comma-separated `ALLOWED_ORIGINS` env var.
-- No wildcard `*` origin.
-- `credentials: true` is NOT set (no cookies used).
-- Preflight `OPTIONS` requests handled with HTTP 204.
+`.env.example` documents `https://gingernft.store,https://www.gingernft.store`.
 
-## Required action for production
+## What's at risk
 
-Set `ALLOWED_ORIGINS` in your Vercel project environment variables:
-```
-ALLOWED_ORIGINS=https://your-app.vercel.app,https://yourcustomdomain.com
-```
+If `ALLOWED_ORIGINS` is unset in a misconfigured production deploy, CORS origin is omitted (fail closed). Local dev reflects any origin — expected.
+
+DELETE preflight might fail from a browser on another allowlisted origin; same-origin Next.js fetches are unaffected.
+
+## What's already secure
+
+No `Access-Control-Allow-Origin: *`. Credentials are not paired with a wildcard.
+
+## Recommendations
+
+Add `DELETE` to `Access-Control-Allow-Methods` if you ever call delete cross-origin.

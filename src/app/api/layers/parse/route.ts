@@ -3,6 +3,7 @@ import { newId, saveCollection, slugify } from "@/lib/store";
 import { parseLayerZip, persistLayerFiles } from "@/lib/compositor";
 import { loadZipBufferFromImportForm } from "@/lib/import-zip-server";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { defaultPayments, type Collection } from "@/lib/types";
 import { requireWalletAuth } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
@@ -14,7 +15,7 @@ const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+    const ip = getClientIp(req);
     const rl = await rateLimit(`layers:${ip}`, 10, 10 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });

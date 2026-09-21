@@ -1,43 +1,25 @@
-# File Uploads Security Report
+# FILE_UPLOADS Security Report
 
-## Status: MEDIUM → FIXED
+## Status: MEDIUM
 
 ## Findings
 
-Before fixes:
-- No server-side file size limits on any upload endpoint.
-- Logo upload checked only file extension (trivially spoofed).
-- Gift image checked extension + `file.type` (client-supplied, spoofable).
-- ZIP imports had no size limits.
+- Logo: 10 MB cap, magic bytes PNG/JPEG/WEBP (`src/app/api/collections/[id]/logo/route.ts`), creator auth.
+- ZIP import: 500 MB, wallet auth, Blob content-type ZIP, random suffix (`blob/upload`).
+- Gift images: client uploads to Arweave; server checks URI prefix `http` or `/api/`.
+- Assets routes block `..` and resolve under `STAGING_DIR`.
+- Logo may fall back to **inline `data:` URL in Mongo** if Irys is down and file ≤ 2.5 MB — large documents / XSS-via-data if ever rendered unsafely (currently used as `src`).
 
-## Fixes applied
+Magic bytes on ZIP contents (per-image) should be verified during import; layer parse trusts PNG-in-folder layout.
 
-### Magic byte validation (logo and gift endpoints)
-Both endpoints now validate file headers before processing:
-```typescript
-function isAllowedImageMagic(buf: Buffer): boolean {
-  // PNG: 89 50 4E 47
-  if (buf[0] === 0x89 && buf[1] === 0x50 && ...) return true;
-  // JPEG: FF D8 FF
-  if (buf[0] === 0xff && buf[1] === 0xd8 && ...) return true;
-  // WebP: 52 49 46 46
-  if (buf[0] === 0x52 && buf[1] === 0x49 && ...) return true;
-  return false;
-}
-```
+## What's at risk
 
-### Server-side size limits
+Huge ZIP CPU (mitigated by auth + rate limit). Data-URI logos bloat Mongo.
 
-| Endpoint | Limit |
-|---|---|
-| Logo upload | 10 MB |
-| Gift image | 50 MB |
-| Layer ZIP | 100 MB |
-| Import images ZIP | 500 MB |
+## What's already secure
 
-Limits are checked via `Content-Length` header (early rejection) and `file.size` (after parse).
-Returns HTTP 413 when exceeded.
+Creator auth on uploads; path traversal guards; Blob size limit; ZIP host allowlist.
 
-### File storage
-All uploaded files go to Vercel Blob (CDN, not the app server filesystem).
-Files are stored under UUID-prefixed paths — no predictable filenames.
+## Recommendations
+
+Validate image magic bytes inside ZIP import. Avoid storing data-URI logos in production.

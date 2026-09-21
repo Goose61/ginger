@@ -663,6 +663,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             col.id,
             { name: col.name, size: 0 },
             setUploadProgress,
+            headers,
           );
         }
         if (cancelled) return;

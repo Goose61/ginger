@@ -1,34 +1,29 @@
-# Rate Limiting Security Report
+# RATE_LIMITING Security Report
 
-## Status: HIGH → FIXED
+## Status: MEDIUM
 
 ## Findings
 
-No rate limiting existed on any endpoint. An attacker could:
-- Loop `POST /api/collections/[id]` action=mint to exhaust all tokens in a collection.
-- Spam `POST /api/layers/parse` with 100 MB ZIPs to OOM the server.
-- Flood `POST /api/slicepay/invoice` to create thousands of fake invoices.
+MongoDB sliding window in `src/lib/rate-limit.ts`. Fails **closed** in production if DB is down.
 
-## Fixes applied
+Applied on: collections POST, mint, waitlist, creator-gift, gift POST/prepare/cosign, layers, invoices, generate, import.
 
-`src/lib/rate-limit.ts` — MongoDB-backed sliding window rate limiter. Works correctly
-across all Vercel serverless instances (no in-memory state).
+**This audit:** rate-limit keys now prefer `x-vercel-forwarded-for` / `x-real-ip` (`src/lib/request-ip.ts`) instead of the first `X-Forwarded-For` hop (spoofable).
 
-| Endpoint | Limit | Window |
-|---|---|---|
-| `POST /api/layers/parse` | 10 requests | 10 minutes per IP |
-| `POST /api/import/images` | 5 requests | 15 minutes per IP |
-| `POST /api/generate/preview` | 15 requests | 60 minutes per IP |
-| `POST /api/gift` | 20 requests | 60 minutes per IP |
-| `POST /api/collections` | 30 requests | 60 seconds per IP |
-| `POST /api/collections/[id]` mint | 10 requests | 15 minutes per wallet |
-| `POST /api/collections/[id]` waitlist | 10 requests | 60 minutes per IP |
-| `POST /api/slicepay/invoice` | 20 requests | 60 minutes per IP |
+Still unscoped or weakly scoped:
 
-Rate-limited requests return HTTP 429.
+- `POST /api/solana-proxy` now 120/min/IP (was unlimited)
+- Gift confirm PATCH, confirm-mint, quotes, image-thumb, irys-gateway — no dedicated limiter
+- Wallet auth / mint payer field can still be rotated to evade per-wallet mint limits (`mint:${payer}`)
 
-## Note on X-Forwarded-For bypass
+## What's at risk
 
-The IP is taken from `x-forwarded-for` header. On Vercel, this header is set by Vercel's
-edge network and cannot be spoofed by clients. On other platforms, consider using a
-trusted proxy IP extraction library.
+RPC proxy and image-thumb CPU (sharp) can still be expensive at scale.
+
+## What's already secure
+
+Write-heavy creator/upload/mint paths are limited. Production fail-closed.
+
+## Recommendations
+
+Add limits on `/api/image-thumb` and `/api/quotes`. Bind mint rate limits to IP **and** authenticated wallet.
