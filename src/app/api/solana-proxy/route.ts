@@ -10,17 +10,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-
-const RPC_URLS: Record<string, string> = {
-  devnet:
-    process.env.SOLANA_RPC_URL_DEVNET ?? "https://api.devnet.solana.com",
-  mainnet:
-    process.env.SOLANA_RPC_URL_MAINNET ?? "https://api.mainnet.solana.com",
-};
+import { getDirectRpcUrl, parseNetwork } from "@/lib/solana-config";
 
 export async function POST(req: NextRequest) {
-  const n = req.nextUrl.searchParams.get("n") ?? "devnet";
-  const upstream = RPC_URLS[n] ?? RPC_URLS.devnet;
+  const n = parseNetwork(req.nextUrl.searchParams.get("n") ?? "devnet");
+  const upstream = getDirectRpcUrl(n, process.env);
+  if (!upstream.startsWith("http")) {
+    return NextResponse.json(
+      { error: `RPC URL not configured for ${n} (set SOLANA_RPC_URL_${n.toUpperCase()} or remove blank env vars)` },
+      { status: 503 },
+    );
+  }
 
   let body: string;
   try {

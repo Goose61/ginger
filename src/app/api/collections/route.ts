@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
     layers: body.layers ?? existing.layers,
     socials: { ...existing.socials, ...body.socials },
     buybackTokenCa: body.buybackTokenCa ?? existing.buybackTokenCa,
+    buybackTreasuryWallet: body.buybackTreasuryWallet ?? existing.buybackTreasuryWallet,
     logoUrl: body.logoUrl ?? existing.logoUrl,
     royaltyBps: body.royaltyBps ?? existing.royaltyBps,
     royaltySplit: body.royaltySplit ?? existing.royaltySplit,

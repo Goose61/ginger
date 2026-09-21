@@ -8,7 +8,7 @@ import {
   tryReserveToken,
   updateCollection,
 } from "@/lib/store";
-import { fireDueMilestones } from "@/lib/milestones";
+import { applySaleTreasury } from "@/lib/milestones";
 import { applyRevealTriggers } from "@/lib/reveal";
 import { rateLimit } from "@/lib/rate-limit";
 import { readAuthHeaders, assertCreatorAuth, requireWalletAuth } from "@/lib/wallet-auth";
@@ -16,11 +16,18 @@ import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@
 import { consumeSolSignature, verifySolPayment } from "@/lib/verify-payment";
 import { getQuote } from "@/lib/quotes";
 import { isValidSolanaAddress } from "@/lib/mint-nft";
-import { parseNetwork } from "@/lib/solana-config";
+import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { nftPrice } from "@/lib/collection-ui";
 import { buildPendingMintForToken } from "@/lib/collection-mint-on-chain";
 import { getPlatformSecretKey } from "@/lib/platform-key";
 import { accrueSaleFees, claimHolderFees, previewHolderClaim } from "@/lib/fee-distribution";
+import {
+  getMintPaymentRecipient,
+  processPrimaryMintProceeds,
+  processSaleBuyback,
+} from "@/lib/platform-disbursement";
+import { getPlatformPublicKey } from "@/lib/platform-key";
+import { executeSplTokenBuyback } from "@/lib/spl-buyback";
 import { toPublicCollection, tokenIsCommitted } from "@/lib/public-collection";
 import type { BuildTxResult } from "@/lib/mint-nft";
 
@@ -141,12 +148,15 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
       } else if (method === "sol") {
         const quote = await getQuote(expectedUsd);
-        const recipient = pre.payments.creatorWallet;
-        if (!recipient) {
+        const payTo = getMintPaymentRecipient();
+        if (!payTo) {
+          return NextResponse.json({ error: "Platform payment wallet not configured" }, { status: 503 });
+        }
+        if (!pre.payments.creatorWallet) {
           return NextResponse.json({ error: "Creator payout wallet not set" }, { status: 400 });
         }
-        const network = parseNetwork(body.network);
-        const verified = await verifySolPayment(txSignature, recipient, quote.sol, network);
+        const network = serverNetwork(body.network);
+        const verified = await verifySolPayment(txSignature, payTo, quote.sol, network);
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error ?? "SOL payment not verified" }, { status: 402 });
         }
@@ -258,7 +268,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       const feeBreakdowns: ReturnType<typeof accrueSaleFees>["breakdown"][] = [];
-      const collection = await updateCollection(id, (current) => {
+      let collection = await updateCollection(id, (current) => {
         for (const tokenId of mintedTokenIds) {
           const token = current.tokens.find((t) => t.tokenId === tokenId);
           if (!token) continue;
@@ -279,11 +289,32 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
-        let updated = fireDueMilestones(current);
+        let updated = applySaleTreasury(current);
         updated = applyRevealTriggers(updated);
         return updated;
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+      const network = serverNetwork(body.network);
+      let creatorDisburse: Awaited<ReturnType<typeof processPrimaryMintProceeds>>["creatorDisburse"];
+      let buyback: Awaited<ReturnType<typeof processPrimaryMintProceeds>>["buyback"] = null;
+      const paysOnChainFromPlatform =
+        (method === "sol" || method === "slicepay") && collection.payments.creatorWallet;
+      if (paysOnChainFromPlatform) {
+        const proceeds = await processPrimaryMintProceeds({
+          collectionId: id,
+          network,
+          creatorWallet: collection.payments.creatorWallet!,
+          breakdowns: feeBreakdowns,
+        });
+        creatorDisburse = proceeds.creatorDisburse;
+        buyback = proceeds.buyback;
+        if (buyback?.collection) collection = buyback.collection;
+      } else if (collection.treasuryBuybackActive) {
+        const buybackUsd = feeBreakdowns.reduce((sum, b) => sum + b.buybackUsd, 0);
+        buyback = await processSaleBuyback({ collectionId: id, network, buybackUsd });
+        if (buyback?.collection) collection = buyback.collection;
+      }
 
       return NextResponse.json({
         collection: toPublicCollection(collection),
@@ -291,6 +322,25 @@ export async function POST(req: NextRequest, { params }: Params) {
         recipient: recipientAddr,
         requiresOnChainMint: Boolean(txResult),
         feeBreakdowns,
+        mintPaymentWallet: method === "sol" ? getPlatformPublicKey() : null,
+        creatorDisburse: creatorDisburse
+          ? {
+              ok: creatorDisburse.ok,
+              signature: creatorDisburse.signature ?? null,
+              txUrl: creatorDisburse.txUrl ?? null,
+              error: creatorDisburse.error ?? null,
+            }
+          : null,
+        buyback: buyback
+          ? {
+              purchased: buyback.purchased,
+              usdSpent: buyback.usdSpent ?? null,
+              tokenAmount: buyback.tokenAmount ?? null,
+              txSignature: buyback.txSignature ?? null,
+              txUrl: buyback.txUrl ?? null,
+              reason: buyback.reason ?? null,
+            }
+          : null,
       });
     }
 
@@ -382,7 +432,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       let secondaryBreakdown: ReturnType<typeof accrueSaleFees>["breakdown"] | null = null;
       const sellerWallet = token.owner ?? undefined;
 
-      const collection = await updateCollection(id, (current) => {
+      let collection = await updateCollection(id, (current) => {
         if (!current.secondaryEnabled) throw new Error("Secondary market not enabled");
         const t = current.tokens.find((x) => x.tokenId === tokenId);
         if (!t?.listing) throw new Error("Not listed for sale");
@@ -398,14 +448,33 @@ export async function POST(req: NextRequest, { params }: Params) {
           seller: sellerWallet,
         });
         secondaryBreakdown = accrued.breakdown;
-        return current;
+        return applySaleTreasury(current);
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      let buyback: Awaited<ReturnType<typeof processSaleBuyback>> = null;
+      if (collection.treasuryBuybackActive && secondaryBreakdown) {
+        buyback = await processSaleBuyback({
+          collectionId: id,
+          network: serverNetwork(body.network),
+          buybackUsd: secondaryBreakdown.buybackUsd,
+        });
+        if (buyback?.collection) collection = buyback.collection;
+      }
       return NextResponse.json({
         collection: toPublicCollection(collection),
         tokenId,
         buyer: payerAddr,
         feeBreakdown: secondaryBreakdown,
+        buyback: buyback
+          ? {
+              purchased: buyback.purchased,
+              usdSpent: buyback.usdSpent ?? null,
+              tokenAmount: buyback.tokenAmount ?? null,
+              txSignature: buyback.txSignature ?? null,
+              txUrl: buyback.txUrl ?? null,
+              reason: buyback.reason ?? null,
+            }
+          : null,
       });
     }
 
@@ -432,6 +501,53 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
     }
 
+    if (body.action === "set_buyback") {
+      const auth = readAuthHeaders(req);
+      const existing = await getCollection(id);
+      if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      try {
+        assertCreatorAuth(auth, existing.payments.creatorWallet);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
+      const tokenCa = String(body.buybackTokenCa || "").trim();
+      const treasury = String(body.buybackTreasuryWallet || "").trim();
+      if (!isValidSolanaAddress(tokenCa)) {
+        return NextResponse.json({ error: "Invalid buyback token CA" }, { status: 400 });
+      }
+      if (!isValidSolanaAddress(treasury)) {
+        return NextResponse.json({ error: "Invalid treasury wallet" }, { status: 400 });
+      }
+      const collection = await updateCollection(id, (current) => {
+        current.buybackTokenCa = tokenCa;
+        current.buybackTreasuryWallet = treasury;
+        return current;
+      });
+      if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json({ collection: toPublicCollection(collection) });
+    }
+
+    if (body.action === "execute_buyback") {
+      const existing = await getCollection(id);
+      if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      if (!existing.treasuryBuybackActive) {
+        return NextResponse.json({ error: "Treasury buyback is not active" }, { status: 400 });
+      }
+      const result = await executeSplTokenBuyback(id, serverNetwork(body.network));
+      if (!result.collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json({
+        collection: toPublicCollection(result.collection),
+        purchased: result.purchased,
+        usdSpent: result.usdSpent ?? null,
+        tokenAmount: result.tokenAmount ?? null,
+        treasuryWallet: result.treasuryWallet ?? existing.buybackTreasuryWallet ?? null,
+        txSignature: result.txSignature ?? null,
+        txUrl: result.txUrl ?? null,
+        reason: result.reason ?? null,
+      });
+    }
+
     if (body.action === "fee_status") {
       const wallet = String(body.wallet || "");
       const collection = await getCollection(id);
@@ -445,6 +561,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         feeClaimsOpen: collection.feeClaimsOpen ?? false,
         treasuryBuybackActive: collection.treasuryBuybackActive ?? false,
         buybackTokenCa: collection.buybackTokenCa ?? null,
+        buybackTreasuryWallet: collection.buybackTreasuryWallet ?? collection.payments.creatorWallet ?? null,
         claimPreview: preview,
       });
     }
@@ -530,7 +647,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
-        return applyRevealTriggers(fireDueMilestones(current));
+        return applyRevealTriggers(applySaleTreasury(current));
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
 

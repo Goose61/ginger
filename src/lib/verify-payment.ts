@@ -7,7 +7,7 @@ type SpentSolSignature = {
   spentAt: Date;
 };
 
-/** Verify a SOL transfer to the creator wallet meets the minimum amount. */
+/** Verify a SOL transfer to the expected recipient meets the minimum amount. */
 export async function verifySolPayment(
   signature: string,
   recipient: string,

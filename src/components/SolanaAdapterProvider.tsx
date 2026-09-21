@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider as AdapterWalletProvider,
@@ -10,21 +10,23 @@ import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { WalletError, WalletReadyState } from "@solana/wallet-adapter-base";
 import { createSolanaClient } from "@metamask/connect-solana";
 import { BackpackWalletAdapter } from "@/lib/backpack-wallet-adapter";
-import { getRpcUrl, SOLANA_RPC_DEVNET, SOLANA_RPC_MAINNET } from "@/lib/solana-config";
+import {
+  getClientNetwork,
+  getRpcUrl,
+  SOLANA_RPC_DEVNET,
+  SOLANA_RPC_MAINNET,
+} from "@/lib/solana-config";
 
 /**
  * Solana Wallet Adapter + MetaMask Connect Solana (Wallet Standard).
  * @see https://docs.metamask.io/metamask-connect/solana/guides/use-wallet-adapter/
  * @see https://docs.solflare.com/solflare/technical/integrate-solflare
  */
-function resolveEndpoint(): string {
-  const url = getRpcUrl();
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return SOLANA_RPC_DEVNET;
-}
-
 export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
-  const endpoint = useMemo(() => resolveEndpoint(), []);
+  const [endpoint, setEndpoint] = useState(SOLANA_RPC_DEVNET);
+  useEffect(() => {
+    void getClientNetwork().then((network) => setEndpoint(getRpcUrl(network)));
+  }, []);
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new BackpackWalletAdapter()],
     [],

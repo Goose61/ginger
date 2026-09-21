@@ -42,6 +42,14 @@ export function parseNetwork(value: unknown): SolanaNetwork {
   return value === "mainnet" ? "mainnet" : "devnet";
 }
 
+/**
+ * Server-side treasury/payment operations always follow SOLANA_NETWORK — never
+ * trust the client hint alone (defaults to devnet and would skip Jupiter).
+ */
+export function serverNetwork(clientHint?: unknown): SolanaNetwork {
+  return getSolanaNetwork();
+}
+
 /** RPC endpoint for the active cluster (or an explicit override). */
 export function getRpcUrl(network?: SolanaNetwork, from?: EnvLike): string {
   const e = from ?? env();

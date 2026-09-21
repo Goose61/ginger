@@ -38,7 +38,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [isDemoCheckout, setIsDemoCheckout] = useState(false);
   const [slicePayLive, setSlicePayLive] = useState<boolean | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"slicepay" | "sol">("slicepay");
+  const [paymentMethod, setPaymentMethod] = useState<"slicepay" | "sol">(() =>
+    initial.payments.acceptSlicePay ? "slicepay" : "sol",
+  );
   const [checkoutKind, setCheckoutKind] = useState<"primary_mint" | "secondary_buy">("primary_mint");
   const [listPrice, setListPrice] = useState("");
   const [traitFilters, setTraitFilters] = useState<Record<string, string>>({});
@@ -47,6 +49,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [search, setSearch] = useState("");
   const [rarityFilter, setRarityFilter] = useState<OverallRarityFilter>("all");
   const [solUsd, setSolUsd] = useState<number | null>(null);
+  const [platformWallet, setPlatformWallet] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(COLLECTION_GRID_PAGE_SIZE);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,6 +93,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         if (!cancelled && data.quote?.solUsd) setSolUsd(data.quote.solUsd);
       })
       .catch(() => {});
+    void fetch("/api/network")
+      .then((r) => r.json())
+      .then((data: { platformWallet?: string | null }) => {
+        if (!cancelled) setPlatformWallet(data.platformWallet ?? null);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -114,6 +123,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     (collection.payments.giftMintEnabled ||
       collection.supply > 1 ||
       Boolean(collection.pendingMint));
+
+  useEffect(() => {
+    if (!collection.payments.acceptSlicePay && collection.payments.acceptSol) {
+      setPaymentMethod("sol");
+    }
+  }, [collection.payments.acceptSlicePay, collection.payments.acceptSol]);
 
   useEffect(() => {
     fetch("/api/slicepay/invoice")
@@ -337,6 +352,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       await connect();
       return;
     }
+    if (!platformWallet) {
+      setMessage("Platform payment wallet not configured.");
+      return;
+    }
     if (!collection.payments.creatorWallet) {
       setMessage("Creator payout wallet not configured.");
       return;
@@ -350,13 +369,14 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       };
       const { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
         await import("@solana/web3.js");
-      const { getRpcUrl } = await import("@/lib/solana-config");
-      const connection = new Connection(getRpcUrl(), "confirmed");
+      const { getRpcUrl, getClientNetwork } = await import("@/lib/solana-config");
+      const network = await getClientNetwork();
+      const connection = new Connection(getRpcUrl(network), "confirmed");
       const { blockhash } = await connection.getLatestBlockhash();
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(publicKey),
-          toPubkey: new PublicKey(collection.payments.creatorWallet),
+          toPubkey: new PublicKey(platformWallet),
           lamports: Math.ceil(quote.sol * LAMPORTS_PER_SOL),
         }),
       );
@@ -621,7 +641,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           <ul className="mt-4 space-y-3 font-[family-name:var(--font-body)] text-sm">
             <FeeRow color="bg-primary" label="Creator" percent={fees.ownerPercent} note="Your share after marketplace fees" />
             <FeeRow color="bg-white" label="Holders" percent={fees.holdersPercent} note="Shared with current holders" />
-            <FeeRow color="bg-[#f5c542]" label="Buyback" percent={fees.buybackPercent} note="Treasury buybacks" />
+            <FeeRow color="bg-[#f5c542]" label="Buyback" percent={fees.buybackPercent} note="Platform swaps this share into the creator treasury SPL" />
           </ul>
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50">
             <p className="font-medium text-white/70">Ginger marketplace (fixed)</p>

@@ -1,7 +1,7 @@
 import type { Collection, MilestoneEventId } from "./types";
 import { applyRevealBatch } from "./reveal";
 import { mintedPercent } from "./collection-stats";
-import { executeTreasuryBuyback, openFeeDistributionRound } from "./fee-distribution";
+import { openFeeDistributionRound } from "./fee-distribution";
 
 export { mintedPercent } from "./collection-stats";
 
@@ -97,7 +97,6 @@ export function applyMilestoneEvents(
         break;
       case "treasury_buyback":
         next.treasuryBuybackActive = true;
-        Object.assign(next, executeTreasuryBuyback(next).collection);
         break;
       case "discord_role_sync":
         next.discordRoleSyncEnabled = true;
@@ -125,5 +124,33 @@ export function fireDueMilestones(collection: Collection): Collection {
   if (next.mintedCount >= next.supply && next.status === "live") {
     next.status = "sold_out";
   }
+  return next;
+}
+
+/** Holder claims / buyback wait only if those events are on a milestone. */
+export function treasuryEventsAreScheduled(collection: Collection): boolean {
+  return collection.milestones.some(
+    (m) => m.events.includes("fee_distribution") || m.events.includes("treasury_buyback"),
+  );
+}
+
+/**
+ * Fire % minted milestones, then immediately open holder claims and arm
+ * treasury buyback unless those treasury events were explicitly scheduled.
+ */
+export function applySaleTreasury(collection: Collection): Collection {
+  let next = fireDueMilestones(collection);
+  if (treasuryEventsAreScheduled(collection)) return next;
+
+  next = {
+    ...next,
+    feeClaimsOpen: true,
+    treasuryBuybackActive: true,
+    holderPageUnlocked: true,
+    secondaryEnabled: next.milestones.some((m) => m.events.includes("enable_secondary"))
+      ? next.secondaryEnabled
+      : true,
+  };
+  next = openFeeDistributionRound(next);
   return next;
 }

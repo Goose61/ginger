@@ -10,7 +10,7 @@ import {
   SECONDARY_PLATFORM_FEE_PERCENT,
 } from "./platform-fees";
 
-/** Marker owner for NFTs held by the buyback treasury after a floor buy. */
+/** Legacy marker for NFTs taken by the old NFT-floor buyback path. */
 export const TREASURY_OWNER_MARKER = "__platform_treasury__";
 
 export type SaleFeeBreakdown = {
@@ -157,8 +157,14 @@ export function accrueSaleFees(
 export function holderCounts(collection: Collection): Map<string, number> {
   const counts = new Map<string, number>();
   for (const t of collection.tokens) {
-    if (!t.owner || t.owner === TREASURY_OWNER_MARKER) continue;
-    counts.set(t.owner, (counts.get(t.owner) ?? 0) + 1);
+    const wallet =
+      t.owner && t.owner !== TREASURY_OWNER_MARKER
+        ? t.owner
+        : t.reservedBy && t.reservedBy !== TREASURY_OWNER_MARKER
+          ? t.reservedBy
+          : null;
+    if (!wallet) continue;
+    counts.set(wallet, (counts.get(wallet) ?? 0) + 1);
   }
   return counts;
 }
@@ -195,26 +201,24 @@ export function getOpenDistributionRound(collection: Collection) {
 }
 
 export function previewHolderClaim(collection: Collection, wallet: string): HolderClaimPreview | null {
-  const round = getOpenDistributionRound(collection);
-  if (!round || !collection.feeClaimsOpen) return null;
+  if (!collection.feeClaimsOpen) return null;
 
-  const snap = round.snapshot.find((h) => h.wallet === wallet);
-  if (!snap) {
-    return { wallet, heldCount: 0, claimableUsd: 0, alreadyClaimedUsd: 0 };
+  const rounds = collection.feeLedger?.distributionRounds ?? [];
+  const heldCount = holderCounts(collection).get(wallet) ?? 0;
+  let claimableUsd = 0;
+  let alreadyClaimedUsd = 0;
+
+  for (const round of rounds) {
+    const snap = round.snapshot.find((h) => h.wallet === wallet);
+    const entitled = snap ? roundUsdShare(round.poolUsd, snap.count, round.totalShares) : 0;
+    const claimed = roundUsd(
+      round.claims.filter((c) => c.wallet === wallet).reduce((s, c) => s + c.amountUsd, 0),
+    );
+    alreadyClaimedUsd = roundUsd(alreadyClaimedUsd + claimed);
+    claimableUsd = roundUsd(claimableUsd + Math.max(0, entitled - claimed));
   }
 
-  const totalEntitled = roundUsdShare(round.poolUsd, snap.count, round.totalShares);
-  const alreadyClaimedUsd = roundUsd(
-    round.claims.filter((c) => c.wallet === wallet).reduce((s, c) => s + c.amountUsd, 0),
-  );
-  const claimableUsd = roundUsd(Math.max(0, totalEntitled - alreadyClaimedUsd));
-
-  return {
-    wallet,
-    heldCount: snap.count,
-    claimableUsd,
-    alreadyClaimedUsd,
-  };
+  return { wallet, heldCount, claimableUsd, alreadyClaimedUsd };
 }
 
 export function claimHolderFees(collection: Collection, wallet: string): {
@@ -229,69 +233,97 @@ export function claimHolderFees(collection: Collection, wallet: string): {
     throw new Error("Nothing to claim for this wallet");
   }
 
-  const round = getOpenDistributionRound(collection)!;
-  round.claims.push({
-    wallet,
-    amountUsd: preview.claimableUsd,
-    claimedAt: new Date().toISOString(),
-  });
+  const now = new Date().toISOString();
+  const rounds = collection.feeLedger?.distributionRounds ?? [];
+  let claimedUsd = 0;
+  for (const round of rounds) {
+    const snap = round.snapshot.find((h) => h.wallet === wallet);
+    const entitled = snap ? roundUsdShare(round.poolUsd, snap.count, round.totalShares) : 0;
+    const already = roundUsd(
+      round.claims.filter((c) => c.wallet === wallet).reduce((s, c) => s + c.amountUsd, 0),
+    );
+    const due = roundUsd(Math.max(0, entitled - already));
+    if (due <= 0) continue;
+    round.claims.push({ wallet, amountUsd: due, claimedAt: now });
+    claimedUsd = roundUsd(claimedUsd + due);
+  }
+  if (claimedUsd <= 0) {
+    throw new Error("Nothing to claim for this wallet");
+  }
 
-  return { collection, claimedUsd: preview.claimableUsd };
+  return { collection, claimedUsd };
 }
 
 export type BuybackResult = {
   collection: Collection;
   purchased: boolean;
-  tokenId?: number;
-  priceUsd?: number;
+  usdSpent?: number;
+  tokenAmount?: number;
+  txSignature?: string;
+  txUrl?: string;
+  treasuryWallet?: string;
   reason?: string;
 };
 
-/** Use buyback treasury to purchase the cheapest secondary listing (floor support). */
-export function executeTreasuryBuyback(collection: Collection): BuybackResult {
+/** Debit the buyback USD pool and record an SPL purchase into the creator treasury. */
+export function applyLedgerBuyback(
+  collection: Collection,
+  rec: {
+    usdSpent: number;
+    solSpent?: number;
+    tokenAmount?: number;
+    tokenAmountRaw?: string;
+    txSignature?: string;
+    txUrl?: string;
+    route?: "jupiter" | "direct_mint";
+  },
+): BuybackResult {
   const ledger = ensureLedger(collection);
+  const tokenCa = collection.buybackTokenCa?.trim();
+  const treasury = collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet;
   if (!collection.treasuryBuybackActive) {
     return { collection, purchased: false, reason: "Treasury buyback not active" };
   }
-  if (ledger.buybackTreasuryUsd <= 0) {
-    return { collection, purchased: false, reason: "Buyback treasury empty" };
+  if (!tokenCa) {
+    return { collection, purchased: false, reason: "No buyback token CA set" };
   }
-
-  const listed = collection.tokens
-    .filter((t) => t.listing && t.owner && t.owner !== TREASURY_OWNER_MARKER)
-    .sort((a, b) => (a.listing!.priceUsd - b.listing!.priceUsd));
-
-  const cheapest = listed[0];
-  if (!cheapest?.listing) {
-    return { collection, purchased: false, reason: "No listings on secondary market" };
+  if (!treasury) {
+    return { collection, purchased: false, reason: "No buyback treasury wallet set" };
   }
-
-  const priceUsd = cheapest.listing.priceUsd;
-  if (ledger.buybackTreasuryUsd < priceUsd) {
+  const usdSpent = roundUsd(rec.usdSpent);
+  if (usdSpent <= 0) {
+    return { collection, purchased: false, reason: "Buyback amount is zero" };
+  }
+  if (ledger.buybackTreasuryUsd + 1e-9 < usdSpent) {
     return {
       collection,
       purchased: false,
-      reason: `Buyback treasury ($${ledger.buybackTreasuryUsd}) below floor ($${priceUsd})`,
+      reason: `Buyback treasury ($${ledger.buybackTreasuryUsd}) below spend ($${usdSpent})`,
     };
   }
 
-  ledger.buybackTreasuryUsd = roundUsd(ledger.buybackTreasuryUsd - priceUsd);
-  const seller = cheapest.owner!;
-  cheapest.owner = TREASURY_OWNER_MARKER;
-  cheapest.listing = null;
-
+  ledger.buybackTreasuryUsd = roundUsd(ledger.buybackTreasuryUsd - usdSpent);
   ledger.buybacks.push({
     at: new Date().toISOString(),
-    tokenId: cheapest.tokenId,
-    priceUsd,
-    seller,
-    buybackTokenCa: collection.buybackTokenCa,
+    usdSpent,
+    solSpent: rec.solSpent,
+    tokenAmount: rec.tokenAmount,
+    tokenAmountRaw: rec.tokenAmountRaw,
+    buybackTokenCa: tokenCa,
+    treasuryWallet: treasury,
+    txSignature: rec.txSignature,
+    txUrl: rec.txUrl,
+    route: rec.route,
+    priceUsd: usdSpent,
   });
 
   return {
     collection,
     purchased: true,
-    tokenId: cheapest.tokenId,
-    priceUsd,
+    usdSpent,
+    tokenAmount: rec.tokenAmount,
+    txSignature: rec.txSignature,
+    txUrl: rec.txUrl,
+    treasuryWallet: treasury,
   };
 }

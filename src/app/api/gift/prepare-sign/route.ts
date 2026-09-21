@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
       network,
     });
 
-    await updateCollection(collectionId, (c) => {
+    // Persist in the background so the client can sign a still-fresh blockhash.
+    void updateCollection(collectionId, (c) => {
       if (!c.pendingMint) return c;
       c.pendingMint = {
         ...c.pendingMint,

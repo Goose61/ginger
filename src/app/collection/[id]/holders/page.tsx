@@ -44,8 +44,12 @@ export default async function HoldersPage({
         )}
         {collection.treasuryBuybackActive && (
           <li className="rounded border border-white/15 bg-white/5 px-3 py-2">
-            Treasury buyback program is active
-            {collection.buybackTokenCa ? ` — token ${collection.buybackTokenCa.slice(0, 8)}…` : ""}.
+            Treasury SPL buyback is active
+            {collection.buybackTokenCa ? ` — buying ${collection.buybackTokenCa.slice(0, 8)}…` : ""}
+            {collection.buybackTreasuryWallet
+              ? ` into ${collection.buybackTreasuryWallet.slice(0, 6)}…`
+              : ""}
+            .
           </li>
         )}
         {collection.discordRoleSyncEnabled && (

@@ -148,8 +148,8 @@ const MILESTONE_DESC: Partial<Record<MilestoneEventId, string>> = {
   creator_banner:        "Displays a custom creator banner on the collection page.",
   live_mint_feed:        "Shows a live ticker of recent mints on the collection page.",
   referral_bonus_boost:  "Temporarily boosts the referral bonus percentage for this collection.",
-  treasury_buyback:      "Triggers the treasury to buy back NFTs from secondary, supporting the floor.",
-  fee_distribution:      "Opens fee claims so accumulated fees can be withdrawn by eligible wallets.",
+  treasury_buyback:      "Delays SPL token buybacks until this % minted. Leave unchecked to buy the token into the treasury wallet on every sale.",
+  fee_distribution:      "Delays holder fee claims until this % minted. Leave unchecked (or pick No milestones) to split the holder pool on every sale.",
 };
 
 type Mode = "ready" | "layers" | null;
@@ -396,8 +396,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         label: "Metadata review errors resolved",
       },
       {
-        ok: !buybackEnabled || Boolean(collection.buybackTokenCa?.trim()),
-        label: "Buyback token CA (contract address)",
+        ok: !buybackEnabled || Boolean(collection.buybackTokenCa?.trim() && (collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet)),
+        label: "Buyback token CA + treasury wallet",
       },
     ];
   }, [collection, publicKey, feesTotal, royaltyOwner, royaltyHolders, royaltyBuyback, royaltySplitTotal, buybackEnabled, metadataReview, mode, needsRezip]);
@@ -436,6 +436,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       royaltyCreators: src.royaltyCreators,
       metadataConfirmed: src.metadataConfirmed,
       buybackTokenCa: src.buybackTokenCa,
+      buybackTreasuryWallet: src.buybackTreasuryWallet,
       launchDraft: {
         step: nextStep,
         mode,
@@ -1185,6 +1186,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       if (buybackEnabled && !collection.buybackTokenCa?.trim()) {
         throw new Error("Enter the buyback token contract address (CA) before launch.");
       }
+      if (buybackEnabled && !(collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet || publicKey)) {
+        throw new Error("Enter the treasury wallet that should receive bought tokens.");
+      }
       const applied = collectionForGoLive(collection);
       let current: Collection = applied;
       if (applied.tokens.length > TOKEN_IMPORT_BATCH_SIZE) {
@@ -1198,6 +1202,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           royaltyCreators: applied.royaltyCreators,
           metadataConfirmed: true,
           buybackTokenCa: applied.buybackTokenCa?.trim() || undefined,
+          buybackTreasuryWallet:
+            applied.buybackTreasuryWallet?.trim() || applied.payments.creatorWallet || payout,
           ...(applied.tokens.length <= TOKEN_IMPORT_BATCH_SIZE
             ? { tokens: applied.tokens }
             : {}),
@@ -2288,7 +2294,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                           setRoyaltyBuyback(e.target.checked);
                           if (!e.target.checked) setRoyaltySplit({ ...royaltySplit, buybackPercent: 0 });
                         }} />
-                      <span className="text-sm font-medium text-white">Floor buyback treasury</span>
+                      <span className="text-sm font-medium text-white">SPL token buyback</span>
                     </label>
                     {royaltyBuyback && (
                       <div className="mt-2 space-y-2 pl-6">
@@ -2296,14 +2302,14 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                           <input type="number" min={0} max={100} value={royaltySplit.buybackPercent}
                             onChange={(e) => setRoyaltySplit({ ...royaltySplit, buybackPercent: Number(e.target.value) })}
                             className="input w-20 text-sm" />
-                          <span className="text-xs text-white/60">% of royalty → buyback treasury</span>
+                          <span className="text-xs text-white/60">% of royalty → token buyback</span>
                         </div>
                       </div>
                     )}
                   </div>
                   {buybackEnabled && (
-                    <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3">
-                      <Field label="Buyback token CA (contract address)">
+                    <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3 space-y-3">
+                      <Field label="Buyback token CA (SPL mint)">
                         <input
                           className="input font-mono text-sm"
                           placeholder="Solana SPL mint address"
@@ -2313,6 +2319,19 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                           }
                         />
                       </Field>
+                      <Field label="Treasury wallet (receives bought tokens)">
+                        <input
+                          className="input font-mono text-sm"
+                          placeholder="Wallet that holds the bought SPL"
+                          value={collection.buybackTreasuryWallet ?? collection.payments.creatorWallet ?? ""}
+                          onChange={(e) =>
+                            setCollection({ ...collection, buybackTreasuryWallet: e.target.value.trim() })
+                          }
+                        />
+                      </Field>
+                      <p className="text-xs text-white/50">
+                        Mint SOL pays the platform wallet first; the buyback share is swapped into this token in the treasury wallet.
+                      </p>
                     </div>
                   )}
                   {(royaltyOwner || royaltyHolders || royaltyBuyback) && (
@@ -2638,8 +2657,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             </p>
 
             {collection.fees.buybackPercent > 0 && !royaltyBuyback && (
-              <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3">
-                <Field label="Buyback token CA (contract address)">
+              <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3 space-y-3">
+                <Field label="Buyback token CA (SPL mint)">
                   <input
                     className="input font-mono text-sm"
                     placeholder="Solana SPL mint address"
@@ -2649,8 +2668,18 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                     }
                   />
                 </Field>
+                <Field label="Treasury wallet (receives bought tokens)">
+                  <input
+                    className="input font-mono text-sm"
+                    placeholder="Wallet that holds the bought SPL"
+                    value={collection.buybackTreasuryWallet ?? collection.payments.creatorWallet ?? ""}
+                    onChange={(e) =>
+                      setCollection({ ...collection, buybackTreasuryWallet: e.target.value.trim() })
+                    }
+                  />
+                </Field>
                 <p className="mt-1 text-xs text-white/50">
-                  Required when primary mint fees include a buyback treasury share.
+                  Required when mint fees include a buyback share. Platform swaps this token into the treasury after each sale.
                 </p>
               </div>
             )}
@@ -2777,16 +2806,62 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         {/* ── Milestones ── */}
         {stepIs("Milestones") && collection && (() => {
           const categories = [...new Set(MILESTONE_EVENTS.map((e) => e.category))];
+          const noMilestones = collection.milestones.length === 0;
           return (
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-semibold text-white">Milestones</h2>
                 <p className="mt-1 text-sm text-white/60">
-                  Automatically trigger marketplace actions when a % of supply is minted. Add multiple
-                  milestones to schedule a progression of events.
+                  Holder rewards and treasury buyback run on every sale unless you add those events to a
+                  milestone. Use this step only if you want other actions to wait for a % minted.
                 </p>
               </div>
 
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setCollection({ ...collection, milestones: [] })}
+                  className={`rounded-xl border p-4 text-left ${
+                    noMilestones
+                      ? "border-primary bg-primary/10"
+                      : "border-white/15 bg-white/5 hover:border-white/30"
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-white">No milestones</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                    Distribute holder fees to current holders and buy the SPL token into the treasury wallet on every mint or sale.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (collection.milestones.length === 0) {
+                      setCollection({
+                        ...collection,
+                        milestones: [{ at: 50, events: [] }],
+                      });
+                    }
+                  }}
+                  className={`rounded-xl border p-4 text-left ${
+                    !noMilestones
+                      ? "border-primary bg-primary/10"
+                      : "border-white/15 bg-white/5 hover:border-white/30"
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-white">Schedule milestones</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                    Trigger reveals, listings, claims, or buyback when a percent of supply is minted.
+                  </p>
+                </button>
+              </div>
+
+              {noMilestones ? (
+                <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200/80">
+                  Every buy immediately splits the holder pool across wallets that currently hold an NFT
+                  in this collection, and spends the buyback share to purchase your SPL token into the treasury wallet.
+                </p>
+              ) : (
+                <>
               {collection.milestones.map((m, idx) => (
                 <div key={idx} className="rounded-xl border border-white/15 bg-white/5 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -2852,6 +2927,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 className="rounded-lg border border-dashed border-white/20 px-4 py-2 text-sm text-white/50 hover:border-white/40 hover:text-white">
                 + Add milestone
               </button>
+                </>
+              )}
             </div>
           );
         })()}

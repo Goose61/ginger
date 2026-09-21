@@ -11,6 +11,7 @@ type FeeStatus = {
   feeClaimsOpen: boolean;
   treasuryBuybackActive: boolean;
   buybackTokenCa: string | null;
+  buybackTreasuryWallet: string | null;
   claimPreview: {
     wallet: string;
     heldCount: number;
@@ -73,7 +74,8 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
       <div>
         <h2 className="text-xl font-semibold text-white">Treasury & rewards</h2>
         <p className="mt-1 text-xs text-white/40">
-          Holder and buyback treasuries accrue on every primary mint and secondary sale.
+          Holder fees accrue on every sale and pay out to current holders.
+          The buyback share market-buys the collection token into the creator treasury wallet.
         </p>
       </div>
 
@@ -86,10 +88,20 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
         </dl>
       )}
 
-      {status?.buybackTokenCa && (
-        <div className="rounded border border-[#f5c542]/30 bg-[#f5c542]/5 px-3 py-2 text-xs">
-          <p className="text-[#f5c542] font-medium">Buyback token CA</p>
-          <p className="mt-1 font-mono text-white/80 break-all">{status.buybackTokenCa}</p>
+      {(status?.buybackTokenCa || status?.buybackTreasuryWallet) && (
+        <div className="rounded border border-[#f5c542]/30 bg-[#f5c542]/5 px-3 py-2 text-xs space-y-2">
+          {status.buybackTokenCa && (
+            <div>
+              <p className="text-[#f5c542] font-medium">Buyback token</p>
+              <p className="mt-1 font-mono text-white/80 break-all">{status.buybackTokenCa}</p>
+            </div>
+          )}
+          {status.buybackTreasuryWallet && (
+            <div>
+              <p className="text-[#f5c542] font-medium">Treasury wallet</p>
+              <p className="mt-1 font-mono text-white/80 break-all">{status.buybackTreasuryWallet}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -100,7 +112,7 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
             <>
               <p className="mt-2 text-sm text-white/60">
                 You hold {status.claimPreview.heldCount} NFT
-                {status.claimPreview.heldCount !== 1 ? "s" : ""} in the last distribution snapshot.
+                {status.claimPreview.heldCount !== 1 ? "s" : ""} in this collection.
               </p>
               <p className="mt-1 text-lg font-semibold text-white">
                 Claimable: {formatUsd(status.claimPreview.claimableUsd)}
@@ -133,7 +145,18 @@ export function HolderFeePanel({ collectionId }: { collectionId: string }) {
           <ul className="mt-2 space-y-2 text-xs">
             {ledger.buybacks.map((b, i) => (
               <li key={`${b.at}-${i}`} className="rounded border border-white/10 px-3 py-2 font-mono text-white/70">
-                #{b.tokenId} · {formatUsd(b.priceUsd)} · {new Date(b.at).toLocaleString()}
+                {formatUsd(b.usdSpent ?? b.priceUsd ?? 0)}
+                {b.tokenAmount != null ? ` → ${b.tokenAmount} tokens` : ""}
+                {b.txUrl ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <a className="text-primary underline" href={b.txUrl} target="_blank" rel="noreferrer">
+                      tx
+                    </a>
+                  </>
+                ) : null}
+                <span className="text-white/40"> · {new Date(b.at).toLocaleString()}</span>
               </li>
             ))}
           </ul>

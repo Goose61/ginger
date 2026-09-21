@@ -29,7 +29,7 @@ export function buildImportingCollectionStub(params: {
     revealTrigger: "manual",
     revealed: true,
     royaltyBps: DEFAULT_ROYALTY_BPS,
-    milestones: [{ at: 100, events: ["enable_secondary", "snapshot_holders"] }],
+    milestones: [],
     payments: defaultPayments({ giftMintEnabled: true, creatorWallet: params.creatorWallet }),
     fees: {
       ownerPercent: 98,

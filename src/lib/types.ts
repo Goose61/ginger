@@ -228,10 +228,21 @@ export type FeeDistributionRound = {
 
 export type TreasuryBuybackRecord = {
   at: string;
-  tokenId: number;
-  priceUsd: number;
-  seller: string;
-  buybackTokenCa?: string;
+  /** USD drawn from the buyback pool for this purchase. */
+  usdSpent?: number;
+  solSpent?: number;
+  /** UI amount of SPL tokens delivered to the treasury wallet. */
+  tokenAmount?: number;
+  tokenAmountRaw?: string;
+  buybackTokenCa: string;
+  treasuryWallet: string;
+  txSignature?: string;
+  txUrl?: string;
+  route?: "jupiter" | "direct_mint";
+  /** @deprecated NFT floor-buy fields from the old buyback path. */
+  tokenId?: number;
+  priceUsd?: number;
+  seller?: string;
 };
 
 export type FeeLedger = {
@@ -318,8 +329,10 @@ export type Collection = {
   }[];
   sequelAllowlistFromHolders?: boolean;
   treasuryBuybackActive?: boolean;
-  /** SPL / meme token contract address for buyback rewards (required when buyback enabled). */
+  /** SPL mint the buyback treasury purchases on each sale. */
   buybackTokenCa?: string;
+  /** Wallet that receives bought SPL tokens. */
+  buybackTreasuryWallet?: string;
   discordRoleSyncEnabled?: boolean;
   airdropSplPending?: boolean;
   feeLedger?: FeeLedger;

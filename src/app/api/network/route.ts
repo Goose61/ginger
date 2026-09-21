@@ -7,8 +7,13 @@
  */
 
 import { NextResponse } from "next/server";
+import { getMintPaymentRecipient } from "@/lib/platform-disbursement";
 import { getSolanaNetwork } from "@/lib/solana-config";
 
 export async function GET() {
-  return NextResponse.json({ network: getSolanaNetwork() });
+  return NextResponse.json({
+    network: getSolanaNetwork(),
+    /** Primary mint SOL is paid here before creator payout + SPL buyback. */
+    platformWallet: getMintPaymentRecipient(),
+  });
 }

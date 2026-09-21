@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { committedCount, getCollection, updateCollection } from "@/lib/store";
 import { explorerClusterQuery, parseNetwork } from "@/lib/solana-config";
 import { verifyMintTransaction } from "@/lib/verify-mint";
+import { applySaleTreasury } from "@/lib/milestones";
 import { toPublicCollection } from "@/lib/public-collection";
 
 type Params = { params: Promise<{ id: string }> };
@@ -57,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       delete c.pendingMint;
       c.mintedCount = committedCount(c);
       c.updatedAt = new Date().toISOString();
-      return c;
+      return applySaleTreasury(c);
     });
 
     if (!collection) {

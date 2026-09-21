@@ -166,7 +166,9 @@ async function buildUnsignedGiftTx(params: {
   const blockhash = params.recentBlockhash ?? (await fetchLatestBlockhash(rpcUrl));
 
   const collectionAddress =
-    params.coreCollectionAddress ?? getCoreCollectionAddress(params.network);
+    params.coreCollectionAddress === undefined
+      ? getCoreCollectionAddress(params.network)
+      : params.coreCollectionAddress;
 
   let coreCollectionAddress: string | undefined;
   const createArgs: Parameters<typeof create>[1] = {
@@ -178,10 +180,17 @@ async function buildUnsignedGiftTx(params: {
   };
 
   if (collectionAddress) {
-    const collection = await fetchCoreCollection(umi, collectionAddress, params.network);
-    createArgs.collection = collection;
-    createArgs.authority = authoritySigner;
-    coreCollectionAddress = collectionAddress;
+    try {
+      const collection = await fetchCoreCollection(umi, collectionAddress, params.network);
+      createArgs.collection = collection;
+      createArgs.authority = authoritySigner;
+      coreCollectionAddress = collectionAddress;
+    } catch (err) {
+      console.warn(
+        `[mint] Core collection ${collectionAddress} is not on ${params.network}; minting a standalone asset.`,
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 
   const tx = await create(umi, createArgs)
@@ -324,7 +333,7 @@ export async function prepareGiftTransactionForSigning(params: {
     payer: params.pendingMint.payer,
     network,
     assetSecretKey: assetSecret,
-    coreCollectionAddress: params.pendingMint.coreCollectionAddress,
+    coreCollectionAddress: params.pendingMint.coreCollectionAddress ?? null,
   });
 
   if (assetAddress !== params.pendingMint.assetAddress) {
@@ -334,7 +343,25 @@ export async function prepareGiftTransactionForSigning(params: {
   await assertPayerCanAffordMintStep({ payer: params.payer, network });
   await simulateUnsignedTransaction(txBase64, network);
 
-  return { txBase64, assetAddress };
+  // Re-bake with a fresh blockhash after slow simulate/RPC so Phantom/cosign
+  // still has a valid hash (Mongo + public devnet RPC can eat 30s+).
+  const rpcUrl = getDirectRpcUrl(network);
+  const latest = await fetchLatestBlockhash(rpcUrl);
+  const fresh = await buildUnsignedGiftTx({
+    name: params.pendingMint.name,
+    metadataUri: params.pendingMint.metadataUri,
+    recipient: params.pendingMint.recipient,
+    payer: params.pendingMint.payer,
+    network,
+    assetSecretKey: assetSecret,
+    coreCollectionAddress: params.pendingMint.coreCollectionAddress ?? null,
+    recentBlockhash: latest.blockhash,
+  });
+  if (fresh.assetAddress !== params.pendingMint.assetAddress) {
+    throw new Error("Asset address mismatch when refreshing transaction.");
+  }
+
+  return { txBase64: fresh.txBase64, assetAddress: fresh.assetAddress };
 }
 
 export async function buildGiftTransaction(params: {
@@ -405,15 +432,13 @@ export async function cosignAndSubmitGiftTransaction(params: {
   assertUserSignedGiftMintTx(tx, params.pendingMint);
 
   const cosigners = [assetKp];
-  const usesCoreCollection =
-    params.pendingMint.coreCollectionAddress ?? getCoreCollectionAddress(network);
-  if (usesCoreCollection) {
+  if (params.pendingMint.coreCollectionAddress) {
     cosigners.unshift(platformKp);
   }
   tx.sign(cosigners);
 
-  await simulateSignedTransaction(tx, network);
-
+  // Unsigned tx was already simulated in prepare-sign. Simulating again on a
+  // different public RPC node often returns BlockhashNotFound after Mongo delay.
   return serverRpcCall<string>(rpcUrl, "sendTransaction", [
     Buffer.from(tx.serialize()).toString("base64"),
     { encoding: "base64", skipPreflight: false, preflightCommitment: "confirmed" },

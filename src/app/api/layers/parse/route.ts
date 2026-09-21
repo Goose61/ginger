@@ -72,11 +72,7 @@ export async function POST(req: NextRequest) {
       revealTrigger: "staggered",
       revealAtPercent: 50,
       revealed: false,
-      milestones: [
-        { at: 25, events: ["unlock_holder_page", "enable_gift_mint"] },
-        { at: 50, events: ["reveal_batch", "enable_secondary", "featured_homepage"] },
-        { at: 100, events: ["reveal_all", "snapshot_holders"] },
-      ],
+      milestones: [],
       payments: defaultPayments({ creatorWallet: auth.wallet }),
       fees: {
         ownerPercent: 98,

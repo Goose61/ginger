@@ -38,6 +38,15 @@ yarn-error.log*
 /data/staging
 /data/layers
 
+# local test wallets — never commit
+.devnet-wallet.json
+*.devnet-wallet.json
+.devnet-holders.json
+.devnet-creator.json
+.devnet-buyback-mint.json
+.mainnet-smoke-wallet.json
+.smoke-holders.json
+
 # vercel
 .vercel
 

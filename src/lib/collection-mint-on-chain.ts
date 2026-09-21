@@ -19,8 +19,11 @@ export async function buildPendingMintForToken(params: {
     throw new Error("Token metadata not published — run go-live publish first");
   }
 
+  const networkCore = process.env[`CORE_COLLECTION_ADDRESS_${network.toUpperCase()}`]?.trim();
   const coreCollectionAddress =
-    collection.coreCollectionAddress ?? getCoreCollectionAddress(network);
+    network === "mainnet"
+      ? (collection.coreCollectionAddress ?? getCoreCollectionAddress(network))
+      : (networkCore || null);
 
   const txResult = await buildGiftTransaction({
     name: tokenName(collection, token),
