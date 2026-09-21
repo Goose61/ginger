@@ -1,8 +1,9 @@
-import { MongoClient, type Collection as MongoCollection, type Db } from "mongodb";
+import { MongoClient, type Collection as MongoCollection, type Db, type MongoClientOptions } from "mongodb";
 import type { Collection } from "./types";
 
 declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
+  var _mongoIndexesPromise: Promise<void> | undefined;
 }
 
 function getUri(): string {
@@ -16,20 +17,28 @@ function getUri(): string {
   return uri;
 }
 
+/** Short timeouts + IPv4 avoid serverless TLS hangs on Atlas SRV. */
+const mongoOptions: MongoClientOptions = {
+  maxPoolSize: 5,
+  minPoolSize: 0,
+  maxIdleTimeMS: 30_000,
+  serverSelectionTimeoutMS: 8_000,
+  connectTimeoutMS: 8_000,
+  socketTimeoutMS: 20_000,
+  family: 4,
+};
+
+function connectClient(): Promise<MongoClient> {
+  const client = new MongoClient(getUri(), mongoOptions);
+  return client.connect().catch((err: unknown) => {
+    global._mongoClientPromise = undefined;
+    throw err;
+  });
+}
+
 function getClientPromise(): Promise<MongoClient> {
-  const uri = getUri();
-
-  if (process.env.NODE_ENV === "development") {
-    if (!global._mongoClientPromise) {
-      const client = new MongoClient(uri);
-      global._mongoClientPromise = client.connect();
-    }
-    return global._mongoClientPromise;
-  }
-
   if (!global._mongoClientPromise) {
-    const client = new MongoClient(uri);
-    global._mongoClientPromise = client.connect();
+    global._mongoClientPromise = connectClient();
   }
   return global._mongoClientPromise;
 }
@@ -39,10 +48,22 @@ export async function getDb(): Promise<Db> {
   return client.db("crypgo");
 }
 
+function ensureIndexes(col: MongoCollection<Collection>): void {
+  if (global._mongoIndexesPromise) return;
+  global._mongoIndexesPromise = Promise.all([
+    col.createIndex({ id: 1 }, { unique: true, background: true }),
+    col.createIndex({ slug: 1 }, { background: true }),
+  ])
+    .then(() => undefined)
+    .catch((err: unknown) => {
+      global._mongoIndexesPromise = undefined;
+      console.error("[mongo] index ensure failed", err);
+    });
+}
+
 export async function getCollectionsCol(): Promise<MongoCollection<Collection>> {
   const db = await getDb();
   const col = db.collection<Collection>("collections");
-  await col.createIndex({ id: 1 }, { unique: true, background: true });
-  await col.createIndex({ slug: 1 }, { background: true });
+  ensureIndexes(col);
   return col;
 }

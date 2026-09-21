@@ -10,7 +10,14 @@ const getMarketCards = unstable_cache(
 );
 
 export async function MarketHome() {
-  const { live, secondary, giftBundle } = await getMarketCards();
+  let live: Awaited<ReturnType<typeof getMarketCards>>["live"] = [];
+  let secondary: Awaited<ReturnType<typeof getMarketCards>>["secondary"] = [];
+  let giftBundle: Awaited<ReturnType<typeof getMarketCards>>["giftBundle"];
+  try {
+    ({ live, secondary, giftBundle } = await getMarketCards());
+  } catch (err) {
+    console.error("[market] database unavailable", err);
+  }
 
   return (
     <main className="relative overflow-hidden">

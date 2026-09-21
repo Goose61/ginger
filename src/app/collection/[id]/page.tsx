@@ -4,6 +4,7 @@ import { getCollection } from "@/lib/store";
 import { isListedPublicly, toPublicCollection } from "@/lib/public-collection";
 import { CollectionMint } from "@/components/CollectionMint";
 import { getSolanaNetwork } from "@/lib/solana-config";
+import type { Collection } from "@/lib/types";
 import {
   resetStaleMintState,
   txSignatureFromMintUrl,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/verify-mint";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 20;
 
 export default async function CollectionPage({
   params,
@@ -18,7 +20,20 @@ export default async function CollectionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  let collection = await getCollection(id);
+  let collection: Collection | null = null;
+  try {
+    collection = await getCollection(id);
+  } catch (err) {
+    console.error("[collection page] database unavailable", err);
+    return (
+      <main className="container mx-auto max-w-xl px-4 py-20 pt-16 text-center">
+        <h1 className="text-2xl text-white">Collection is temporarily unavailable</h1>
+        <p className="mt-3 text-sm text-white/50">
+          The marketplace could not reach the database. Refresh in a moment.
+        </p>
+      </main>
+    );
+  }
   if (!collection) notFound();
   if (!isListedPublicly(collection)) {
     notFound();
