@@ -420,6 +420,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       payments: { ...src.payments, creatorWallet: src.payments.creatorWallet || publicKey! },
       fees: src.fees,
       blindMint: src.blindMint,
+      immutableMetadata: src.immutableMetadata ?? true,
       revealTrigger: src.revealTrigger,
       revealAt: src.revealAt,
       revealAtPercent: src.revealAtPercent,
@@ -2694,6 +2695,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               <h2 className="text-lg font-semibold text-white">Reveal settings</h2>
               <p className="mt-1 text-sm text-white/60">
                 Blind mints hide what each NFT looks like until you reveal. Choose when traits become public.
+              </p>
+              <p className="mt-2 text-sm text-white/50">
+                All Ginger Core mints are locked on-chain at mint (immutable metadata). Name and URI cannot be changed after mint.
               </p>
             </div>
 

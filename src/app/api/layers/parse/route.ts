@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       stackOrder: parsed.stackOrder,
       layers,
       blindMint: true,
+      immutableMetadata: true,
       revealTrigger: "staggered",
       revealAtPercent: 50,
       revealed: false,

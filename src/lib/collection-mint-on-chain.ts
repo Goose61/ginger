@@ -28,6 +28,7 @@ export async function buildPendingMintForToken(params: {
     payer,
     network,
     coreCollectionAddress,
+    immutableMetadata: collection.immutableMetadata !== false,
   });
 
   if (!txResult) {

@@ -29,6 +29,14 @@ import {
 } from "./gift-fees";
 import type { PendingMint } from "./types";
 
+/** Metaplex Core assets are locked at mint unless explicitly disabled. */
+export const DEFAULT_IMMUTABLE_METADATA = true;
+
+export function coreImmutableMetadataPlugins(enabled = DEFAULT_IMMUTABLE_METADATA) {
+  if (!enabled) return undefined;
+  return [{ type: "ImmutableMetadata" as const }];
+}
+
 export type BuildTxResult = {
   txBase64: string;
   assetAddress: string;
@@ -139,6 +147,7 @@ async function buildUnsignedGiftTx(params: {
   assetSecretKey?: Uint8Array;
   coreCollectionAddress?: string | null;
   recentBlockhash?: string;
+  immutableMetadata?: boolean;
 }): Promise<{
   txBase64: string;
   assetAddress: string;
@@ -171,12 +180,16 @@ async function buildUnsignedGiftTx(params: {
       : params.coreCollectionAddress;
 
   let coreCollectionAddress: string | undefined;
+  const immutablePlugins = coreImmutableMetadataPlugins(
+    params.immutableMetadata ?? DEFAULT_IMMUTABLE_METADATA,
+  );
   const createArgs: Parameters<typeof create>[1] = {
     asset: assetSigner,
     name: params.name,
     uri: params.metadataUri,
     owner: umiPublicKey(params.recipient),
     payer: payerNoop,
+    ...(immutablePlugins ? { plugins: immutablePlugins } : {}),
   };
 
   if (collectionAddress) {
@@ -371,6 +384,7 @@ export async function buildGiftTransaction(params: {
   payer: string;
   network?: SolanaNetwork;
   coreCollectionAddress?: string | null;
+  immutableMetadata?: boolean;
 }): Promise<BuildTxResult | null> {
   if (!getPlatformSecretKey()) return null;
 
@@ -387,6 +401,7 @@ export async function buildGiftTransaction(params: {
       payer: params.payer,
       network,
       coreCollectionAddress,
+      immutableMetadata: params.immutableMetadata,
     });
 
   return {

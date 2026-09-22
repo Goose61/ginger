@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
     revealAt: body.revealAt ?? existing.revealAt,
     revealAtPercent: body.revealAtPercent ?? existing.revealAtPercent,
     blindMint: body.blindMint ?? existing.blindMint,
+    immutableMetadata: body.immutableMetadata ?? existing.immutableMetadata ?? true,
     launchDraft: body.launchDraft ?? existing.launchDraft,
     tokens:
       existing.status === "live" || existing.status === "sold_out"

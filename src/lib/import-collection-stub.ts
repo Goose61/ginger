@@ -26,6 +26,7 @@ export function buildImportingCollectionStub(params: {
     stackOrder: [],
     layers: [],
     blindMint: false,
+    immutableMetadata: true,
     revealTrigger: "manual",
     revealed: true,
     royaltyBps: DEFAULT_ROYALTY_BPS,

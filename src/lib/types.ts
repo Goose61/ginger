@@ -298,6 +298,8 @@ export type Collection = {
   stackOrder: string[];
   layers: LayerCatalog[];
   blindMint: boolean;
+  /** When true (default), Core mints include ImmutableMetadata and cannot be changed on-chain. */
+  immutableMetadata?: boolean;
   placeholderUri?: string;
   revealTrigger: RevealTrigger;
   revealAtPercent?: number;

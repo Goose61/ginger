@@ -49,6 +49,7 @@ export async function getOrCreateGiftBundle(): Promise<Collection> {
     stackOrder: [],
     layers: [],
     blindMint: false,
+    immutableMetadata: true,
     revealTrigger: "manual",
     revealed: true,
     milestones: [],
