@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   description:
     "Launch NFT collections on Solana. Auto metadata, permanent storage, programmable fees, and in-ecosystem secondary trading.",
   icons: {
-    icon: "/images/ginger.jpg",
+    icon: "/favicon.ico",
     apple: "/images/ginger.jpg",
   },
 };
