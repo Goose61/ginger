@@ -38,6 +38,10 @@ export const metadata: Metadata = {
   title: "Ginger · NFT marketplace",
   description:
     "Launch NFT collections on Solana. Auto metadata, permanent storage, programmable fees, and in-ecosystem secondary trading.",
+  icons: {
+    icon: "/images/ginger.jpg",
+    apple: "/images/ginger.jpg",
+  },
 };
 
 export default function RootLayout({
