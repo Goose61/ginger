@@ -54,6 +54,8 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open || !pickedWallet) return;
     if (wallet?.adapter.name !== pickedWallet) return;
+    // MetaMask in-app connect runs synchronously from pick() (mobile gesture chain).
+    if (pickedWallet === "MetaMask" || pickedWallet === "MetaMask Flask") return;
 
     let cancelled = false;
     void (async () => {
@@ -97,9 +99,16 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
     setError(null);
     const w = matchWallet(adapterNames);
     const installed = w?.readyState === WalletReadyState.Installed;
+    const inApp = isInWalletBrowser(id);
+
+    // MetaMask on mobile: external browsers cannot complete connect — open in-app dapp browser.
+    if (mobile && pageUrl && id === "metamask" && !inApp) {
+      openWalletBrowseUrl(id, pageUrl);
+      return;
+    }
 
     // Mobile external browser: open in wallet app on tap (user gesture required for universal links).
-    if (mobile && pageUrl && !installed && !isInWalletBrowser(id)) {
+    if (mobile && pageUrl && !installed && !inApp) {
       openWalletBrowseUrl(id, pageUrl);
       return;
     }
@@ -108,6 +117,17 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
       const name = w.adapter.name as WalletName;
       setPickedWallet(name);
       select(name);
+      if (id === "metamask" && inApp) {
+        void connect()
+          .catch((err) => {
+            const message =
+              err instanceof Error ? err.message : "Could not connect to MetaMask.";
+            setError(message);
+            setPickedWallet(null);
+            return disconnect();
+          })
+          .catch(() => undefined);
+      }
       return;
     }
 
@@ -139,7 +159,7 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
             {busy
               ? "Approve the connection in your wallet…"
               : mobile
-                ? "Tap a wallet to open this page in its app, then connect again. MetaMask and Solflare only work inside their in-app browser on mobile."
+                ? "Tap MetaMask to open Ginger inside the MetaMask app, then tap Connect again. Phantom, Solflare, and Backpack work here or in-app."
                 : "Choose a Solana wallet to sign in and approve transactions."}
           </DialogDescription>
         </DialogHeader>

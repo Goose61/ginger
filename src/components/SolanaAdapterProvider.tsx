@@ -38,7 +38,7 @@ export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void createSolanaClient({
       dapp: {
-        name: "Crust",
+        name: "Ginger",
         url: window.location.origin,
       },
       api: {

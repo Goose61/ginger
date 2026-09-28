@@ -110,11 +110,23 @@ export function isInWalletBrowser(id: WalletOptionId): boolean {
       return Boolean(w.solflare?.isSolflare);
     case "backpack":
       return Boolean(w.backpack);
-    case "metamask":
-      return Boolean(navigator.userAgent.endsWith("MetaMaskMobile"));
+    case "metamask": {
+      const w = window as Window & { ReactNativeWebView?: unknown };
+      // Match MetaMask Connect platform detection (in-app browser webview).
+      return Boolean(w.ReactNativeWebView && navigator.userAgent.endsWith("MetaMaskMobile"));
+    }
     default:
       return false;
   }
+}
+
+/**
+ * MetaMask Solana on mobile must run inside MetaMask's in-app browser.
+ * MWP/deeplink connect from Safari or Chrome approves in the app but does not
+ * inject a provider back into the external browser tab.
+ */
+export function mustOpenWalletInAppBrowser(id: WalletOptionId): boolean {
+  return id === "metamask";
 }
 
 /**
