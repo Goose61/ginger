@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { sendFeedbackEmail } from "@/lib/feedback-email";
+import { sendFeedbackEmail, FeedbackEmailError } from "@/lib/feedback-email";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 
@@ -51,11 +51,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[POST /api/feedback]", err);
-    const messageText =
-      err instanceof Error && err.message.includes("RESEND_API_KEY")
-        ? "Feedback email is not configured yet."
-        : "Something went wrong";
-    return NextResponse.json({ error: messageText }, { status: 500 });
+    if (err instanceof FeedbackEmailError) {
+      if (err.code === "missing_config") {
+        return NextResponse.json({ error: "Feedback email is not configured yet." }, { status: 503 });
+      }
+      if (err.code === "domain_not_verified") {
+        return NextResponse.json(
+          { error: "Feedback email is not configured yet. Verify the sender domain in Resend." },
+          { status: 503 },
+        );
+      }
+    }
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
