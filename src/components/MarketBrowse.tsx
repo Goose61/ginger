@@ -220,7 +220,7 @@ function FeaturedHero({ slides }: { slides: MarketCard[] }) {
           <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-6 text-white/60 sm:text-base">
             {active.description || "Primary mint and secondary listings stay in-ecosystem."}
           </p>
-          <dl className="mt-6 grid max-w-lg grid-cols-3 gap-2">
+          <dl className="mt-6 grid max-w-lg grid-cols-3 gap-1.5 sm:gap-2">
             <HeroStat label="Floor" value={formatUsd(active.stats.floorUsd)} />
             <HeroStat label="Volume" value={formatUsdAmount(active.stats.volumeUsd)} />
             <HeroStat label="Minted" value={`${pct}%`} />
@@ -415,7 +415,38 @@ function MintCard({ collection }: { collection: MarketCard }) {
 
 function SecondaryTable({ collections }: { collections: MarketCard[] }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/12 bg-card">
+    <>
+      <ul className="space-y-3 md:hidden">
+        {collections.map((collection, index) => (
+          <li key={collection.id}>
+            <Link
+              href={collectionHref(collection)}
+              className="block rounded-2xl border border-white/12 bg-card p-4"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-5 font-[family-name:var(--font-mono)] text-xs text-white/35">
+                  {index + 1}
+                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={collection.coverSrc}
+                  alt=""
+                  className="h-11 w-11 shrink-0 rounded-lg object-contain"
+                />
+                <span className="min-w-0 flex-1 truncate font-medium text-white">{collection.name}</span>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                <MobileStat label="Floor" value={formatUsd(collection.stats.floorUsd)} />
+                <MobileStat label="Volume" value={formatUsdAmount(collection.stats.volumeUsd)} />
+                <MobileStat label="Listed" value={String(collection.stats.listedCount)} />
+                <MobileStat label="Sold" value={String(collection.stats.sold)} />
+                <MobileStat label="Available" value={String(collection.stats.available)} />
+              </dl>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-2xl border border-white/12 bg-card md:block">
       <table className="w-full min-w-[44rem] text-left text-sm">
         <thead>
           <tr className="border-b border-white/10 font-[family-name:var(--font-mono)] text-[10px] tracking-[0.16em] text-white/40">
@@ -461,6 +492,18 @@ function SecondaryTable({ collections }: { collections: MarketCard[] }) {
           ))}
         </tbody>
       </table>
+      </div>
+    </>
+  );
+}
+
+function MobileStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-white/5 px-2.5 py-2">
+      <dt className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.14em] text-white/40">
+        {label.toUpperCase()}
+      </dt>
+      <dd className="mt-0.5 truncate font-[family-name:var(--font-mono)] text-sm text-white">{value}</dd>
     </div>
   );
 }
@@ -529,11 +572,11 @@ function GiftStrip({ collection }: { collection: MarketCard }) {
 
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+    <div className="min-w-0 rounded-xl border border-white/10 bg-black/30 px-2 py-2 sm:px-3 sm:py-2.5">
       <dt className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.16em] text-white/40">
         {label.toUpperCase()}
       </dt>
-      <dd className="mt-1 truncate text-lg font-semibold text-white">{value}</dd>
+      <dd className="mt-1 truncate text-sm font-semibold text-white sm:text-lg">{value}</dd>
     </div>
   );
 }

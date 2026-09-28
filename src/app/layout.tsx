@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/Layout/Header";
 import Footer from "@/components/Layout/Footer";
 import ScrollToTop from "@/components/ScrollToTop";
+import { FeedbackPill } from "@/components/FeedbackPill";
 import Aoscompo from "@/utils/aos";
 import { SolanaAdapterProvider } from "@/components/SolanaAdapterProvider";
 import { WalletProvider } from "@/components/WalletProvider";
@@ -58,6 +59,7 @@ export default function RootLayout({
               </Aoscompo>
             </div>
             <ScrollToTop />
+            <FeedbackPill />
           </WalletProvider>
         </SolanaAdapterProvider>
       </body>
