@@ -19,6 +19,34 @@ export type StoredInvoice = {
   redeemedAt?: Date;
 };
 
+/** Context the buyer must match when redeeming an invoice for an NFT. */
+export type SlicePayFulfillmentContext = {
+  collectionId: string;
+  tokenId: number;
+  payerWallet: string;
+  kind?: StoredInvoice["kind"];
+};
+
+const AMOUNT_TOLERANCE_USD = 0.01;
+
+function amountMatches(a: number, b: number): boolean {
+  return Math.abs(a - b) <= AMOUNT_TOLERANCE_USD;
+}
+
+function fulfillmentMismatch(
+  stored: StoredInvoice,
+  ctx: SlicePayFulfillmentContext,
+): string | null {
+  if (!stored.collectionId) return "Invoice missing collection binding";
+  if (stored.collectionId !== ctx.collectionId) return "Invoice collection mismatch";
+  if (stored.tokenId == null) return "Invoice missing token binding";
+  if (stored.tokenId !== ctx.tokenId) return "Invoice token mismatch";
+  if (!stored.payerWallet) return "Invoice missing payer binding";
+  if (stored.payerWallet !== ctx.payerWallet) return "Invoice payer mismatch";
+  if (ctx.kind && stored.kind && stored.kind !== ctx.kind) return "Invoice kind mismatch";
+  return null;
+}
+
 export async function storeInvoice(data: {
   invoiceId: string;
   amountUsd: number;
@@ -98,35 +126,43 @@ export async function fetchSlicePayStatus(invoiceId: string): Promise<{
   return { status, amountUsd, raw: data };
 }
 
-export async function verifySlicePayInvoice(
-  invoiceId: string,
+function validateStoredInvoiceBasics(
+  stored: StoredInvoice,
   expectedAmountUsd: number,
   expectedOrderPrefix: string,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!invoiceId) return { ok: false, error: "invoiceId required" };
-
-  const stored = await getStoredInvoice(invoiceId);
-  if (stored) {
-    if (!stored.orderId.startsWith(expectedOrderPrefix)) {
-      return { ok: false, error: "Invoice order mismatch" };
-    }
-    if (Math.abs(stored.amountUsd - expectedAmountUsd) > 0.01) {
-      return { ok: false, error: "Invoice amount mismatch" };
-    }
-    if (stored.redeemedAt) {
-      return { ok: false, error: "Invoice already used" };
-    }
-    if (isPaidStatus(stored.status)) return { ok: true };
+): string | null {
+  if (invoiceIdLooksSynthetic(stored.invoiceId)) {
+    return "Invoice must be created via SlicePay create-invoice";
   }
+  if (!stored.orderId.startsWith(expectedOrderPrefix)) {
+    return "Invoice order mismatch";
+  }
+  if (!amountMatches(stored.amountUsd, expectedAmountUsd)) {
+    return "Invoice amount mismatch";
+  }
+  if (stored.redeemedAt) {
+    return "Invoice already used";
+  }
+  return null;
+}
+
+/** Pseudo IDs from hosted-checkout fallback cannot be redeemed for NFT mints. */
+function invoiceIdLooksSynthetic(invoiceId: string): boolean {
+  return invoiceId.startsWith("order:") || invoiceId.startsWith("demo_");
+}
+
+/** Re-fetch SlicePay before marking paid (webhook / sync). */
+export async function confirmInvoicePaidFromSlicePay(
+  invoiceId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const stored = await getStoredInvoice(invoiceId);
+  if (!stored) return { ok: false, error: "Unknown invoice" };
+  if (stored.redeemedAt) return { ok: true };
 
   const merchantId = getSlicePayMerchantId();
   if (!merchantId) {
-    if (!invoiceId.startsWith("demo_")) {
-      return { ok: false, error: "Payment provider not configured" };
-    }
-    if (!stored) return { ok: false, error: "Unknown demo invoice" };
-    await markInvoicePaid(invoiceId);
-    return { ok: true };
+    if (isPaidStatus(stored.status)) return { ok: true };
+    return { ok: false, error: "Payment not completed" };
   }
 
   try {
@@ -134,23 +170,12 @@ export async function verifySlicePayInvoice(
     if (!isPaidStatus(remote.status)) {
       return { ok: false, error: "Payment not completed" };
     }
-    if (
-      remote.amountUsd != null &&
-      Math.abs(Number(remote.amountUsd) - expectedAmountUsd) > 0.01
-    ) {
+    if (remote.amountUsd != null && !amountMatches(Number(remote.amountUsd), stored.amountUsd)) {
       return { ok: false, error: "Paid amount mismatch" };
     }
-    const remoteOrder = String(remote.raw.orderId ?? remote.raw.order_id ?? stored?.orderId ?? "");
-    if (remoteOrder && !remoteOrder.startsWith(expectedOrderPrefix)) {
+    const remoteOrder = String(remote.raw.orderId ?? remote.raw.order_id ?? "");
+    if (remoteOrder && remoteOrder !== stored.orderId) {
       return { ok: false, error: "Invoice order mismatch" };
-    }
-    if (!stored) {
-      await storeInvoice({
-        invoiceId,
-        amountUsd: expectedAmountUsd,
-        orderId: remoteOrder || `${expectedOrderPrefix}verified`,
-        status: "paid",
-      });
     }
     await markInvoicePaid(invoiceId);
     return { ok: true };
@@ -159,19 +184,67 @@ export async function verifySlicePayInvoice(
   }
 }
 
+export async function verifySlicePayInvoice(
+  invoiceId: string,
+  expectedAmountUsd: number,
+  expectedOrderPrefix: string,
+  fulfillment?: SlicePayFulfillmentContext,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!invoiceId) return { ok: false, error: "invoiceId required" };
+  if (invoiceIdLooksSynthetic(invoiceId)) {
+    return { ok: false, error: "Invalid invoice id" };
+  }
+
+  const stored = await getStoredInvoice(invoiceId);
+  if (!stored) {
+    return { ok: false, error: "Unknown invoice" };
+  }
+
+  const basics = validateStoredInvoiceBasics(stored, expectedAmountUsd, expectedOrderPrefix);
+  if (basics) return { ok: false, error: basics };
+
+  if (fulfillment) {
+    const bindErr = fulfillmentMismatch(stored, fulfillment);
+    if (bindErr) return { ok: false, error: bindErr };
+  }
+
+  if (isPaidStatus(stored.status)) return { ok: true };
+
+  const merchantId = getSlicePayMerchantId();
+  if (!merchantId) {
+    if (!invoiceId.startsWith("demo_")) {
+      return { ok: false, error: "Payment provider not configured" };
+    }
+    await markInvoicePaid(invoiceId);
+    return { ok: true };
+  }
+
+  const confirmed = await confirmInvoicePaidFromSlicePay(invoiceId);
+  if (!confirmed.ok) return confirmed;
+  return { ok: true };
+}
+
 /** Mark a verified invoice as spent. Fails if already redeemed. */
 export async function consumePaidInvoice(
   invoiceId: string,
+  fulfillment?: SlicePayFulfillmentContext,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!invoiceId) return { ok: false, error: "invoiceId required" };
   const db = await getDb();
   const col = db.collection<StoredInvoice>("invoices");
+  const filter: Record<string, unknown> = {
+    invoiceId,
+    redeemedAt: { $exists: false },
+    status: { $in: Array.from(PAID_STATUSES) },
+  };
+  if (fulfillment) {
+    filter.collectionId = fulfillment.collectionId;
+    filter.tokenId = fulfillment.tokenId;
+    filter.payerWallet = fulfillment.payerWallet;
+    if (fulfillment.kind) filter.kind = fulfillment.kind;
+  }
   const result = await col.findOneAndUpdate(
-    {
-      invoiceId,
-      redeemedAt: { $exists: false },
-      status: { $in: Array.from(PAID_STATUSES) },
-    },
+    filter,
     { $set: { redeemedAt: new Date() } },
     { returnDocument: "after" },
   );
@@ -190,11 +263,11 @@ export async function syncInvoiceStatus(invoiceId: string): Promise<StoredInvoic
   if (isPaidStatus(stored.status)) return stored;
 
   try {
-    const remote = await fetchSlicePayStatus(invoiceId);
-    if (isPaidStatus(remote.status)) {
-      await markInvoicePaid(invoiceId);
+    const confirmed = await confirmInvoicePaidFromSlicePay(invoiceId);
+    if (confirmed.ok) {
       return { ...stored, status: "paid" };
     }
+    const remote = await fetchSlicePayStatus(invoiceId);
     return { ...stored, status: remote.status };
   } catch {
     return stored;

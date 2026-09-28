@@ -1,47 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  fetchSlicePayStatus,
-  isPaidStatus,
-  slicePayConfigured,
-  syncInvoiceStatus,
-} from "@/lib/slicepay";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
+import { isPaidStatus, slicePayConfigured, syncInvoiceStatus } from "@/lib/slicepay";
 
 type Params = { params: Promise<{ invoiceId: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+/** Poll payment state only — no collection/token/order metadata (prevents invoice hijack recon). */
+export async function GET(req: NextRequest, { params }: Params) {
+  const ip = getClientIp(req);
+  const rl = await rateLimit(`slicepay-status:${ip}`, 120, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { invoiceId } = await params;
   const synced = await syncInvoiceStatus(invoiceId);
   if (synced) {
     return NextResponse.json({
       invoiceId,
       status: synced.status,
-      amountUsd: synced.amountUsd,
-      orderId: synced.orderId,
-      collectionId: synced.collectionId,
-      tokenId: synced.tokenId,
       paid: isPaidStatus(synced.status),
       demo: !slicePayConfigured(),
     });
   }
 
-  if (slicePayConfigured()) {
-    try {
-      const remote = await fetchSlicePayStatus(invoiceId);
-      return NextResponse.json({
-        invoiceId,
-        status: remote.status,
-        amountUsd: remote.amountUsd,
-        paid: isPaidStatus(remote.status),
-      });
-    } catch {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
-    }
-  }
-
-  return NextResponse.json({
-    invoiceId,
-    status: "waiting",
-    demo: true,
-    paid: false,
-  });
+  return NextResponse.json({ error: "not found" }, { status: 404 });
 }

@@ -157,8 +157,22 @@ export async function POST(req: NextRequest, { params }: Params) {
       const txSignature = String(body.txSignature || "");
 
       if (method === "slicepay") {
+        if (requestedId == null || !Number.isFinite(requestedId)) {
+          return NextResponse.json({ error: "tokenId required for SlicePay mint" }, { status: 400 });
+        }
         const orderPrefix = `mint-${pre.id}-`;
-        const verified = await verifySlicePayInvoice(invoiceId, expectedUsd, orderPrefix);
+        const fulfillment = {
+          collectionId: pre.id,
+          tokenId: requestedId,
+          payerWallet: payerAddr,
+          kind: "primary_mint" as const,
+        };
+        const verified = await verifySlicePayInvoice(
+          invoiceId,
+          expectedUsd,
+          orderPrefix,
+          fulfillment,
+        );
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error ?? "Payment not verified" }, { status: 402 });
         }
@@ -260,7 +274,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       if (method === "slicepay") {
-        const consumed = await consumePaidInvoice(invoiceId);
+        const consumed = await consumePaidInvoice(invoiceId, {
+          collectionId: pre.id,
+          tokenId: mintedTokenIds[0] ?? requestedId!,
+          payerWallet: payerAddr,
+          kind: "primary_mint",
+        });
         if (!consumed.ok) {
           await rollbackMint({
             id,
@@ -439,10 +458,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       const invoiceId = String(body.invoiceId || "");
 
       if (method === "slicepay") {
+        const fulfillment = {
+          collectionId: pre.id,
+          tokenId,
+          payerWallet: payerAddr,
+          kind: "secondary_buy" as const,
+        };
         const verified = await verifySlicePayInvoice(
           invoiceId,
           expectedUsd,
           `secondary-${pre.id}-`,
+          fulfillment,
         );
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error ?? "Payment not verified" }, { status: 402 });
@@ -456,7 +482,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       if (method === "slicepay") {
-        const consumed = await consumePaidInvoice(invoiceId);
+        const consumed = await consumePaidInvoice(invoiceId, {
+          collectionId: pre.id,
+          tokenId,
+          payerWallet: payerAddr,
+          kind: "secondary_buy",
+        });
         if (!consumed.ok) {
           return NextResponse.json({ error: consumed.error ?? "Invoice already used" }, { status: 402 });
         }

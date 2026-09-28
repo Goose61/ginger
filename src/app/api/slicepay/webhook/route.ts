@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  confirmInvoicePaidFromSlicePay,
   getStoredInvoice,
   isPaidStatus,
-  markInvoicePaid,
   slicePayWebhookSecret,
   syncInvoiceStatus,
 } from "@/lib/slicepay";
@@ -40,7 +40,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (isPaidStatus(body.status)) {
-    await markInvoicePaid(invoiceId);
+    const confirmed = await confirmInvoicePaidFromSlicePay(invoiceId);
+    if (!confirmed.ok) {
+      return NextResponse.json({ error: confirmed.error ?? "Payment not verified" }, { status: 400 });
+    }
     return NextResponse.json({ ok: true, invoiceId, status: "paid" });
   }
 

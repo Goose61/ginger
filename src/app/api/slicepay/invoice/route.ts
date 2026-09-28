@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 import { storeInvoice, slicePayConfigured } from "@/lib/slicepay";
+import { isValidSolanaAddress } from "@/lib/mint-nft";
 import {
   extractSlicePayInvoiceId,
   getSlicePayApiKey,
@@ -45,6 +46,14 @@ export async function POST(req: NextRequest) {
 
   if (!(amountUsd >= 0.01)) {
     return NextResponse.json({ error: "amountUsd must be at least $0.01" }, { status: 400 });
+  }
+  if (collectionId) {
+    if (tokenId == null || !Number.isFinite(tokenId) || tokenId <= 0) {
+      return NextResponse.json({ error: "tokenId required for collection checkout" }, { status: 400 });
+    }
+    if (!payerWallet || !isValidSolanaAddress(payerWallet)) {
+      return NextResponse.json({ error: "Valid payerWallet required for collection checkout" }, { status: 400 });
+    }
   }
   if (!merchantId) {
     return NextResponse.json({ error: "SlicePay merchant ID is not configured" }, { status: 503 });
