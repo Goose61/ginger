@@ -45,13 +45,9 @@ export async function sendFeedbackEmail(input: FeedbackEmailInput): Promise<void
     );
   }
 
-  const from = process.env.FEEDBACK_FROM_EMAIL?.trim();
-  if (!from) {
-    throw new FeedbackEmailError(
-      "missing_config",
-      "Feedback email is not configured (FEEDBACK_FROM_EMAIL)",
-    );
-  }
+  const from =
+    process.env.FEEDBACK_FROM_EMAIL?.trim() ||
+    "Ginger Beta <feedback@gingernft.store>";
 
   const subject = `[Ginger Beta] ${categoryLabel(input.category)} feedback`;
   const lines = [
