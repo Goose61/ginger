@@ -88,6 +88,12 @@
   --flour: #fff8ee;
   --lime: #7cff4a;
   --nav-h: 64px;
+  --feedback-fab-size: 2.75rem;
+  --feedback-fab-gap: 1.5rem;
+  --feedback-fab-inset: max(1rem, env(safe-area-inset-bottom));
+  --page-bottom-gutter: calc(
+    var(--feedback-fab-inset) + var(--feedback-fab-size) + var(--feedback-fab-gap)
+  );
   --radius: 0.625rem;
   --tile-radius: 1rem;
   --hairline: 1px;

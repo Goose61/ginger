@@ -52,7 +52,7 @@ export default function RootLayout({
           <WalletProvider>
             <div className="flour" aria-hidden />
             <Header />
-            <div className="relative z-[2]">
+            <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
               <Aoscompo>
                 {children}
                 <Footer />

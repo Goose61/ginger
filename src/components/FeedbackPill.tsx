@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type FormEvent } from "react";
+import { MessageSquare } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const CATEGORIES = [
@@ -69,18 +70,19 @@ export function FeedbackPill() {
     <>
       <button
         type="button"
+        aria-label="Send beta feedback"
+        title="Beta feedback"
         onClick={() => {
           setSent(false);
           setOpen(true);
         }}
-        className="fixed z-40 inline-flex max-w-[calc(100vw-5.5rem)] items-center gap-2 rounded-full border border-white/20 bg-[#161311]/95 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md hover:border-primary/70 hover:text-primary"
+        className="fixed z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#161311]/95 text-white shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md hover:border-primary/70 hover:text-primary"
         style={{
           right: "max(1rem, env(safe-area-inset-right))",
-          bottom: "max(1rem, env(safe-area-inset-bottom))",
+          bottom: "var(--feedback-fab-inset)",
         }}
       >
-        <span className="h-2 w-2 shrink-0 rounded-full bg-secondary" aria-hidden />
-        <span className="truncate">Beta feedback</span>
+        <MessageSquare className="h-5 w-5" strokeWidth={2} aria-hidden />
       </button>
 
       {open && (
@@ -96,7 +98,7 @@ export function FeedbackPill() {
             aria-modal="true"
             aria-labelledby={titleId}
             onSubmit={(event) => void submit(event)}
-            className="absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,40rem)] flex-col overflow-hidden rounded-t-3xl border border-white/15 bg-[#161311] pb-[max(1rem,env(safe-area-inset-bottom))] text-white shadow-2xl sm:inset-x-auto sm:right-[max(1rem,env(safe-area-inset-right))] sm:bottom-[max(5.25rem,calc(env(safe-area-inset-bottom)+4.25rem))] sm:w-[min(24rem,calc(100vw-2rem))] sm:rounded-3xl"
+            className="absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,40rem)] flex-col overflow-hidden rounded-t-3xl border border-white/15 bg-[#161311] pb-[max(1rem,env(safe-area-inset-bottom))] text-white shadow-2xl sm:inset-x-auto sm:right-[max(1rem,env(safe-area-inset-right))] sm:bottom-[var(--page-bottom-gutter)] sm:w-[min(24rem,calc(100vw-2rem))] sm:rounded-3xl"
           >
             <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
               <div className="min-w-0">

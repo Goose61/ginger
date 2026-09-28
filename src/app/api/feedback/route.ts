@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { sendFeedbackEmail } from "@/lib/feedback-email";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await sendFeedbackEmail({
+      category,
+      message,
+      contact: contact || null,
+      page: page || null,
+    });
+
     const db = await getDb();
     await db.collection("feedback").insertOne({
       category,
@@ -43,7 +51,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[POST /api/feedback]", err);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    const messageText =
+      err instanceof Error && err.message.includes("RESEND_API_KEY")
+        ? "Feedback email is not configured yet."
+        : "Something went wrong";
+    return NextResponse.json({ error: messageText }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
