@@ -9,6 +9,13 @@ type SpentSolSignature = {
 
 const MAX_PAYMENT_AGE_SEC = 20 * 60;
 
+const PARSED_TX_ATTEMPTS = 10;
+const PARSED_TX_DELAY_MS = 1_500;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 type ParsedIx = {
   program?: string;
   parsed?: {
@@ -43,11 +50,22 @@ export async function verifySolPayment(
 
   try {
     const connection = new Connection(getDirectRpcUrl(network), "confirmed");
-    const tx = await connection.getParsedTransaction(signature, {
-      maxSupportedTransactionVersion: 0,
-    });
+    let tx: Awaited<ReturnType<Connection["getParsedTransaction"]>> = null;
+    for (let attempt = 0; attempt < PARSED_TX_ATTEMPTS; attempt++) {
+      tx = await connection.getParsedTransaction(signature, {
+        maxSupportedTransactionVersion: 0,
+        commitment: "confirmed",
+      });
+      if (tx?.meta && !tx.meta.err) break;
+      if (attempt < PARSED_TX_ATTEMPTS - 1) {
+        await sleep(PARSED_TX_DELAY_MS);
+      }
+    }
     if (!tx?.meta || tx.meta.err) {
-      return { ok: false, error: "Transaction failed or not found" };
+      return {
+        ok: false,
+        error: "Transaction failed or not found yet — wait a few seconds and contact support if SOL left your wallet",
+      };
     }
 
     const nowSec = Date.now() / 1000;

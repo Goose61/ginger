@@ -22,9 +22,9 @@ const mongoOptions: MongoClientOptions = {
   maxPoolSize: 5,
   minPoolSize: 0,
   maxIdleTimeMS: 30_000,
-  serverSelectionTimeoutMS: 8_000,
-  connectTimeoutMS: 8_000,
-  socketTimeoutMS: 20_000,
+  serverSelectionTimeoutMS: 15_000,
+  connectTimeoutMS: 15_000,
+  socketTimeoutMS: 30_000,
   family: 4,
 };
 
@@ -43,9 +43,27 @@ function getClientPromise(): Promise<MongoClient> {
   return global._mongoClientPromise;
 }
 
+function isMongoTimeout(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes("timed out") ||
+    msg.includes("MongoNetworkTimeout") ||
+    msg.includes("Server selection timed out")
+  );
+}
+
 export async function getDb(): Promise<Db> {
-  const client = await getClientPromise();
-  return client.db("crypgo");
+  try {
+    const client = await getClientPromise();
+    return client.db("crypgo");
+  } catch (err) {
+    if (isMongoTimeout(err)) {
+      global._mongoClientPromise = undefined;
+      const client = await getClientPromise();
+      return client.db("crypgo");
+    }
+    throw err;
+  }
 }
 
 function ensureIndexes(col: MongoCollection<Collection>): void {

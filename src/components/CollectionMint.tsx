@@ -407,7 +407,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       const { getRpcUrl, getClientNetwork } = await import("@/lib/solana-config");
       const network = await getClientNetwork();
       const connection = new Connection(getRpcUrl(network), "confirmed");
-      const { blockhash } = await connection.getLatestBlockhash();
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(publicKey),
@@ -422,6 +422,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       ).toString("base64");
       setMessage(`Sending ${quote.sol.toFixed(4)} SOL…`);
       const txSignature = await signAndSendTx(txBase64);
+      setMessage("Confirming SOL payment on-chain…");
+      await connection.confirmTransaction(
+        { signature: txSignature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
+      setClientNetwork(network);
       await finalizeMint(token, "sol", txSignature);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "SOL payment failed");
@@ -437,6 +443,8 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     confirmedInvoiceId?: string,
   ) {
     if (!publicKey) return;
+    const network = await getClientNetwork();
+    setClientNetwork(network);
     const res = await fetch(`/api/collections/${collection.id}`, {
       method: "POST",
       headers: {
@@ -452,7 +460,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         method,
         invoiceId: method === "slicepay" ? (confirmedInvoiceId ?? invoiceId) : undefined,
         txSignature: method === "sol" ? txSignature : undefined,
-        network: clientNetwork,
+        network,
       }),
     });
     const data = await res.json();

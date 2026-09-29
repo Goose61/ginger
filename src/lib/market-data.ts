@@ -10,7 +10,14 @@ export * from "./market-view";
  * Server-only: pulls in the Mongo store.
  */
 export const getMarketCards = unstable_cache(
-  async () => partitionMarketCards(await listCollectionsForMarket()),
+  async () => {
+    try {
+      return partitionMarketCards(await listCollectionsForMarket());
+    } catch (err) {
+      console.error("[market] getMarketCards failed", err);
+      return { live: [] as Awaited<ReturnType<typeof partitionMarketCards>>["live"], secondary: [], giftBundle: undefined };
+    }
+  },
   ["market-cards"],
   { revalidate: 30 },
 );
