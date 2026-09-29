@@ -1,5 +1,5 @@
 export const SECURITY_REPORT_DOWNLOAD = {
-  href: "/docs/ginger-security-report.md",
+  href: "/api/security/report",
   filename: "ginger-security-report.md",
   label: "Download full security report (.md)",
 } as const;
