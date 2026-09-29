@@ -23,10 +23,16 @@ import {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Hide these wallets (e.g. Phantom is not supported for SlicePay). */
+  excludeWalletIds?: WalletOptionId[];
 };
 
-export function WalletConnectModal({ open, onOpenChange }: Props) {
+export function WalletConnectModal({ open, onOpenChange, excludeWalletIds }: Props) {
   const { wallets, select, connect, disconnect, connecting, connected, wallet } = useWallet();
+  const options = useMemo(
+    () => WALLET_OPTIONS.filter((o) => !excludeWalletIds?.includes(o.id)),
+    [excludeWalletIds],
+  );
   const [qrWallet, setQrWallet] = useState<WalletOptionId>("phantom");
   const [pickedWallet, setPickedWallet] = useState<WalletName | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +48,13 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
       setError(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    const first = options[0]?.id;
+    if (first && !options.some((o) => o.id === qrWallet)) {
+      setQrWallet(first);
+    }
+  }, [options, qrWallet]);
 
   useEffect(() => {
     if (connected && open) {
@@ -158,7 +171,9 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
           <DialogDescription className="text-white/60">
             {busy
               ? "Approve the connection in your wallet…"
-              : mobile
+              : excludeWalletIds?.includes("phantom")
+                ? "Phantom does not work with SlicePay. Choose Solflare, Backpack, or MetaMask."
+                : mobile
                 ? "Tap MetaMask to open Ginger inside the MetaMask app, then tap Connect again. Phantom, Solflare, and Backpack work here or in-app."
                 : "Choose a Solana wallet to sign in and approve transactions."}
           </DialogDescription>
@@ -171,7 +186,7 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
         )}
 
         <div className="grid grid-cols-1 gap-2">
-          {WALLET_OPTIONS.map((opt) => {
+          {options.map((opt) => {
             const w = matchWallet(opt.adapterNames);
             const ready = canConnect(opt.id, opt.adapterNames);
             const inApp = isInWalletBrowser(opt.id);
@@ -221,7 +236,7 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
               Scan with your camera to open this page inside {qrLabel}&apos;s in-app browser.
             </p>
             <div className="mb-3 flex flex-wrap gap-1.5">
-              {WALLET_OPTIONS.map((opt) => (
+              {options.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"

@@ -8,6 +8,9 @@ import { WalletConnectModal } from "@/components/WalletConnectModal";
 import { setActiveWallet } from "@/lib/wallet-session";
 import { buildAuthHeaders } from "@/lib/wallet-auth-client";
 import { getRpcUrl, getSolanaNetwork, isDevnetNetwork } from "@/lib/solana-config";
+import type { WalletOptionId } from "@/lib/connect-wallets";
+
+type ConnectOpts = { excludeWalletIds?: WalletOptionId[] };
 
 type WalletCtx = {
   publicKey: string | null;
@@ -15,7 +18,7 @@ type WalletCtx = {
   isPhantom: boolean;
   /** Same RPC cluster as /api/network (via solana-proxy in the browser). */
   connection: Connection;
-  connect: () => Promise<void>;
+  connect: (opts?: ConnectOpts) => Promise<void>;
   disconnect: () => void;
   /**
    * Wallet-first multi-signer mint: prepare (fresh blockhash + simulate) →
@@ -75,6 +78,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     wallet,
   } = useAdapterWallet();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [excludeWalletIds, setExcludeWalletIds] = useState<WalletOptionId[] | undefined>();
 
   const publicKey = adapterPublicKey ? adapterPublicKey.toBase58() : null;
 
@@ -109,10 +113,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     connection,
   ]);
 
-  const connect = useCallback(async () => {
+  const isPhantom = wallet?.adapter.name === "Phantom";
+
+  const connect = useCallback(async (opts?: ConnectOpts) => {
+    setExcludeWalletIds(opts?.excludeWalletIds);
+    if (opts?.excludeWalletIds?.includes("phantom") && wallet?.adapter.name === "Phantom") {
+      setActiveWallet(null);
+      try {
+        await adapterDisconnect();
+      } catch {
+        /* ignore */
+      }
+      setConnectModalOpen(true);
+      return;
+    }
     if (connected) return;
     setConnectModalOpen(true);
-  }, [connected]);
+  }, [connected, wallet?.adapter.name, adapterDisconnect]);
 
   const disconnect = useCallback(() => {
     setActiveWallet(null);
@@ -253,7 +270,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     () => ({
       publicKey,
       connecting: adapterConnecting,
-      isPhantom: connected,
+      isPhantom,
       connection,
       connect,
       disconnect,
@@ -264,7 +281,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [
       publicKey,
       adapterConnecting,
-      connected,
+      isPhantom,
       connection,
       connect,
       disconnect,
@@ -277,7 +294,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <WalletConnectModal open={connectModalOpen} onOpenChange={setConnectModalOpen} />
+      <WalletConnectModal
+        open={connectModalOpen}
+        excludeWalletIds={excludeWalletIds}
+        onOpenChange={(open) => {
+          setConnectModalOpen(open);
+          if (!open) setExcludeWalletIds(undefined);
+        }}
+      />
     </Ctx.Provider>
   );
 }

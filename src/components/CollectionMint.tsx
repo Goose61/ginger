@@ -31,7 +31,7 @@ import { isPaidStatus } from "@/lib/slicepay-shared";
 
 export function CollectionMint({ initial }: { initial: Collection }) {
   const searchParams = useSearchParams();
-  const { publicKey, connect, signMintTx } = useWallet();
+  const { publicKey, connect, signMintTx, isPhantom } = useWallet();
   const [collection, setCollection] = useState(initial);
   const [selected, setSelected] = useState<GeneratedToken | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -41,7 +41,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [slicePayLive, setSlicePayLive] = useState<boolean | null>(null);
   const [clientNetwork, setClientNetwork] = useState<SolanaNetwork>("devnet");
   const [paymentMethod, setPaymentMethod] = useState<"slicepay" | "sol">(() =>
-    initial.payments.acceptSlicePay ? "slicepay" : "sol",
+    initial.payments.acceptSol ? "sol" : "slicepay",
   );
   const [checkoutKind, setCheckoutKind] = useState<"primary_mint" | "secondary_buy">("primary_mint");
   const [listPrice, setListPrice] = useState("");
@@ -142,10 +142,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }, []);
 
   useEffect(() => {
-    if (!collection.payments.acceptSlicePay && collection.payments.acceptSol) {
+    if (paymentMethod === "slicepay" && !collection.payments.acceptSlicePay && collection.payments.acceptSol) {
       setPaymentMethod("sol");
+    } else if (paymentMethod === "sol" && !collection.payments.acceptSol && collection.payments.acceptSlicePay) {
+      setPaymentMethod("slicepay");
     }
-  }, [collection.payments.acceptSlicePay, collection.payments.acceptSol]);
+  }, [collection.payments.acceptSlicePay, collection.payments.acceptSol, paymentMethod]);
 
   useEffect(() => {
     fetch("/api/slicepay/invoice")
@@ -309,8 +311,11 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }
 
   async function startCheckout(token: GeneratedToken, kind: "primary_mint" | "secondary_buy" = "primary_mint") {
-    if (!publicKey) {
-      await connect();
+    if (!publicKey || isPhantom) {
+      if (isPhantom) {
+        setMessage("Phantom does not work with SlicePay. Connect Solflare, Backpack, or MetaMask.");
+      }
+      await connect({ excludeWalletIds: ["phantom"] });
       return;
     }
     setBusy(true);
@@ -963,6 +968,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 {collection.secondaryEnabled && selected.listing && selected.owner !== publicKey && (
                   <div className="mt-5 space-y-3">
                     <p className="text-xs text-white/50">Secondary listing</p>
+                    <p className="text-xs leading-5 text-amber-200/80">
+                      Phantom does not work with SlicePay. Use Solflare, Backpack, or MetaMask.
+                    </p>
                     {checkoutPending ? (
                       <>
                         <p className="text-sm text-white/60">
@@ -1045,15 +1053,6 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                       collection.payments.acceptSol ||
                       collection.payments.acceptUsdc) && (
                       <div className="flex gap-2 text-xs">
-                        {collection.payments.acceptSlicePay && (
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod("slicepay")}
-                            className={`rounded-full px-3 py-1 ${paymentMethod === "slicepay" ? "bg-primary text-white" : "bg-white/10 text-white/60"}`}
-                          >
-                            SlicePay (card / USDC)
-                          </button>
-                        )}
                         {collection.payments.acceptSol && (
                           <button
                             type="button"
@@ -1063,7 +1062,22 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                             SOL
                           </button>
                         )}
+                        {collection.payments.acceptSlicePay && (
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod("slicepay")}
+                            className={`rounded-full px-3 py-1 ${paymentMethod === "slicepay" ? "bg-primary text-white" : "bg-white/10 text-white/60"}`}
+                          >
+                            SlicePay
+                          </button>
+                        )}
                       </div>
+                    )}
+
+                    {paymentMethod === "slicepay" && collection.payments.acceptSlicePay && (
+                      <p className="text-xs leading-5 text-amber-200/80">
+                        Phantom does not work with SlicePay. Use Solflare, Backpack, or MetaMask.
+                      </p>
                     )}
 
                     {paymentMethod === "sol" && collection.payments.acceptSol ? (
