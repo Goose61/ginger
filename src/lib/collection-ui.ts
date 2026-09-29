@@ -3,6 +3,7 @@ import { giftDisplayNameFromToken, isGiftBundle } from "./gift-bundle";
 import { isTokenRevealed, placeholderImageSrc } from "./reveal";
 import type { OverallRarity } from "./rarity";
 import { OVERALL_RARITY_LABEL, rarityRankByTokenId, tokenOverallRarity } from "./rarity";
+import { isTokenReservationActive } from "./public-collection";
 
 export const COLLECTION_GRID_PAGE_SIZE = 48;
 
@@ -79,7 +80,7 @@ export function coverImageSrc(collection: Collection) {
 }
 
 export function isTokenSold(token: GeneratedToken, collection: Collection) {
-  if (token.owner || token.reservedBy) return true;
+  if (token.owner || isTokenReservationActive(token, collection)) return true;
   const tokens = collection.tokens ?? [];
   if (tokens.some((t) => t.owner)) return false;
   const ordered = [...tokens].sort((a, b) => a.tokenId - b.tokenId);

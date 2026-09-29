@@ -159,7 +159,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const tokenForPrice =
         requestedId != null
           ? pre.tokens.find((t) => t.tokenId === requestedId)
-          : pre.tokens.find((t) => !tokenIsCommitted(t));
+          : pre.tokens.find((t) => !tokenIsCommitted(t, pre));
       const expectedUsd = tokenForPrice ? nftPrice(pre, tokenForPrice) : pre.payments.basePriceUsd;
       const method = String(body.method || "slicepay");
       const invoiceId = String(body.invoiceId || "");
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "Invalid recipient wallet" }, { status: 400 });
       }
       const recipientAddr = recipient || payerAddr;
-      const available = pre.tokens.filter((t) => !tokenIsCommitted(t));
+      const available = pre.tokens.filter((t) => !tokenIsCommitted(t, pre));
       const pick =
         requestedId != null
           ? available.filter((t) => t.tokenId === requestedId).slice(0, 1)
@@ -743,7 +743,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       const token = existing.tokens.find((t) => t.tokenId === tokenId);
       if (!token) return NextResponse.json({ error: "Token not found" }, { status: 404 });
-      if (tokenIsCommitted(token)) {
+      if (tokenIsCommitted(token, existing)) {
         return NextResponse.json({ error: "That NFT is already minted or reserved" }, { status: 400 });
       }
 

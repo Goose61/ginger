@@ -9,6 +9,7 @@ import { uploadCollectionLogo } from "@/lib/upload-collection-logo";
 import { logoImageSrc, tokenName } from "@/lib/collection-ui";
 import { isLaunchedCreatorCollection } from "@/lib/creator-access";
 import { readJsonResponse } from "@/lib/fetch-json";
+import { tokenIsCommitted } from "@/lib/public-collection";
 
 function canContinueLaunch(c: Collection) {
   return c.status === "draft" || c.status === "importing";
@@ -226,7 +227,7 @@ export default function DashboardPage() {
 }
 
 function giftableTokens(collection: Collection) {
-  return collection.tokens.filter((t) => !t.owner && !t.reservedBy);
+  return collection.tokens.filter((t) => !tokenIsCommitted(t, collection));
 }
 
 function looksLikeSolanaAddress(value: string) {

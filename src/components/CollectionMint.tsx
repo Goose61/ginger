@@ -7,6 +7,7 @@ import { useWallet } from "./WalletProvider";
 import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
+import { isExpirableReservation, isTokenReservationActive, TOKEN_RESERVATION_TTL_MS } from "@/lib/public-collection";
 import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
 import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityRankByTokenId, tokenOverallRarity, tokenRarityRank } from "@/lib/rarity";
 import { collectionMarketStats } from "@/lib/collection-stats";
@@ -56,6 +57,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [visibleCount, setVisibleCount] = useState(COLLECTION_GRID_PAGE_SIZE);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reservationTick, setReservationTick] = useState(0);
   const pendingTokenRef = useRef<GeneratedToken | null>(null);
   const returnHandledRef = useRef(false);
 
@@ -69,12 +71,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     const byRarity = filterTokensByRarity(byStatus, collection, rarityFilter, rarityRanks);
     const byTrait = filterTokensByTrait(byRarity, collection, traitFilters);
     return sortTokens(byTrait, collection, sort, rarityRanks);
-  }, [collection, traitFilters, statusFilter, sort, search, rarityFilter, rarityRanks]);
+  }, [collection, traitFilters, statusFilter, sort, search, rarityFilter, rarityRanks, reservationTick]);
   const traitFilterOptions = useMemo(
     () => uniqueTraitFilters(collection),
     [collection],
   );
-  const stats = useMemo(() => collectionMarketStats(collection), [collection]);
+  const stats = useMemo(() => collectionMarketStats(collection), [collection, reservationTick]);
   const soldCount = stats.sold;
   const remaining = stats.available;
   const visibleTokens = tokens.slice(0, visibleCount);
@@ -117,19 +119,37 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     };
   }, []);
 
+  useEffect(() => {
+    const expiring = collection.tokens.filter((t) => isExpirableReservation(t, collection));
+    if (expiring.length === 0) return;
+    const wait = Math.min(
+      ...expiring.map((t) => {
+        const at = t.reservedAt ? new Date(t.reservedAt).getTime() : 0;
+        return at + TOKEN_RESERVATION_TTL_MS - Date.now();
+      }),
+    );
+    if (!Number.isFinite(wait) || wait > 24 * 60 * 60 * 1000) return;
+    const id = window.setTimeout(
+      () => setReservationTick((n) => n + 1),
+      Math.max(500, wait + 50),
+    );
+    return () => window.clearTimeout(id);
+  }, [collection.tokens, collection.pendingMint, reservationTick]);
+
   const pendingOnChainToken = useMemo(() => {
     if (!publicKey) return null;
     return (
       collection.tokens.find(
         (t) =>
           !t.mintTxUrl &&
-          (t.reservedBy === publicKey ||
-            t.owner === publicKey ||
-            (collection.pendingMint?.payer === publicKey &&
-              collection.pendingMint?.tokenId === t.tokenId)),
+          (t.owner === publicKey ||
+            (isTokenReservationActive(t, collection) &&
+              (t.reservedBy === publicKey ||
+                (collection.pendingMint?.payer === publicKey &&
+                  collection.pendingMint?.tokenId === t.tokenId)))),
       ) ?? null
     );
-  }, [collection, publicKey]);
+  }, [collection, publicKey, reservationTick]);
 
   const isUnmintedGift =
     Boolean(pendingOnChainToken) &&

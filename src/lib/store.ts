@@ -1,6 +1,12 @@
 import { getCollectionsCol } from "./db";
 import type { Collection } from "./types";
-import { tokenIsCommitted } from "./public-collection";
+import {
+  isExpirableReservation,
+  isTokenReservationActive,
+  stripExpiredReservations,
+  TOKEN_RESERVATION_TTL_MS,
+  tokenIsCommitted,
+} from "./public-collection";
 import { isHiddenFromMarket } from "./hidden-from-market";
 
 function asCollection(doc: Collection & { _id?: unknown }): Collection {
@@ -12,7 +18,7 @@ function asCollection(doc: Collection & { _id?: unknown }): Collection {
 export async function listCollections(): Promise<Collection[]> {
   const col = await getCollectionsCol();
   const docs = await col.find({}, { projection: { _id: 0 } }).toArray();
-  return docs.map(asCollection);
+  return docs.map(asCollection).map((c) => stripExpiredReservations(c).collection);
 }
 
 /** Header “Dashboard” link — tiny projection, no tokens. */
@@ -77,7 +83,9 @@ export async function listCollectionsForMarket(): Promise<Collection[]> {
       },
     )
     .toArray();
-  return docs.map(asCollection).filter((c) => !isHiddenFromMarket(c));
+  return docs.map(asCollection).filter((c) => !isHiddenFromMarket(c)).map((c) => {
+    return stripExpiredReservations(c).collection;
+  });
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {
@@ -86,7 +94,46 @@ export async function getCollection(id: string): Promise<Collection | null> {
     { $or: [{ id }, { slug: id }] },
     { projection: { _id: 0 } },
   );
-  return doc ? asCollection(doc) : null;
+  if (!doc) return null;
+  return persistExpiredReservations(asCollection(doc));
+}
+
+/** Write expired unpaid holds back to sale so another buyer can take them. */
+async function persistExpiredReservations(collection: Collection): Promise<Collection> {
+  const { collection: next, changed } = stripExpiredReservations(collection);
+  if (!changed) return collection;
+
+  const expiredIds = collection.tokens
+    .filter(
+      (t) => isExpirableReservation(t, collection) && !isTokenReservationActive(t, collection),
+    )
+    .map((t) => t.tokenId);
+
+  for (const tokenId of expiredIds) {
+    await clearTokenReservation(collection.id, tokenId);
+  }
+
+  const col = await getCollectionsCol();
+  const now = new Date().toISOString();
+  if (
+    collection.pendingMint?.paymentLamports &&
+    collection.pendingMint.tokenId != null &&
+    expiredIds.includes(collection.pendingMint.tokenId)
+  ) {
+    await col.updateOne(
+      { id: collection.id, "pendingMint.tokenId": collection.pendingMint.tokenId },
+      { $unset: { pendingMint: "" }, $set: { updatedAt: now } },
+    );
+  }
+  if (collection.status === "sold_out" && next.status === "live") {
+    await col.updateOne(
+      { id: collection.id, status: "sold_out" },
+      { $set: { status: "live", mintedCount: next.mintedCount, updatedAt: now } },
+    );
+  }
+
+  const fresh = await col.findOne({ id: collection.id }, { projection: { _id: 0 } });
+  return fresh ? stripExpiredReservations(asCollection(fresh)).collection : next;
 }
 
 export async function saveCollection(collection: Collection): Promise<Collection> {
@@ -134,10 +181,29 @@ export function newId() {
 }
 
 export function committedCount(collection: Collection): number {
-  return collection.tokens.filter(tokenIsCommitted).length;
+  return collection.tokens.filter((t) => tokenIsCommitted(t, collection)).length;
 }
 
-/** Atomically reserve a token that is not owned or reserved. */
+function reservationCutoffIso(now = Date.now()): string {
+  return new Date(now - TOKEN_RESERVATION_TTL_MS).toISOString();
+}
+
+/** Token has no owner and is free or past the unpaid-hold TTL. */
+function availableTokenElemMatch(tokenId: number, cutoffIso: string) {
+  return {
+    tokenId,
+    $nor: [{ owner: { $type: "string" } }],
+    $or: [
+      { reservedBy: { $exists: false } },
+      { reservedBy: null },
+      { reservedAt: { $exists: false } },
+      { reservedAt: null },
+      { reservedAt: { $lt: cutoffIso } },
+    ],
+  };
+}
+
+/** Atomically reserve a token that is not owned or has an expired unpaid hold. */
 export async function tryReserveToken(
   id: string,
   tokenId: number,
@@ -145,15 +211,22 @@ export async function tryReserveToken(
 ): Promise<Collection | null> {
   const col = await getCollectionsCol();
   const now = new Date().toISOString();
+  const cutoffIso = reservationCutoffIso();
   const result = await col.findOneAndUpdate(
     {
       $or: [{ id }, { slug: id }],
-      tokens: {
-        $elemMatch: {
-          tokenId,
-          $nor: [{ owner: { $type: "string" } }, { reservedBy: { $type: "string" } }],
+      tokens: { $elemMatch: availableTokenElemMatch(tokenId, cutoffIso) },
+      // Do not steal a paid SlicePay/gift hold (pending mint without SOL payment).
+      $nor: [
+        {
+          "pendingMint.tokenId": tokenId,
+          $or: [
+            { "pendingMint.paymentLamports": { $exists: false } },
+            { "pendingMint.paymentLamports": null },
+            { "pendingMint.paymentLamports": 0 },
+          ],
         },
-      },
+      ],
     },
     {
       $set: {
@@ -181,7 +254,7 @@ export async function tryAssignTokenOwner(
     elemMatch.reservedBy = opts.requireReservedBy;
     elemMatch.$nor = [{ owner: { $type: "string" } }];
   } else {
-    elemMatch.$nor = [{ owner: { $type: "string" } }, { reservedBy: { $type: "string" } }];
+    Object.assign(elemMatch, availableTokenElemMatch(tokenId, reservationCutoffIso()));
   }
   const result = await col.findOneAndUpdate(
     {

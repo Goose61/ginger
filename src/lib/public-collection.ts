@@ -1,13 +1,90 @@
 import type { Collection, PendingCoreCollection, PendingMint } from "./types";
 import { isHiddenFromMarket } from "./hidden-from-market";
 
+/** Unpaid checkout holds (SOL pay-and-mint) return to sale after this. */
+export const TOKEN_RESERVATION_TTL_MS = 15 * 60 * 1000;
+
 export function isListedPublicly(collection: Collection): boolean {
   if (isHiddenFromMarket(collection)) return false;
   return collection.status === "live" || collection.status === "sold_out";
 }
 
-export function tokenIsCommitted(token: { owner?: string | null; reservedBy?: string | null }): boolean {
-  return Boolean(token.owner || token.reservedBy);
+type ReservationToken = {
+  tokenId?: number;
+  owner?: string | null;
+  reservedBy?: string | null;
+  reservedAt?: string | null;
+};
+
+/** SlicePay/gift holds have pendingMint without a SOL payment — keep them until minted. */
+export function isExpirableReservation(
+  token: ReservationToken,
+  collection?: Pick<Collection, "pendingMint"> | null,
+): boolean {
+  if (token.owner || !token.reservedBy) return false;
+  const pm = collection?.pendingMint;
+  if (pm && pm.tokenId === token.tokenId && !(pm.paymentLamports && pm.paymentLamports > 0)) {
+    return false;
+  }
+  return true;
+}
+
+export function isTokenReservationActive(
+  token: ReservationToken,
+  collection?: Pick<Collection, "pendingMint"> | null,
+  now = Date.now(),
+): boolean {
+  if (!token.reservedBy || token.owner) return false;
+  if (!isExpirableReservation(token, collection)) return true;
+  if (!token.reservedAt) return false;
+  const at = new Date(token.reservedAt).getTime();
+  if (!Number.isFinite(at)) return false;
+  return now - at < TOKEN_RESERVATION_TTL_MS;
+}
+
+export function tokenIsCommitted(
+  token: ReservationToken,
+  collection?: Pick<Collection, "pendingMint"> | null,
+): boolean {
+  return Boolean(token.owner) || isTokenReservationActive(token, collection);
+}
+
+/** Drop unpaid holds older than the TTL (in memory). Does not touch paid SlicePay/gift holds. */
+export function stripExpiredReservations(
+  collection: Collection,
+  now = Date.now(),
+): { collection: Collection; changed: boolean } {
+  let changed = false;
+  const tokens = collection.tokens.map((token) => {
+    if (!isExpirableReservation(token, collection)) return token;
+    if (isTokenReservationActive(token, collection, now)) return token;
+    changed = true;
+    const next = { ...token };
+    delete next.reservedBy;
+    delete next.reservedAt;
+    return next;
+  });
+
+  let pendingMint = collection.pendingMint;
+  if (pendingMint?.tokenId != null && pendingMint.paymentLamports) {
+    const tok = tokens.find((t) => t.tokenId === pendingMint!.tokenId);
+    if (tok && !tok.reservedBy && !tok.owner) {
+      pendingMint = undefined;
+      changed = true;
+    }
+  }
+
+  if (!changed) return { collection, changed: false };
+
+  const next: Collection = { ...collection, tokens };
+  if (pendingMint) next.pendingMint = pendingMint;
+  else delete next.pendingMint;
+
+  next.mintedCount = next.tokens.filter((t) => tokenIsCommitted(t, next)).length;
+  if (next.status === "sold_out" && next.mintedCount < next.supply) {
+    next.status = "live";
+  }
+  return { collection: next, changed: true };
 }
 
 function toPublicPendingMint(pendingMint: PendingMint): PendingMint {
@@ -24,7 +101,8 @@ function toPublicPendingCoreCollection(pending: PendingCoreCollection): PendingC
 
 /** Strip server-only fields before any collection leaves the process. */
 export function toPublicCollection(collection: Collection): Collection {
-  const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = collection;
+  const stripped = stripExpiredReservations(collection).collection;
+  const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = stripped;
   void _zip;
   return {
     ...rest,

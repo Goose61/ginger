@@ -9,6 +9,7 @@ import {
   PRIMARY_TRADE_TAX_PERCENT,
   SECONDARY_PLATFORM_FEE_PERCENT,
 } from "./platform-fees";
+import { isTokenReservationActive } from "./public-collection";
 
 /** Legacy marker for NFTs taken by the old NFT-floor buyback path. */
 export const TREASURY_OWNER_MARKER = "__platform_treasury__";
@@ -160,7 +161,7 @@ export function holderCounts(collection: Collection): Map<string, number> {
     const wallet =
       t.owner && t.owner !== TREASURY_OWNER_MARKER
         ? t.owner
-        : t.reservedBy && t.reservedBy !== TREASURY_OWNER_MARKER
+        : isTokenReservationActive(t, collection) && t.reservedBy && t.reservedBy !== TREASURY_OWNER_MARKER
           ? t.reservedBy
           : null;
     if (!wallet) continue;

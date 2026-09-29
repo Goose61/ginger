@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getCollection } from "@/lib/store";
-import { isListedPublicly, toPublicCollection } from "@/lib/public-collection";
+import { isListedPublicly, isTokenReservationActive, toPublicCollection } from "@/lib/public-collection";
 import { CollectionMint } from "@/components/CollectionMint";
 import { getSolanaNetwork } from "@/lib/solana-config";
 import type { Collection } from "@/lib/types";
@@ -41,7 +41,9 @@ export default async function CollectionPage({
 
   // Only heal in-flight reserved mints. Verifying every sold token on each page
   // load hammers RPC and blocks navigation back to Market.
-  const pending = collection.tokens.find((t) => t.reservedBy && !t.owner);
+  const pending = collection.tokens.find(
+    (t) => t.reservedBy && !t.owner && isTokenReservationActive(t, collection),
+  );
   if (pending) {
     const sig = txSignatureFromMintUrl(pending.mintTxUrl);
     if (sig) {
