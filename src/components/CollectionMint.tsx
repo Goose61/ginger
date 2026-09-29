@@ -302,7 +302,8 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       }
 
       setMessage("Approve the mint in your wallet…");
-      const txSignature = await signMintTx(col.id, clientNetwork);
+      const mintNetwork = await getClientNetwork();
+      const txSignature = await signMintTx(col.id, mintNetwork);
 
       const confirmEndpoint = isGiftBundle(col)
         ? "/api/gift/mint"
@@ -315,7 +316,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           collectionId: col.id,
           tokenId: resolvedTokenId,
           txSignature,
-          network: clientNetwork,
+          network: mintNetwork,
         }),
       });
       const confirmed = await readJsonResponse<{ collection?: Collection; error?: string }>(confirm);

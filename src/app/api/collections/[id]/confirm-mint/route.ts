@@ -82,8 +82,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (c.pendingMint?.assetAddress) {
         token.assetAddress = c.pendingMint.assetAddress;
       }
-      if (token.reservedBy && !token.owner) {
-        token.owner = token.reservedBy;
+      token.owner =
+        token.owner ||
+        token.reservedBy ||
+        c.pendingMint?.recipient ||
+        pending?.recipient;
+      if (!token.owner) {
+        throw new Error("Mint confirmed on-chain but no owner wallet was recorded");
       }
       delete token.reservedBy;
       delete token.reservedAt;

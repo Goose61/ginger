@@ -24,6 +24,38 @@ type ParsedIx = {
   };
 };
 
+function pubkeyStr(key: unknown): string {
+  if (!key) return "";
+  if (typeof key === "string") return key;
+  if (typeof key === "object") {
+    const o = key as { pubkey?: unknown; toBase58?: () => string };
+    if (typeof o.toBase58 === "function") return o.toBase58();
+    if (o.pubkey != null) return pubkeyStr(o.pubkey);
+  }
+  return "";
+}
+
+/** Lamports credited to `recipient` (pre → post balances), including v0 address-lookup keys. */
+function recipientBalanceDelta(
+  tx: NonNullable<Awaited<ReturnType<Connection["getParsedTransaction"]>>>,
+  recipient: string,
+): number {
+  const message = tx.transaction.message as {
+    accountKeys?: unknown[];
+  };
+  const loaded = tx.meta?.loadedAddresses;
+  const keys = [
+    ...(message.accountKeys ?? []).map(pubkeyStr),
+    ...(loaded?.writable ?? []).map(pubkeyStr),
+    ...(loaded?.readonly ?? []).map(pubkeyStr),
+  ];
+  const idx = keys.findIndex((k) => k === recipient);
+  if (idx < 0) return 0;
+  const pre = tx.meta?.preBalances[idx] ?? 0;
+  const post = tx.meta?.postBalances[idx] ?? 0;
+  return Math.max(0, post - pre);
+}
+
 function transferLamportsTo(
   ix: ParsedIx,
   recipient: string,
@@ -83,6 +115,11 @@ export async function verifySolPayment(
       for (const ix of inner.instructions) {
         transferred += transferLamportsTo(ix as ParsedIx, dest, sender);
       }
+    }
+    // v0 mint+pay txs sometimes leave System transfers as unparsed compiled
+    // instructions. Recipient balance delta still proves the payment landed.
+    if (transferred < minLamports) {
+      transferred = Math.max(transferred, recipientBalanceDelta(tx, dest));
     }
     if (transferred < minLamports) {
       return { ok: false, error: "No matching SOL transfer to platform wallet" };
