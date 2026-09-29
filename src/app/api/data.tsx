@@ -1,6 +1,7 @@
 export const footerlabels: { label: string; herf: string }[] = [
   { label: "Launch", herf: "/launch" },
   { label: "Market", herf: "/" },
+  { label: "Security", herf: "/security" },
 ];
 
 export const featuredGridNfts = [

@@ -1,6 +1,8 @@
 # Security Audit Summary
 
-Date: 2026-09-21
+**Public report:** [/security](https://www.gingernft.store/security) · Full markdown: [SECURITY_ASSESSMENT_REPORT.md](SECURITY_ASSESSMENT_REPORT.md)
+
+Date: 2026-09-21 (updated 2026-09-29)
 
 Source: [benavlabs/vibe-check](https://github.com/benavlabs/vibe-check) (`vibe-check-main` in this workspace).
 

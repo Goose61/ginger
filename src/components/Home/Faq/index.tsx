@@ -1,4 +1,5 @@
 "use client";
+
 import React from "react";
 import {
   Accordion,
@@ -7,6 +8,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { PlusIcon } from "lucide-react";
+import Link from "next/link";
+import { SECURITY_FAQ_ITEMS } from "@/lib/security-audit-content";
 
 const faqData = [
   {
@@ -49,6 +52,7 @@ const faqData = [
     answer:
       "Yes. After launch, the creator dashboard can gift unminted pieces to any wallet for free (you only pay on-chain rent). Allowlist and waitlist are in the launch checklist, and buyers can gift a mint when you enable that option.",
   },
+  ...SECURITY_FAQ_ITEMS,
 ];
 
 const Faq = () => {
@@ -62,6 +66,12 @@ const Faq = () => {
               NFT marketplace FAQ
             </h2>
             <p className="mt-2 text-muted-foreground">Launch · mint · trade on Solana</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Security transparency:{" "}
+              <Link href="/security" className="text-primary underline-offset-2 hover:underline">
+                read our assessment
+              </Link>
+            </p>
           </div>
           <Accordion className="space-y-4">
             {faqData.map((item, index) => (
@@ -74,7 +84,9 @@ const Faq = () => {
                   {item.question}
                   <PlusIcon className="h-6 w-6 shrink-0 transition-transform duration-200 group-aria-expanded/accordion-trigger:rotate-45" />
                 </AccordionTrigger>
-                <AccordionContent className="text-base text-muted-foreground">{item.answer}</AccordionContent>
+                <AccordionContent className="text-base text-muted-foreground">
+                  {item.answer}
+                </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
