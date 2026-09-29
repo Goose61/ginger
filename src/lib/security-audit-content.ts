@@ -17,21 +17,6 @@ export const SECURITY_EXECUTIVE_SUMMARY = [
   "Creators control drafts, allowlists, gifts, and treasury tools through wallet signatures. Unpublished work stays private.",
 ];
 
-export type SecurityRating = {
-  area: string;
-  rating: string;
-  note: string;
-};
-
-export const SECURITY_RATINGS: SecurityRating[] = [
-  { area: "Payments & minting", rating: "Low", note: "Verified checkout; one invoice, one mint" },
-  { area: "Wallet & access", rating: "Low", note: "Signed actions; private drafts" },
-  { area: "Web protection", rating: "Low", note: "Security headers, CORS, rate limits" },
-  { area: "Uploads & media", rating: "Low", note: "Type checks and safe image proxies" },
-  { area: "NFT integrity", rating: "Low", note: "Metaplex Core with immutable metadata default" },
-  { area: "Dependencies", rating: "Low to medium", note: "0 critical; monitored each release" },
-];
-
 export type SecurityFinding = {
   id: string;
   severity: "Critical" | "High" | "Medium" | "Info";

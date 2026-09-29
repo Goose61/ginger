@@ -8,7 +8,6 @@ import {
   SECURITY_EXECUTIVE_SUMMARY,
   SECURITY_MONITORED_ITEMS,
   SECURITY_OPEN_FINDINGS,
-  SECURITY_RATINGS,
   SECURITY_REMEDIATED_FINDINGS,
   SECURITY_REPORT_DOWNLOAD,
 } from "@/lib/security-audit-content";
@@ -62,25 +61,6 @@ export function SecurityAuditReport() {
                 </li>
               ))}
             </ul>
-          </ReportBlock>
-
-          <ReportBlock title="Protection by area">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {SECURITY_RATINGS.map((row) => (
-                <div
-                  key={row.area}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-white">{row.area}</p>
-                    <span className="shrink-0 rounded-full bg-secondary/15 px-2 py-0.5 text-xs font-medium text-secondary">
-                      {row.rating}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{row.note}</p>
-                </div>
-              ))}
-            </div>
           </ReportBlock>
 
           <ReportBlock title="Security features">
