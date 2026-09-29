@@ -1,4 +1,4 @@
-# Ginger NFT Marketplace — Security Report
+# Ginger NFT Marketplace Security Report
 
 **Version:** 1.0  
 **Last updated:** 29 September 2026  
@@ -12,9 +12,9 @@ This document describes the security measures built into Ginger for collectors, 
 
 Ginger is a Solana NFT marketplace for launching collections, primary mints, and secondary sales. Security is designed around three principles:
 
-1. **You keep custody** — NFTs live in your wallet; Ginger never holds your private keys.
-2. **Pay before mint** — Every paid mint is tied to verified payment and a specific token.
-3. **Creators stay in control** — Only the creator wallet can change drafts, fees, allowlists, and treasury actions.
+1. **You keep custody.** NFTs live in your wallet. Ginger never holds your private keys.
+2. **Pay before mint.** Every paid mint is tied to verified payment and a specific token.
+3. **Creators stay in control.** Only the creator wallet can change drafts, fees, allowlists, and treasury actions.
 
 Ginger mints **Metaplex Core** assets on Solana. Art and metadata are published to permanent storage (Arweave via Irys) at go-live.
 
@@ -28,7 +28,7 @@ Ginger uses **wallet signatures**, not passwords.
 |--------|----------------|
 | **Connect to sign in** | You approve connections in Phantom, Solflare, Backpack, or MetaMask (Solana). |
 | **Signed API requests** | Sensitive actions (mint, buy, creator dashboard) require a fresh wallet signature with a time-limited challenge. |
-| **Payer binding** | The wallet that pays must be the wallet that signed the request — you cannot claim to be another address at checkout. |
+| **Payer binding** | The wallet that pays must be the wallet that signed the request. You cannot claim to be another address at checkout. |
 | **Creator binding** | Collection edits, go-live, gifts, buyback, and holder rewards require the creator wallet signature. |
 
 Allowlist checks use your **signed wallet address**, not a typed-in field, so early-access lists cannot be bypassed by impersonating another wallet.
@@ -42,12 +42,12 @@ Allowlist checks use your **signed wallet address**, not a typed-in field, so ea
 - Mint price is quoted from a live SOL/USD rate at checkout.
 - Payment must be a **recent on-chain SOL transfer** to Ginger’s payment address.
 - The transfer must come **from your connected wallet** and meet the quoted amount (with small slippage tolerance).
-- Each transaction signature can only be used **once** — replays are rejected.
+- Each transaction signature can only be used **once**. Replays are rejected.
 - Transfers older than 20 minutes are rejected.
 
 ### Card / USDC (SlicePay)
 
-- Checkout uses SlicePay’s hosted payment flow — card data never touches Ginger’s servers.
+- Checkout uses SlicePay’s hosted payment flow. Card data never touches Ginger’s servers.
 - Each invoice is created for a **specific collection, token ID, and buyer wallet**.
 - Invoices **expire after 24 hours** and can only be **redeemed once** for mint.
 - When SlicePay notifies Ginger of payment, we **re-check status with SlicePay’s API** before minting.
@@ -64,12 +64,12 @@ Allowlist checks use your **signed wallet address**, not a typed-in field, so ea
 | Control | Detail |
 |--------|--------|
 | **Metaplex Core** | Standard Solana NFT program; assets can be grouped in a Core collection. |
-| **Immutable metadata** | New mints default to immutable on-chain metadata — traits and URIs cannot be changed after mint. |
+| **Immutable metadata** | New mints default to immutable on-chain metadata. Traits and URIs cannot be changed after mint. |
 | **Token reservation** | Sold tokens are reserved atomically to prevent double-mints during checkout. |
 | **On-chain co-signing** | When required, mint transactions are built server-side and you approve the final signature in your wallet. |
 | **Gift mints** | Creators can gift unminted pieces; gifts require creator wallet authorization. |
 
-Compressed NFTs (cNFTs) are **not** supported — Ginger uses full Core assets only.
+Compressed NFTs (cNFTs) are **not** supported. Ginger uses full Core assets only.
 
 ---
 
@@ -101,16 +101,16 @@ Compressed NFTs (cNFTs) are **not** supported — Ginger uses full Core assets o
 
 Ginger sends industry-standard security headers on every response:
 
-- **Content-Security-Policy (CSP)** — Restricts scripts, frames, images, and connections to approved domains (Ginger, Solana RPC, Arweave/Irys, SlicePay, Jupiter, etc.).
-- **X-Frame-Options: DENY** — Prevents clickjacking by embedding Ginger in other sites.
-- **X-Content-Type-Options: nosniff** — Reduces MIME-type confusion attacks.
-- **Strict-Transport-Security** — Forces HTTPS in browsers.
-- **Referrer-Policy** — Limits referrer leakage on cross-origin requests.
-- **Permissions-Policy** — Disables camera, microphone, and geolocation in the browser context.
+- **Content-Security-Policy (CSP):** Restricts scripts, frames, images, and connections to approved domains (Ginger, Solana RPC, Arweave/Irys, SlicePay, Jupiter, and related services).
+- **X-Frame-Options: DENY:** Prevents clickjacking by embedding Ginger in other sites.
+- **X-Content-Type-Options: nosniff:** Reduces MIME-type confusion attacks.
+- **Strict-Transport-Security:** Forces HTTPS in browsers.
+- **Referrer-Policy:** Limits referrer leakage on cross-origin requests.
+- **Permissions-Policy:** Disables camera, microphone, and geolocation in the browser context.
 
 ### CORS
 
-API cross-origin access is limited to **approved Ginger domains** in production — not open to arbitrary websites.
+In production, API cross-origin access is limited to **approved Ginger domains**. It is not open to arbitrary websites.
 
 ### Error handling
 
@@ -148,10 +148,10 @@ Client IP detection uses trusted hosting headers to reduce spoofing via `X-Forwa
 
 ## 9. Privacy & data
 
-- Ginger **does not use password accounts** — identity is your public wallet address.
+- Ginger **does not use password accounts.** Your identity is your public wallet address.
 - **No wallet private keys** are collected or stored.
 - Checkout email/contact fields (e.g. feedback form) are optional and used only for support replies.
-- Sensitive configuration is kept **off the public website** — nothing in the browser bundle grants admin or payment authority.
+- Sensitive configuration is kept **off the public website.** Nothing in the browser bundle grants admin or payment authority.
 
 ---
 
@@ -191,7 +191,7 @@ Please allow reasonable time to investigate and patch before public disclosure. 
 
 ## 13. Beta notice
 
-Ginger is in **public beta**. Features and economics may change. This report reflects controls in place at the date above; it is not a third-party certification or guarantee of zero risk. Use the marketplace with the same care you would on any on-chain product — verify transactions in your wallet before approving.
+Ginger is in **public beta**. Features and economics may change. This report reflects controls in place at the date above; it is not a third-party certification or guarantee of zero risk. Use the marketplace with the same care you would on any on-chain product. Verify transactions in your wallet before approving.
 
 ---
 

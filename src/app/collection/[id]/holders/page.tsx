@@ -40,13 +40,13 @@ export default async function HoldersPage({
       <ul className="mt-8 space-y-2 text-sm text-white/70">
         {collection.sequelAllowlistFromHolders && (
           <li className="rounded border border-primary/30 bg-primary/10 px-3 py-2">
-            Sequel allowlist from holders is active — snapshot wallets qualify for the next drop.
+            Sequel allowlist from holders is active. Snapshot wallets qualify for the next drop.
           </li>
         )}
         {collection.treasuryBuybackActive && (
           <li className="rounded border border-white/15 bg-white/5 px-3 py-2">
             Treasury SPL buyback is active
-            {collection.buybackTokenCa ? ` — buying ${collection.buybackTokenCa.slice(0, 8)}…` : ""}
+            {collection.buybackTokenCa ? `, buying ${collection.buybackTokenCa.slice(0, 8)}…` : ""}
             {collection.buybackTreasuryWallet
               ? ` into ${collection.buybackTreasuryWallet.slice(0, 6)}…`
               : ""}
@@ -55,7 +55,7 @@ export default async function HoldersPage({
         )}
         {collection.discordRoleSyncEnabled && (
           <li className="rounded border border-white/15 bg-white/5 px-3 py-2">
-            Discord holder role sync is enabled — connect Discord when available.
+            Discord holder role sync is enabled. Connect Discord when available.
           </li>
         )}
         {collection.airdropSplPending && (

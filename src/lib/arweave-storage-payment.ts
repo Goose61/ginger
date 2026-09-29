@@ -104,7 +104,7 @@ export async function assertCollectionArweaveStoragePaid(params: {
         `Storage payment is recorded, but the platform wallet (${platform}) only has ` +
           `~${bal?.onChainSol.toFixed(4) ?? "0"} SOL on ${serverNetwork} ` +
           `(need ~${(minPaymentLamports(params.minSol) / 1e9).toFixed(4)} SOL). ` +
-          `Your creator wallet balance is separate — pay storage again at Go Live so SOL reaches ${platform} on ${serverNetwork}.`,
+          `Your creator wallet balance is separate. Pay storage again at Go Live so SOL reaches ${platform} on ${serverNetwork}.`,
       );
     }
   } else if (!signature) {

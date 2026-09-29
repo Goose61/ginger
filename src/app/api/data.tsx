@@ -45,7 +45,7 @@ export const pricedata: {
 export const portfolioData: { image: string; title: string }[] = [
   {
     image: "/images/portfolio/portfolio-icon-1.svg",
-    title: "Launch from a ZIP — we handle metadata",
+    title: "Launch from a ZIP. We handle metadata",
   },
   {
     image: "/images/portfolio/portfolio-icon-2.svg",

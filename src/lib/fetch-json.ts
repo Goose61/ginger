@@ -3,7 +3,7 @@ export async function readJsonResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text.trim()) {
     throw new Error(
-      `Server returned an empty response (HTTP ${res.status}). The request may have timed out — try again.`,
+      `Server returned an empty response (HTTP ${res.status}). The request may have timed out. Try again.`,
     );
   }
   try {

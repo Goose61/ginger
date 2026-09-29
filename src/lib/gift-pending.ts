@@ -4,7 +4,7 @@ import type { Collection, PendingMint } from "./types";
 export function resolvePendingMint(collection: Collection, payer: string): PendingMint {
   const pm = collection.pendingMint;
   if (!pm) {
-    throw new Error("No pending mint for this collection — rebuild the mint transaction.");
+    throw new Error("No pending mint for this collection. Rebuild the mint transaction.");
   }
 
   const tokenId = pm.tokenId ?? collection.tokens[0]?.tokenId;

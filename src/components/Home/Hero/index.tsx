@@ -33,7 +33,7 @@ const Hero = () => {
               <p className="text-white/70">
                 Upload a ZIP of finished art, set a USD mint price, publish permanently from your
                 wallet, and go live. Collectors pay with SlicePay or SOL at a live quote. Primary
-                mints and secondary listings stay on Ginger — collections never graduate away.
+                mints and secondary listings stay on Ginger. Collections never graduate away.
               </p>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-start">

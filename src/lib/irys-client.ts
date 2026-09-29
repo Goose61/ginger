@@ -126,7 +126,7 @@ async function waitForTxConfirmed(
       );
     }
     throw new Error(
-      "Fund transaction was not found on-chain — it may have been dropped (stale blockhash). " +
+      "Fund transaction was not found on-chain. It may have been dropped (stale blockhash). " +
         "Try again and approve in Phantom immediately. Ensure Phantom matches this site's network.",
     );
   }
@@ -160,7 +160,7 @@ async function submitFundTxToBundler(txId: string, devnet: boolean): Promise<voi
   }
 
   throw new Error(
-    `Could not confirm storage payment ${txId}. Your SOL may still have been sent — ` +
+    `Could not confirm storage payment ${txId}. Your SOL may still have been sent. ` +
       `save this id and retry in a minute.`,
   );
 }

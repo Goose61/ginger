@@ -7,14 +7,14 @@ export const SECURITY_REPORT_DOWNLOAD = {
 export const SECURITY_AUDIT_META = {
   reportDate: "29 September 2026",
   productionUrl: "https://www.gingernft.store",
-  overallRisk: "Low–Medium (public beta)",
+  overallRisk: "Low to medium (public beta)",
   remediatedCount: 9,
 } as const;
 
 export const SECURITY_EXECUTIVE_SUMMARY = [
-  "Ginger is a Solana NFT marketplace where you always custody assets in your own wallet — we never hold your private keys.",
+  "Ginger is a Solana NFT marketplace where you always custody assets in your own wallet. We never hold your private keys.",
   "Paid mints require verified SOL or SlicePay checkout tied to your wallet, the collection, and the exact token being purchased.",
-  "Creators control drafts, allowlists, gifts, and treasury tools through wallet signatures; unpublished work stays private.",
+  "Creators control drafts, allowlists, gifts, and treasury tools through wallet signatures. Unpublished work stays private.",
 ];
 
 export type SecurityRating = {
@@ -28,8 +28,8 @@ export const SECURITY_RATINGS: SecurityRating[] = [
   { area: "Wallet & access", rating: "Low", note: "Signed actions; private drafts" },
   { area: "Web protection", rating: "Low", note: "Security headers, CORS, rate limits" },
   { area: "Uploads & media", rating: "Low", note: "Type checks and safe image proxies" },
-  { area: "NFT integrity", rating: "Low", note: "Metaplex Core; immutable metadata default" },
-  { area: "Dependencies", rating: "Low–Medium", note: "0 critical; monitored each release" },
+  { area: "NFT integrity", rating: "Low", note: "Metaplex Core with immutable metadata default" },
+  { area: "Dependencies", rating: "Low to medium", note: "0 critical; monitored each release" },
 ];
 
 export type SecurityFinding = {
@@ -61,7 +61,7 @@ export const SECURITY_MONITORED_ITEMS = [
   {
     title: "Beta evolution",
     detail:
-      "Ginger is in public beta — new features ship with the same wallet-first and pay-before-mint rules described in the full report.",
+      "Ginger is in public beta. New features ship with the same wallet-first and pay-before-mint rules described in the full report.",
   },
 ];
 
@@ -71,7 +71,7 @@ export const SECURITY_CONTROLS = [
   "Your wallet private keys never leave your wallet app",
   "Signed wallet required to mint, buy, and pass allowlists",
   "SlicePay and SOL payments verified before any NFT is issued",
-  "Single-use payment proofs — the same checkout cannot mint twice",
+  "Single-use payment proofs so the same checkout cannot mint twice",
   "Unpublished collections hidden until the creator goes live",
   "Only token owners can list on the secondary market",
   "Creator-only gifts, rewards, and buyback actions",
@@ -93,12 +93,12 @@ export const SECURITY_FAQ_ITEMS = [
   {
     question: "Has Ginger been security audited?",
     answer:
-      "We publish a full security report on the Security page covering payments, wallet auth, and marketplace controls. Ginger is in public beta — review the report and use standard wallet care before large purchases.",
+      "We publish a full security report on the Security page covering payments, wallet auth, and marketplace controls. Ginger is in public beta. Review the report and use standard wallet care before large purchases.",
   },
   {
     question: "How does Ginger protect payments?",
     answer:
-      "SOL mints require a recent transfer from your connected wallet, verified on-chain once. Card and USDC checkout uses SlicePay with invoices tied to your wallet, the collection, and the token — each payment can only mint once.",
+      "SOL mints require a recent transfer from your connected wallet, verified on-chain once. Card and USDC checkout uses SlicePay with invoices tied to your wallet, the collection, and the token. Each payment can only mint once.",
   },
   {
     question: "Who holds my NFTs?",

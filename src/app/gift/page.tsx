@@ -116,7 +116,7 @@ export default function GiftPage() {
   async function applyImageFile(next: File | null) {
     if (!next) return;
     if (!["image/png", "image/jpeg"].includes(next.type)) {
-      setError("Use a PNG or JPEG image — wallets display these most reliably.");
+      setError("Use a PNG or JPEG image. Wallets display these most reliably.");
       return;
     }
     try {
@@ -124,7 +124,7 @@ export default function GiftPage() {
       const bytes = new Uint8Array(await next.arrayBuffer());
       const imageInfo = await detectImageFromBytes(bytes);
       if (!imageInfo) {
-        setError("Use a PNG or JPEG image — wallets display these most reliably.");
+        setError("Use a PNG or JPEG image. Wallets display these most reliably.");
         return;
       }
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -237,7 +237,7 @@ export default function GiftPage() {
   const stageLabel: Record<typeof stage, string> = {
     idle: publicKey ? "Send gift" : "Connect wallet",
     storage: "Approve storage payment in your wallet…",
-    uploading: "Uploading — waiting for confirmation (up to 2 min)…",
+    uploading: "Uploading. Waiting for confirmation (up to 2 min)…",
     building: "Preparing mint transaction…",
     minting: "Approve mint in your wallet…",
     confirming: "Confirming on-chain…",
@@ -390,13 +390,13 @@ export default function GiftPage() {
             The NFT was minted to{" "}
             <span className="font-mono text-white/70">{recipient.trim()}</span>.
             {publicKey && recipient.trim() !== publicKey && (
-              <> It will not appear in your wallet — the recipient must check theirs in Phantom.</>
+              <> It will not appear in your wallet. The recipient must check theirs in Phantom.</>
             )}
           </p>
         )}
         {result.onChain && (
           <p className="mt-3 text-xs text-white/40 max-w-md mx-auto">
-            Your mint succeeded on-chain (two Phantom steps: storage, then mint — no extra signature).
+            Your mint succeeded on-chain (two Phantom steps: storage, then mint, with no extra signature).
             Phantom may file new NFTs under{" "}
             <span className="text-white/60">Collectibles → Hidden / Spam</span>; open the NFT and
             tap <span className="text-white/60">Not spam</span> if it appears there. Explorer links
@@ -481,13 +481,13 @@ export default function GiftPage() {
       <h1 className="mt-2 text-3xl sm:text-5xl md:text-7xl">Gift a $PIZZA NFT</h1>
       <p className="mt-4 max-w-xl text-sm leading-6 text-white/50">
         Drop a PNG or JPEG, pick a recipient, and send a 1/1 $PIZZA gift NFT.
-        You pay all fees from your wallet — the recipient gets it for free.
+        You pay all fees from your wallet. The recipient gets it for free.
       </p>
 
       {!publicKey && (
         <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-white/80">
-            Connect your wallet first — then fill out the form below.
+            Connect your wallet first, then fill out the form below.
           </p>
           <button
             type="button"
@@ -502,8 +502,8 @@ export default function GiftPage() {
 
       <div className="mt-4 rounded border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 space-y-1">
         <p className="font-medium text-white/80">What your wallet will ask you to approve</p>
-        <p>1. <span className="text-white">Storage payment</span> — funds permanent storage (one Solana transaction)</p>
-        <p>2. <span className="text-white">Mint transaction</span> — creates the NFT on-chain and sends it to the recipient</p>
+        <p>1. <span className="text-white">Storage payment</span> funds permanent storage (one Solana transaction)</p>
+        <p>2. <span className="text-white">Mint transaction</span> creates the NFT on-chain and sends it to the recipient</p>
         <p className="text-white/40 pt-1">Upload steps may also show message signature prompts (no extra SOL).</p>
       </div>
 

@@ -182,7 +182,7 @@ export async function ensureIrysFundedForBytes(
       `Platform wallet (${address}) cannot complete storage on ${network}: need ~${lamportsToSolStr(deficit)} SOL ` +
         `but only ~${lamportsToSolStr(maxTransfer)} SOL is transferable ` +
         `(~${bal?.onChainSol.toFixed(4) ?? "0"} SOL on-chain). ` +
-        `Storage payment must send SOL to ${address} on ${network} — your creator wallet balance is separate. ` +
+        `Storage payment must send SOL to ${address} on ${network}. Your creator wallet balance is separate. ` +
         `Switch Phantom to ${network}, open Go Live, and pay the full estimate again.`,
     );
   }
@@ -230,7 +230,7 @@ export async function ensureIrysFundedForBytes(
     const credited = await waitForIrysBalance(address, devnet, price);
     if (!credited) {
       throw new Error(
-        "Storage payment not credited yet — wait a minute and retry Go Live.",
+        "Storage payment not credited yet. Wait a minute and retry Go Live.",
       );
     }
   }

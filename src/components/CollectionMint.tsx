@@ -172,7 +172,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const completeSlicePayFlow = useCallback(
     async (token: GeneratedToken, id: string, kind: "primary_mint" | "secondary_buy") => {
       setBusy(true);
-      setMessage("Payment confirmed — completing mint…");
+      setMessage("Payment confirmed. Completing mint…");
       try {
         if (kind === "secondary_buy") {
           await finalizeSecondaryBuy(token, id);
@@ -361,7 +361,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       if (inv.invoiceId) setInvoiceId(String(inv.invoiceId));
       if (inv.demo) {
         setIsDemoCheckout(true);
-        setMessage("Demo mode — confirm below after reviewing the order.");
+        setMessage("Demo mode: confirm below after reviewing the order.");
         setCheckoutPending(true);
         return;
       }
@@ -459,7 +459,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     if (!res.ok) throw new Error(data.error);
     setCollection(data.collection);
     if (data.requiresOnChainMint) {
-      setMessage(`Paid — approve the on-chain mint in Phantom for #${token.tokenId}…`);
+      setMessage(`Paid. Approve the on-chain mint in Phantom for #${token.tokenId}…`);
       await completeOnChainMint(token.tokenId, data.collection);
     } else {
       const feeNote =
@@ -593,7 +593,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-amber-200">
-              #{pendingOnChainToken.tokenId} paid — on-chain mint pending
+              #{pendingOnChainToken.tokenId} paid. On-chain mint pending
             </p>
             <p className="text-xs text-amber-200/70 mt-0.5">
               Metadata is stored permanently, but the Solana NFT still needs to be minted.
@@ -613,13 +613,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
       {collection.blindMint && !collection.revealed && (
         <div className="mb-6 rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-white/60">
-          Blind mint active — art reveals when the collection hits its reveal trigger or the creator reveals manually.
+          Blind mint active. Art reveals when the collection hits its reveal trigger or the creator reveals manually.
         </div>
       )}
 
       {slicePayLive === false && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100/90">
-          SlicePay checkout is not live — check the merchant ID on the server.
+          SlicePay checkout is not live. Check the merchant ID on the server.
         </div>
       )}
 
@@ -963,7 +963,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                         <p className="text-white/40 uppercase tracking-wider text-[10px]">Owner wallet</p>
                         <p className="mt-0.5 font-mono text-white break-all">{selected.owner}</p>
                         <p className="mt-1 text-white/40">
-                          The NFT was sent to this address — check this wallet in Phantom.
+                          The NFT was sent to this address. Check this wallet in Phantom.
                         </p>
                       </div>
                     )}
@@ -1030,7 +1030,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                   isTokenSold(selected, collection) &&
                   selected.owner === publicKey && (
                   <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
-                    <p className="text-xs text-white/50">Your NFT — secondary market</p>
+                    <p className="text-xs text-white/50">Your NFT on the secondary market</p>
                     {selected.listing ? (
                       <>
                         <p className="text-sm text-white">Listed at {formatUsdAndSol(selected.listing.priceUsd, solUsd)}</p>

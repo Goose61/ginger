@@ -15,7 +15,7 @@ export async function buildPendingMintForToken(params: {
   const token = collection.tokens.find((t) => t.tokenId === tokenId);
   if (!token) throw new Error("Token not found");
   if (!token.metadataUri?.startsWith("http")) {
-    throw new Error("Token metadata not published — run go-live publish first");
+    throw new Error("Token metadata not published. Run go-live publish first");
   }
 
   /** Only mint into a Core collection when this drop has its own on-chain collection. */
@@ -33,7 +33,7 @@ export async function buildPendingMintForToken(params: {
 
   if (!txResult) {
     throw new Error(
-      "On-chain mint unavailable — set ARWEAVE_SOLANA_KEY (platform wallet) in environment variables",
+      "On-chain mint unavailable. Set ARWEAVE_SOLANA_KEY (platform wallet) in environment variables",
     );
   }
 

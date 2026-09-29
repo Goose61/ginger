@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let collection = await updateCollection(id, (c) => {
       const resolvedTokenId = tokenId ?? c.pendingMint?.tokenId;
       if (resolvedTokenId == null) {
-        throw new Error("tokenId required — no pending mint");
+        throw new Error("tokenId required. No pending mint");
       }
       const token = c.tokens.find((t) => t.tokenId === resolvedTokenId);
       if (!token) throw new Error("Token not found");

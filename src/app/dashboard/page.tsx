@@ -153,7 +153,7 @@ export default function DashboardPage() {
       {publicKey && (
         <p className="mt-2 text-xs text-white/40">
           {launchesAuthed
-            ? "Wallet signed — drafts and creator tools are unlocked for this session."
+            ? "Wallet signed. Drafts and creator tools are unlocked for this session."
             : "Load launches to approve the auth message in your wallet, then your drafts and logo tools appear."}
         </p>
       )}

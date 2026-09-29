@@ -231,7 +231,7 @@ export async function prepareCoreCollectionTransaction(params: {
   }
 
   if (!pending.collectionSecretKeyB64) {
-    throw new Error("Pending collection key missing — prepare again.");
+    throw new Error("Pending collection key missing. Prepare again.");
   }
 
   const built = await buildUnsignedCoreCollectionTx({
@@ -265,7 +265,7 @@ export async function cosignAndSubmitCoreCollectionTransaction(params: {
   network: SolanaNetwork;
 }): Promise<string> {
   if (!params.pending.collectionSecretKeyB64) {
-    throw new Error("Missing pending collection key — prepare the transaction again.");
+    throw new Error("Missing pending collection key. Prepare the transaction again.");
   }
 
   const rpcUrl = getDirectRpcUrl(params.network);

@@ -45,7 +45,7 @@ const faqData = [
   {
     question: "What fees does Ginger charge?",
     answer:
-      "No launch fee unless you add Featured Market (+$50 for 14 days at the top of Market). Primary mints: 0.7% platform + 0.3% trade tax (1% total, deducted before your creator split). Secondary sales: 0.5%. You configure how your share splits across creator, holders, and buyback treasury. Payment processing is covered by Ginger — buyers and creators never see a checkout surcharge.",
+      "No launch fee unless you add Featured Market (+$50 for 14 days at the top of Market). Primary mints: 0.7% platform + 0.3% trade tax (1% total, deducted before your creator split). Secondary sales: 0.5%. You configure how your share splits across creator, holders, and buyback treasury. Payment processing is covered by Ginger, so buyers and creators never see a checkout surcharge.",
   },
   {
     question: "Is there a gift mint or allowlist?",

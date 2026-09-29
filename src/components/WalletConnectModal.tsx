@@ -179,8 +179,8 @@ export function WalletConnectModal({ open, onOpenChange }: Props) {
               ? "Waiting for approval…"
               : ready
                 ? inApp
-                  ? "In-app browser — tap to connect"
-                  : "Detected — tap to connect"
+                  ? "In-app browser. Tap to connect"
+                  : "Detected. Tap to connect"
                 : mobile
                   ? "Open in app"
                   : "Install extension";

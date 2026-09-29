@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
     if (!collection.pendingMint) {
       return NextResponse.json(
-        { error: "No pending mint for this collection — rebuild the mint transaction." },
+        { error: "No pending mint for this collection. Rebuild the mint transaction." },
         { status: 400 },
       );
     }

@@ -1321,7 +1321,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       };
 
       if (alreadyOnArweave) {
-        setGoLivePhase("Upload already complete — finishing launch…");
+        setGoLivePhase("Upload already complete. Finishing launch…");
         const tokens: Record<number, { imageUri: string; metadataUri: string }> = {};
         for (const t of tokenList) {
           tokens[t.tokenId] = {
@@ -1336,7 +1336,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       } else {
         if (useServerBulk) {
           setGoLivePhase(
-            `Step 1/2 — Pay for storage (~${estimate.walletPaymentSol.toFixed(4)} SOL) from your wallet…`,
+            `Step 1/2: Pay for storage (~${estimate.walletPaymentSol.toFixed(4)} SOL) from your wallet…`,
           );
           await fundCreatorIrysForBytes({
             network,
@@ -1345,7 +1345,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               setGoLivePhase("Approve storage payment in your wallet…");
             },
           });
-          setGoLivePhase("Step 2/2 — Authorize upload (one signature)…");
+          setGoLivePhase("Step 2/2: Authorize upload (one signature)…");
           await ensureCreatorIrysUploadDelegate({
             network,
             delegateAddress: estimate.uploadDelegateAddress!,
@@ -1356,11 +1356,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           });
         } else {
           setGoLivePhase(
-            `Paying for storage (~${estimate.walletPaymentSol.toFixed(4)} SOL) — approve in your wallet…`,
+            `Paying for storage (~${estimate.walletPaymentSol.toFixed(4)} SOL). Approve in your wallet…`,
           );
         }
 
-        setGoLivePhase("Uploading your collection — keep this tab open…");
+        setGoLivePhase("Uploading your collection. Keep this tab open…");
 
         uploaded = useServerBulk
           ? await uploadCollectionViaServer({
@@ -1378,7 +1378,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 } else {
                   setArweaveUploadDetail(
                     p.tokenId != null
-                      ? `Token #${p.tokenId} — ${p.done} / ${p.total} uploads`
+                      ? `Token #${p.tokenId}: ${p.done} / ${p.total} uploads`
                       : `${p.done} / ${p.total} uploads`,
                   );
                 }
@@ -1403,7 +1403,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 } else {
                   setArweaveUploadDetail(
                     p.tokenId != null
-                      ? `Token #${p.tokenId} — ${p.done} / ${p.total} uploads`
+                      ? `Token #${p.tokenId}: ${p.done} / ${p.total} uploads`
                       : `${p.done} / ${p.total} uploads`,
                   );
                 }
@@ -1432,7 +1432,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       let coreCollectionAddress = current.coreCollectionAddress;
       let coreCollectionTxUrl = current.coreCollectionTxUrl;
       if (!coreCollectionAddress) {
-        setGoLivePhase("Creating on-chain collection — approve in your wallet…");
+        setGoLivePhase("Creating on-chain collection. Approve in your wallet…");
         const core = await signCoreCollectionTx(current.id, network);
         coreCollectionAddress = core.collectionAddress;
         if (core.txSignature) {
@@ -1580,7 +1580,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         <div className="container mx-auto max-w-4xl px-4 py-12">
         <h1 className="text-3xl font-bold text-white">Launch a collection</h1>
         <p className="mt-2 text-sm text-white/60">
-          Connect your wallet first. Finished-art ZIPs are parsed in your browser — nothing is
+          Connect your wallet first. Finished-art ZIPs are parsed in your browser. Nothing is
           uploaded until you go live and pay storage (and an optional $50 Market feature)
           from that wallet.
         </p>
@@ -1607,7 +1607,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             <p className="mt-2 leading-relaxed">
               When you upload a ZIP or load saved drafts, your wallet will ask you to{" "}
               <strong className="text-white/90">sign a short message</strong> (starts with{" "}
-              &quot;Dough Boi Auth&quot;). This proves you own the wallet — it does{" "}
+              &quot;Dough Boi Auth&quot;). This proves you own the wallet. It does{" "}
               <strong className="text-white/90">not</strong> move SOL or charge fees. One signature
               is cached for about {Math.round(AUTH_TTL_MS / 60000)} minutes. Storage is only
               paid when you click Go live.
@@ -1634,7 +1634,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-5">
             <h2 className="text-lg font-semibold text-white">Continue a saved launch</h2>
             <p className="mt-1 text-sm text-white/60">
-              Your wallet has in-progress collections. Pick up where you left off — progress is
+              Your wallet has in-progress collections. Pick up where you left off. Progress is
               saved automatically after upload.
             </p>
             {draftsLoading ? (
@@ -1938,7 +1938,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               {[
                 ["NFTs", String(metadataReview.tokenCount)],
                 ["Metadata files", String(metadataReview.sidecarCount)],
-                ["Unique bps", metadataReview.uniqueBps.length ? metadataReview.uniqueBps.join(", ") : "—"],
+                ["Unique bps", metadataReview.uniqueBps.length ? metadataReview.uniqueBps.join(", ") : "None"],
                 ["Creator sets", String(metadataReview.uniqueCreatorSets.length || 0)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
@@ -1974,7 +1974,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               <p className="text-xs text-white/45">
                 Tip: if your ZIP uses 0-based JSON (<code className="text-white/60">0.json</code>…
                 <code className="text-white/60">{`${Math.max(0, metadataReview.tokenCount - 1)}.json`}</code>
-                ), NFT #{metadataReview.tokenCount} pairs with the highest-numbered file — re-upload the ZIP after deploy if pairing looks wrong.
+                ), NFT #{metadataReview.tokenCount} pairs with the highest-numbered file. Re-upload the ZIP after deploy if pairing looks wrong.
               </p>
             )}
 
@@ -2100,10 +2100,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                       <tr key={s.tokenId} className="border-t border-white/10 text-white/80">
                         <td className="px-3 py-2">{s.tokenId}</td>
                         <td className="max-w-[10rem] truncate px-3 py-2">{s.name}</td>
-                        <td className="px-3 py-2">{s.symbol || "—"}</td>
-                        <td className="px-3 py-2">{s.sellerFeeBps ?? "—"}</td>
+                        <td className="px-3 py-2">{s.symbol || "None"}</td>
+                        <td className="px-3 py-2">{s.sellerFeeBps ?? "None"}</td>
                         <td className="max-w-[14rem] truncate px-3 py-2 font-mono text-[10px]">
-                          {s.creators?.map((c) => `${c.address.slice(0, 4)}…${c.share}`).join(", ") || (s.sidecarPresent ? "—" : "no file")}
+                          {s.creators?.map((c) => `${c.address.slice(0, 4)}…${c.share}`).join(", ") || (s.sidecarPresent ? "None" : "no file")}
                         </td>
                         <td className="px-3 py-2">{s.traitCount}</td>
                       </tr>
@@ -2733,7 +2733,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               <div className="space-y-2">
                 {(
                   [
-                    ["disabled",    "Disabled", "No blind mint or scheduled reveal — all art and metadata are visible immediately."],
+                    ["disabled",    "Disabled", "No blind mint or scheduled reveal. All art and metadata are visible immediately."],
                     ["manual",      "Manual", "You click 'Reveal' in your creator dashboard whenever you&apos;re ready."],
                     ["at_percent",  "At % sold", "Reveal automatically when a percentage of the supply has been minted."],
                     ["at_sold_out", "At sell-out", "Reveal only after every NFT in the collection has been minted."],
@@ -3062,7 +3062,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               ) : null}
               <p className="mt-3 text-[11px] text-white/35">
                 No Ginger launch fee unless you add Featured Market (+${FEATURE_ON_MARKET_USD}).
-                Storage is paid from your wallet — that SOL does not go to Ginger.
+                Storage is paid from your wallet. That SOL does not go to Ginger.
                 Large collections: one storage payment and one upload approval, then we handle the rest.
                 Keep this tab open until upload finishes.
                 Marketplace takes {PRIMARY_PLATFORM_TOTAL_PERCENT}% per mint (

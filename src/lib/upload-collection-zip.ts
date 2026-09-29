@@ -231,7 +231,7 @@ export async function pollImportUntilReady(
   }
 
   throw new Error(
-    "Import is still running — check your dashboard in a minute or try again if it failed.",
+    "Import is still running. Check your dashboard in a minute or try again if it failed.",
   );
 }
 

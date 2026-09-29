@@ -121,7 +121,7 @@ export function FeedbackPill() {
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5">
               {sent ? (
                 <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm leading-6 text-white/80">
-                  Thanks — we got it. Ginger is in public beta, so this goes straight to the team.
+                  Thanks. We got it. Ginger is in public beta, so this goes straight to the team.
                 </p>
               ) : (
                 <div className="space-y-4">

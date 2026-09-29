@@ -32,7 +32,7 @@ export async function verifyMintTransaction(
     ]);
 
     if (!tx) {
-      return { ok: false, reason: "Transaction not found on chain — it may have failed or been sent to the wrong network." };
+      return { ok: false, reason: "Transaction not found on chain. It may have failed or been sent to the wrong network." };
     }
     if (tx.meta?.err) {
       return { ok: false, reason: `Transaction failed on-chain: ${JSON.stringify(tx.meta.err)}` };
