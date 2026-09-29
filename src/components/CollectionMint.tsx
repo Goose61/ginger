@@ -439,7 +439,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     if (!publicKey) return;
     const res = await fetch(`/api/collections/${collection.id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await buildAuthHeaders(publicKey)),
+      },
       body: JSON.stringify({
         action: "mint",
         payer: publicKey,
@@ -479,7 +482,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     if (!publicKey) return;
     const res = await fetch(`/api/collections/${collection.id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await buildAuthHeaders(publicKey)),
+      },
       body: JSON.stringify({
         action: "buy_secondary",
         payer: publicKey,

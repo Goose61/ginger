@@ -18,6 +18,7 @@ import {
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { authHeadersForKeypair } from "../src/lib/wallet-auth";
 
 const ROOT = path.resolve(process.cwd());
 const WALLET_PATH = path.join(ROOT, ".devnet-wallet.json");
@@ -282,6 +283,7 @@ async function main() {
 
   const mintRes = await api(`/api/collections/${encodeURIComponent(collection.id)}`, {
     method: "POST",
+    headers: authHeadersForKeypair(kp),
     body: JSON.stringify({
       action: "mint",
       payer,

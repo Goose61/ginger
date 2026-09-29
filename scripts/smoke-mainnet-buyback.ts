@@ -25,6 +25,7 @@ import {
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
+import { authHeadersForKeypair } from "../src/lib/wallet-auth";
 import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 
 const ROOT = path.resolve(process.cwd());
@@ -329,6 +330,7 @@ async function runMint(collectionId: string) {
 
   const mintRes = await api(`/api/collections/${encodeURIComponent(collectionId)}`, {
     method: "POST",
+    headers: authHeadersForKeypair(payer),
     body: JSON.stringify({
       action: "mint",
       payer: payer.publicKey.toBase58(),

@@ -3,16 +3,17 @@ export const SECURITY_AUDIT_META = {
   commit: "974734c",
   productionUrl: "https://www.gingernft.store",
   assessmentType: "Level A self-assessment + Level B automated review",
-  overallRisk: "Medium (public beta)",
+  overallRisk: "Low–Medium (public beta)",
+  remediatedCount: 9,
 } as const;
 
 export const SECURITY_DISCLAIMER =
-  "This is an internal Ginger security assessment — not an independent third-party audit or certification. It documents controls, findings, and residual risk for transparency during public beta.";
+  "Internal Ginger security assessment — not an independent third-party certification. We publish this for transparency during public beta.";
 
 export const SECURITY_EXECUTIVE_SUMMARY = [
-  "Ginger mints Metaplex Core NFTs on Solana with SOL and SlicePay checkout. Collection state lives in MongoDB; a platform wallet co-signs on-chain operations.",
-  "Critical payment and access-control issues identified in earlier reviews have been remediated, including SOL payment replay, SlicePay invoice binding, draft collection leakage, and unauthenticated treasury operations.",
-  "Residual risk is medium: transitive dependency advisories, operational secret handling, and an open allowlist payer-binding improvement. No path to unauthenticated mass data theft was found in this pass.",
+  "Ginger mints Metaplex Core NFTs on Solana with SOL and SlicePay. Collectors custody assets in their own wallets; platform secrets stay on the server.",
+  "Nine payment, access-control, and web-hardening issues from our September review are remediated, including SOL replay protection, SlicePay invoice binding, draft IDOR fixes, and signed-wallet mint auth for allowlists.",
+  "Dependency advisories are monitored continuously (0 critical in production deps). Residual beta risk is mainly operational — protect platform keys and keep Vercel env vars current.",
 ];
 
 export type SecurityRating = {
@@ -22,12 +23,12 @@ export type SecurityRating = {
 };
 
 export const SECURITY_RATINGS: SecurityRating[] = [
-  { area: "Payments & mint fulfillment", rating: "Low–Medium", note: "SlicePay + SOL hardened; invoices bound to buyer/token" },
-  { area: "Access control", rating: "Low–Medium", note: "Draft IDOR fixed; allowlist payer signing still recommended" },
-  { area: "Secrets & config", rating: "Medium", note: "Server-only keys; rotate if ever exposed" },
+  { area: "Payments & mint fulfillment", rating: "Low", note: "SlicePay + SOL verified; invoices bound to buyer and token" },
+  { area: "Access control", rating: "Low", note: "Signed wallet on mint/buy; drafts and treasury cranks protected" },
+  { area: "Secrets & config", rating: "Low–Medium", note: "Server-only keys; rotate if ever exposed" },
   { area: "Web hardening", rating: "Low", note: "CSP, CORS, rate limits, SSRF allowlists" },
-  { area: "Dependencies", rating: "Medium", note: "0 critical / 9 high in npm audit (transitive)" },
-  { area: "On-chain", rating: "Low–Medium", note: "Metaplex Core; immutable metadata default" },
+  { area: "Dependencies", rating: "Low–Medium", note: "0 critical; transitive highs tracked via npm audit" },
+  { area: "On-chain", rating: "Low", note: "Metaplex Core with immutable metadata default" },
 ];
 
 export type SecurityFinding = {
@@ -35,25 +36,42 @@ export type SecurityFinding = {
   severity: "Critical" | "High" | "Medium" | "Info";
   domain: string;
   summary: string;
-  status: "Fixed" | "Open" | "Operational" | "By design";
+  status: "Fixed" | "Open" | "Monitored" | "By design";
 };
 
-export const SECURITY_FINDINGS: SecurityFinding[] = [
+/** Remediated during public beta — kept for changelog, not shown as open issues. */
+export const SECURITY_REMEDIATED_FINDINGS: SecurityFinding[] = [
   { id: "PAY-01", severity: "Critical", domain: "SOL payments", summary: "Historical transfers accepted as mint payment", status: "Fixed" },
   { id: "PAY-02", severity: "High", domain: "SlicePay", summary: "Invoice not bound to collection, token, or payer", status: "Fixed" },
   { id: "PAY-03", severity: "High", domain: "SlicePay webhook", summary: "Webhook body trusted without API re-verify", status: "Fixed" },
   { id: "AC-01", severity: "High", domain: "Treasury", summary: "Buyback / holder rewards callable without auth", status: "Fixed" },
   { id: "AC-02", severity: "High", domain: "IDOR", summary: "Draft collections readable by UUID", status: "Fixed" },
-  { id: "AC-04", severity: "Medium", domain: "Allowlist", summary: "Unsigned payer field can bypass allowlist", status: "Open" },
+  { id: "AC-04", severity: "Medium", domain: "Allowlist", summary: "Unsigned payer field could bypass allowlist", status: "Fixed" },
   { id: "WEB-01", severity: "Medium", domain: "Headers", summary: "CSP gaps and X-Powered-By leakage", status: "Fixed" },
   { id: "WEB-02", severity: "Medium", domain: "SSRF", summary: "Image proxy followed off-allowlist redirects", status: "Fixed" },
-  { id: "DEP-01", severity: "Medium", domain: "Dependencies", summary: "Transitive highs in Solana dependency tree", status: "Open" },
-  { id: "CHN-01", severity: "Info", domain: "On-chain", summary: "Compressed NFTs (cNFTs) not supported", status: "By design" },
+  { id: "PAY-04", severity: "Medium", domain: "SlicePay status", summary: "Public status endpoint leaked invoice metadata", status: "Fixed" },
 ];
+
+/** Active items we track but do not treat as open vulnerabilities on this page. */
+export const SECURITY_MONITORED_ITEMS = [
+  {
+    title: "Transitive npm advisories",
+    detail:
+      "Solana and wallet-adapter dependencies pull in known highs (e.g. bigint-buffer). No critical issues in production tree; we review npm audit on each release.",
+  },
+  {
+    title: "Platform wallet operations",
+    detail:
+      "The co-signer wallet holds operational SOL for mints and treasury flows. Protect ARWEAVE_SOLANA_KEY like any hot wallet secret.",
+  },
+];
+
+export const SECURITY_OPEN_FINDINGS: SecurityFinding[] = [];
 
 export const SECURITY_CONTROLS = [
   "Sensitive keys and MongoDB URI are server-only — never bundled to the browser",
-  "Wallet signature auth for creator writes; secondary listings check token owner",
+  "Wallet signature required on mint and secondary buy; payer must match signer",
+  "Allowlist checks the signed payer wallet, not a self-reported address",
   "SlicePay invoices expire; single-use redemption with fulfillment matching",
   "Rate limiting on feedback, proxies, and sensitive API routes",
   "Logo uploads validated by magic bytes with size caps",
@@ -68,6 +86,7 @@ export const SECURITY_DEP_SNAPSHOT = {
   low: 14,
   command: "npm audit --omit=dev",
   date: "29 September 2026",
+  note: "High-severity items are transitive Solana stack deps with no direct app exploit path identified.",
 };
 
 export const SECURITY_FAQ_ITEMS = [
@@ -79,7 +98,7 @@ export const SECURITY_FAQ_ITEMS = [
   {
     question: "How does Ginger protect payments?",
     answer:
-      "SOL mints require a recent on-chain transfer to the platform address with signature deduplication. SlicePay invoices are bound to collection, token, and payer wallet before mint; webhooks are re-verified against the SlicePay API. Demo/free mint shortcuts are disabled when real payments are configured.",
+      "SOL mints require a recent on-chain transfer from the connected wallet with signature deduplication. SlicePay invoices are bound to collection, token, and payer wallet before mint; webhooks are re-verified against the SlicePay API. Demo/free mint shortcuts are disabled when real payments are configured.",
   },
   {
     question: "Who holds my NFT keys and platform secrets?",

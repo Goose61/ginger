@@ -11,7 +11,7 @@ import {
 import { applySaleTreasury } from "@/lib/milestones";
 import { applyRevealTriggers } from "@/lib/reveal";
 import { rateLimit } from "@/lib/rate-limit";
-import { readAuthHeaders, assertCreatorAuth, requireWalletAuth } from "@/lib/wallet-auth";
+import { readAuthHeaders, assertCreatorAuth, assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
 import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@/lib/slicepay";
 import { consumeSolSignature, verifySolPayment } from "@/lib/verify-payment";
 import { getQuote } from "@/lib/quotes";
@@ -143,6 +143,15 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "Valid payer wallet required" }, { status: 400 });
       }
 
+      let payerAuth;
+      try {
+        payerAuth = requireWalletAuth(req);
+        assertPayerAuth(payerAuth, payerAddr);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
+
       const pre = await getCollection(id);
       if (!pre) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -186,7 +195,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           return NextResponse.json({ error: "Creator payout wallet not set" }, { status: 400 });
         }
         const network = serverNetwork(body.network);
-        const verified = await verifySolPayment(txSignature, payTo, quote.sol, network);
+        const verified = await verifySolPayment(txSignature, payTo, quote.sol, network, payerAddr);
         if (!verified.ok) {
           return NextResponse.json({ error: verified.error ?? "SOL payment not verified" }, { status: 402 });
         }
@@ -448,6 +457,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!payerAddr || !isValidSolanaAddress(payerAddr)) {
         return NextResponse.json({ error: "Valid payer wallet required" }, { status: 400 });
       }
+
+      try {
+        assertPayerAuth(requireWalletAuth(req), payerAddr);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
+
       const tokenId = Number(body.tokenId);
       const pre = await getCollection(id);
       if (!pre) return NextResponse.json({ error: "not found" }, { status: 404 });

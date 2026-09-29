@@ -57,6 +57,26 @@ export function requireWalletAuth(req: Request): AuthHeaders {
   return auth;
 }
 
+/** Mint/buy payer must prove wallet ownership via signed auth headers. */
+export function assertPayerAuth(auth: AuthHeaders | null, payerWallet: string): void {
+  if (!auth) throw new Error("Wallet signature required");
+  if (auth.wallet !== payerWallet) {
+    throw new Error("Payer must match connected wallet");
+  }
+}
+
+export function authHeadersForKeypair(keypair: {
+  publicKey: { toBase58(): string };
+  secretKey: Uint8Array;
+}): Record<string, string> {
+  const timestamp = Date.now();
+  const sig = nacl.sign.detached(authMessageBytes(timestamp), keypair.secretKey);
+  return {
+    "X-Wallet": keypair.publicKey.toBase58(),
+    "X-Signature": Buffer.from(sig).toString("base64"),
+    "X-Timestamp": String(timestamp),
+  };
+}
 /** Creator ops require a valid wallet signature matching the collection creator. */
 export function assertCreatorAuth(
   auth: AuthHeaders | null,

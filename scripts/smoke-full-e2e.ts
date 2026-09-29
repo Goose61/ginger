@@ -21,6 +21,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
+import { authHeadersForKeypair } from "../src/lib/wallet-auth";
 
 const ROOT = path.resolve(process.cwd());
 const DEVNET_PAYER = path.join(ROOT, ".devnet-wallet.json");
@@ -280,6 +281,7 @@ async function mintOne(params: {
 
   const mintRes = await api(`/api/collections/${encodeURIComponent(collection.id)}`, {
     method: "POST",
+    headers: authHeadersForKeypair(payer),
     body: JSON.stringify({
       action: "mint",
       payer: payer.publicKey.toBase58(),

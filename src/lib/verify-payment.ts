@@ -11,14 +11,22 @@ const MAX_PAYMENT_AGE_SEC = 20 * 60;
 
 type ParsedIx = {
   program?: string;
-  parsed?: { type?: string; info?: { destination?: string; lamports?: number | string } };
+  parsed?: {
+    type?: string;
+    info?: { source?: string; destination?: string; lamports?: number | string };
+  };
 };
 
-function transferLamportsTo(ix: ParsedIx, recipient: string): number {
+function transferLamportsTo(
+  ix: ParsedIx,
+  recipient: string,
+  sender?: string,
+): number {
   if (ix.program !== "system") return 0;
   const type = ix.parsed?.type;
   if (type !== "transfer" && type !== "transferWithSeed") return 0;
   if (ix.parsed?.info?.destination !== recipient) return 0;
+  if (sender && ix.parsed?.info?.source !== sender) return 0;
   return Number(ix.parsed.info?.lamports ?? 0);
 }
 
@@ -28,6 +36,7 @@ export async function verifySolPayment(
   recipient: string,
   minSol: number,
   network: SolanaNetwork,
+  expectedSender?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!signature || !recipient) return { ok: false, error: "Missing payment proof" };
   const minLamports = Math.floor(minSol * LAMPORTS_PER_SOL * 0.98); // 2% slippage tolerance
@@ -47,13 +56,14 @@ export async function verifySolPayment(
     }
 
     const dest = new PublicKey(recipient).toBase58();
+    const sender = expectedSender ? new PublicKey(expectedSender).toBase58() : undefined;
     let transferred = 0;
     for (const ix of tx.transaction.message.instructions) {
-      transferred += transferLamportsTo(ix as ParsedIx, dest);
+      transferred += transferLamportsTo(ix as ParsedIx, dest, sender);
     }
     for (const inner of tx.meta.innerInstructions ?? []) {
       for (const ix of inner.instructions) {
-        transferred += transferLamportsTo(ix as ParsedIx, dest);
+        transferred += transferLamportsTo(ix as ParsedIx, dest, sender);
       }
     }
     if (transferred < minLamports) {
