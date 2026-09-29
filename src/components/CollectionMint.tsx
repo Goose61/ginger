@@ -31,7 +31,8 @@ import { isPaidStatus } from "@/lib/slicepay-shared";
 
 export function CollectionMint({ initial }: { initial: Collection }) {
   const searchParams = useSearchParams();
-  const { publicKey, connect, signMintTx, signAndSendTx } = useWallet();
+  const { publicKey, connect, signMintTx, signAndSendTx, connection: walletConnection } =
+    useWallet();
   const [collection, setCollection] = useState(initial);
   const [selected, setSelected] = useState<GeneratedToken | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -402,12 +403,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       const { quote } = await fetch(`/api/quotes?usd=${amountUsd}`).then((r) => r.json()) as {
         quote: { sol: number };
       };
-      const { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
+      const { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
         await import("@solana/web3.js");
-      const { getRpcUrl, getClientNetwork } = await import("@/lib/solana-config");
+      const { getClientNetwork } = await import("@/lib/solana-config");
       const network = await getClientNetwork();
-      const connection = new Connection(getRpcUrl(network), "confirmed");
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+      const { blockhash, lastValidBlockHeight } = await walletConnection.getLatestBlockhash(
+        "confirmed",
+      );
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(publicKey),
@@ -423,7 +425,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       setMessage(`Sending ${quote.sol.toFixed(4)} SOL…`);
       const txSignature = await signAndSendTx(txBase64);
       setMessage("Confirming SOL payment on-chain…");
-      await connection.confirmTransaction(
+      await walletConnection.confirmTransaction(
         { signature: txSignature, blockhash, lastValidBlockHeight },
         "confirmed",
       );

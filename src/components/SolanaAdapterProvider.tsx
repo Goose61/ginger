@@ -23,7 +23,8 @@ import {
  * @see https://docs.solflare.com/solflare/technical/integrate-solflare
  */
 export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
-  const [endpoint, setEndpoint] = useState(SOLANA_RPC_DEVNET);
+  /** Wait for /api/network before mounting ConnectionProvider (avoids devnet default vs mainnet pay txs). */
+  const [endpoint, setEndpoint] = useState<string | null>(null);
   const [metamaskReady, setMetamaskReady] = useState(false);
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function SolanaAdapterProvider({ children }: { children: ReactNode }) {
       .finally(() => setMetamaskReady(true));
   }, []);
 
-  if (!metamaskReady) {
+  if (!metamaskReady || !endpoint) {
     return null;
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { Connection } from "@solana/web3.js";
 import { useConnection, useWallet as useAdapterWallet } from "@solana/wallet-adapter-react";
 import { readJsonResponse } from "@/lib/fetch-json";
 import { WalletConnectModal } from "@/components/WalletConnectModal";
@@ -12,6 +13,8 @@ type WalletCtx = {
   publicKey: string | null;
   connecting: boolean;
   isPhantom: boolean;
+  /** Same RPC cluster as /api/network (via solana-proxy in the browser). */
+  connection: Connection;
   connect: () => Promise<void>;
   disconnect: () => void;
   /**
@@ -28,10 +31,12 @@ type WalletCtx = {
   signAndSendTx: (txBase64: string) => Promise<string>;
 };
 
-const Ctx = createContext<WalletCtx>({
+const Ctx = createContext<WalletCtx | null>(null);
+const walletCtxFallback: WalletCtx = {
   publicKey: null,
   connecting: false,
   isPhantom: false,
+  connection: null as unknown as Connection,
   connect: async () => {},
   disconnect: () => {},
   signMintTx: async () => {
@@ -43,7 +48,7 @@ const Ctx = createContext<WalletCtx>({
   signAndSendTx: async () => {
     throw new Error("Wallet not connected");
   },
-});
+};
 
 export function rpcUrl(): string {
   return getRpcUrl();
@@ -225,25 +230,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const { VersionedTransaction, Transaction } = await import("@solana/web3.js");
       const bytes = Buffer.from(txBase64, "base64");
       let tx: InstanceType<typeof VersionedTransaction> | InstanceType<typeof Transaction>;
-      let isVersioned = true;
       try {
         tx = VersionedTransaction.deserialize(bytes);
       } catch {
-        isVersioned = false;
         tx = Transaction.from(bytes);
       }
 
-      // Phantom docs: simulate before signing; use signTransaction (not signAndSend) when
-      // possible, then broadcast with preflight so the wallet can predict outcomes.
+      // Phantom: signTransaction then broadcast with preflight (not signAndSend + skipPreflight).
       // https://docs.phantom.com/developer-powertools/domain-and-transaction-warnings
-      const simOpts = { sigVerify: false, commitment: "confirmed" as const };
-      const sim = isVersioned
-        ? await connection.simulateTransaction(tx as InstanceType<typeof VersionedTransaction>, simOpts)
-        : await connection.simulateTransaction(tx as InstanceType<typeof Transaction>, undefined, false);
-      if (sim.value.err) {
-        throw new Error(`Transaction would fail: ${JSON.stringify(sim.value.err)}`);
-      }
-
       const signed = (await signTransaction(tx)) as typeof tx;
       return connection.sendRawTransaction(signed.serialize(), {
         skipPreflight: false,
@@ -259,13 +253,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       publicKey,
       connecting: adapterConnecting,
       isPhantom: connected,
+      connection,
       connect,
       disconnect,
       signMintTx,
       signCoreCollectionTx,
       signAndSendTx,
     }),
-    [publicKey, adapterConnecting, connected, connect, disconnect, signMintTx, signCoreCollectionTx, signAndSendTx],
+    [
+      publicKey,
+      adapterConnecting,
+      connected,
+      connection,
+      connect,
+      disconnect,
+      signMintTx,
+      signCoreCollectionTx,
+      signAndSendTx,
+    ],
   );
 
   return (
@@ -277,5 +282,5 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useWallet() {
-  return useContext(Ctx);
+  return useContext(Ctx) ?? walletCtxFallback;
 }

@@ -247,7 +247,8 @@ function PriceUnitToggle({
 
 export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   const router = useRouter();
-  const { publicKey, connect, signCoreCollectionTx, signAndSendTx } = useWallet();
+  const { publicKey, connect, signCoreCollectionTx, signAndSendTx, connection: walletConnection } =
+    useWallet();
 
   const [mode, setMode] = useState<Mode>(null);
   const [step, setStep] = useState(0);
@@ -1451,11 +1452,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           setGoLivePhase(
             `Pay $${FEATURE_ON_MARKET_USD} featured Market listing (~${featuredSol.toFixed(4)} SOL)…`,
           );
-          const { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
+          const { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
             await import("@solana/web3.js");
-          const { getRpcUrl } = await import("@/lib/solana-config");
-          const connection = new Connection(getRpcUrl(), "confirmed");
-          const { blockhash } = await connection.getLatestBlockhash();
+          const { blockhash } = await walletConnection.getLatestBlockhash("confirmed");
           const tx = new Transaction().add(
             SystemProgram.transfer({
               fromPubkey: new PublicKey(publicKey),
