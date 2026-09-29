@@ -67,9 +67,9 @@ const Faq = () => {
             </h2>
             <p className="mt-2 text-muted-foreground">Launch · mint · trade on Solana</p>
             <p className="mt-3 text-sm text-muted-foreground">
-              Security transparency:{" "}
+              Security:{" "}
               <Link href="/security" className="text-primary underline-offset-2 hover:underline">
-                read our assessment
+                read our report
               </Link>
             </p>
           </div>
