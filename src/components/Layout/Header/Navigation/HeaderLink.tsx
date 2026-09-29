@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { HeaderItem } from "../../../../types/menu";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 const HeaderLink: React.FC<{
   item: HeaderItem;
@@ -10,14 +11,17 @@ const HeaderLink: React.FC<{
   setActiveHash: (hash: string) => void;
 }> = ({ item, activeHash, setActiveHash }) => {
   const [submenuOpen, setSubmenuOpen] = useState(false);
+  const closeTimer = useRef<number | null>(null);
   const path = usePathname();
-  const handleMouseEnter = () => {
-    if (item.submenu) {
-      setSubmenuOpen(true);
-    }
+
+  const openMenu = () => {
+    if (!item.submenu) return;
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    setSubmenuOpen(true);
   };
-  const handleMouseLeave = () => {
-    setSubmenuOpen(false);
+  const closeMenu = () => {
+    // small grace period so the pointer can cross the gap into the dropdown
+    closeTimer.current = window.setTimeout(() => setSubmenuOpen(false), 120);
   };
 
   useEffect(() => {
@@ -26,11 +30,11 @@ const HeaderLink: React.FC<{
 
   const handleLinkClick = (href: string) => {
     if (href.includes("#")) {
-      const hash = "#" + href.split("#")[1];
-      setActiveHash(hash);
+      setActiveHash("#" + href.split("#")[1]);
     } else {
       setActiveHash("");
     }
+    setSubmenuOpen(false);
   };
 
   const isActive = (href: string) => {
@@ -41,52 +45,44 @@ const HeaderLink: React.FC<{
     return path === href;
   };
 
+  const groupActive =
+    isActive(item.href) || Boolean(item.submenu?.some((s) => isActive(s.href)));
+
   return (
-    <div
-      className="relative"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="relative" onMouseEnter={openMenu} onMouseLeave={closeMenu}>
       <Link
         href={item.href}
         onClick={() => handleLinkClick(item.href)}
-        className={`relative flex font-[family-name:var(--font-body)] text-[0.92rem] font-medium capitalize transition-all duration-300 hover:text-primary ${
-          isActive(item.href) ? "text-primary" : "text-[var(--header-fg)]"
+        aria-haspopup={item.submenu ? "menu" : undefined}
+        aria-expanded={item.submenu ? submenuOpen : undefined}
+        onFocus={openMenu}
+        className={`relative inline-flex items-center gap-1 rounded-full px-3 py-1.5 font-[family-name:var(--font-body)] text-[0.92rem] font-medium transition-colors duration-150 hover:text-ink ${
+          groupActive ? "bg-surface-2 text-ink" : "text-ink-body"
         }`}
       >
         {item.label}
         {item.submenu && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="1.5em"
-            height="1.5em"
-            viewBox="0 0 24 24"
-          >
-            <path
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-              d="m7 10l5 5l5-5"
-            />
-          </svg>
+          <ChevronDown
+            className={`h-3.5 w-3.5 text-ink-muted transition ${submenuOpen ? "rotate-180" : ""}`}
+            aria-hidden
+          />
         )}
       </Link>
-      {submenuOpen && (
+      {item.submenu && submenuOpen && (
         <div
-          className={`absolute py-2 left-0 mt-0.5 w-60 bg-white dark:text-white shadow-lg rounded-lg `}
-          data-aos="fade-up"
-          data-aos-duration="500"
+          role="menu"
+          className="absolute left-0 top-[calc(100%+0.4rem)] z-50 w-52 rounded-2xl border border-line-strong bg-surface-3 p-1 shadow-[0_24px_48px_-8px_rgba(0,0,0,0.7)]"
         >
-          {item.submenu?.map((subItem, index) => (
+          {item.submenu.map((subItem) => (
             <Link
-              key={index}
+              key={subItem.href}
+              role="menuitem"
               href={subItem.href}
-              className={`block px-4 py-2 transition-all duration-300 ${
+              onClick={() => handleLinkClick(subItem.href)}
+              className={`block rounded-xl px-3 py-2 text-sm transition ${
                 isActive(subItem.href)
                   ? "bg-primary/10 text-primary"
-                  : "text-black dark:text-white hover:bg-primary/10 hover:text-primary"
+                  : "text-ink-body hover:bg-surface-2 hover:text-ink"
               }`}
             >
               {subItem.label}

@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { headerData } from "../Header/Navigation/menuData";
 import Logo from "./Logo";
 import HeaderLink from "../Header/Navigation/HeaderLink";
 import MobileHeaderLink from "../Header/Navigation/MobileHeaderLink";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/components/WalletProvider";
-import { CreatorDashboardLink } from "@/components/CreatorDashboardLink";
-import Link from "next/link";
+import { SearchTrigger, useGlobalSearch } from "@/components/GlobalSearch";
+import { WalletMenu } from "@/components/WalletMenu";
+import { Search } from "lucide-react";
 
 const Header: React.FC = () => {
   const [navbarOpen, setNavbarOpen] = useState(false);
   const [activeHash, setActiveHash] = useState("");
-  const { publicKey, connecting, connect, disconnect } = useWallet();
-  const short = publicKey
-    ? `${publicKey.slice(0, 4)}…${publicKey.slice(-4)}`
-    : null;
+  const path = usePathname();
+  const { open: openSearch } = useGlobalSearch();
+  const onLaunch = path === "/launch";
 
   useEffect(() => {
     const handleHashChange = () => setActiveHash(window.location.hash);
@@ -34,117 +35,107 @@ const Header: React.FC = () => {
         background: "var(--header-bg)",
       }}
     >
-      <div className="mx-auto flex min-h-[64px] w-full max-w-[1240px] items-center gap-3 px-3 sm:min-h-[72px] sm:gap-5 sm:px-4">
-        <div onClick={() => setActiveHash("")} className="min-w-0 shrink cursor-pointer">
+      <div className="mx-auto flex min-h-[64px] w-full max-w-[1280px] items-center gap-3 px-3 sm:min-h-[72px] sm:gap-4 sm:px-5">
+        {/* Left: brand */}
+        <div onClick={() => setActiveHash("")} className="min-w-0 shrink-0 cursor-pointer">
           <Logo />
         </div>
-        <nav className="ml-auto hidden items-center gap-5 lg:flex">
-          {headerData.map((item, index) => (
+
+        {/* Center: global search (desktop) */}
+        <div className="hidden flex-1 justify-center px-2 lg:flex">
+          <SearchTrigger className="w-full" placeholder="Search collections…" />
+        </div>
+
+        {/* Right: nav + actions (desktop) */}
+        <nav aria-label="Primary" className="ml-auto hidden items-center gap-0.5 lg:flex">
+          {headerData.map((item) => (
             <HeaderLink
-              key={index}
+              key={item.href}
               item={item}
               activeHash={activeHash}
               setActiveHash={setActiveHash}
             />
           ))}
-          <CreatorDashboardLink
-            className="relative flex font-[family-name:var(--font-body)] text-[0.92rem] font-medium capitalize text-[var(--header-fg)] transition-all duration-300 hover:text-primary"
-          />
         </nav>
-        <div className="hidden items-center gap-2.5 lg:flex">
-          <Button
-            size="lg"
-            render={<Link href="/launch" />}
-            className="h-10 rounded-full border-primary bg-primary px-4 font-semibold text-white hover:bg-[#b42318]"
-          >
-            Launch
-          </Button>
-          {short ? (
+        <div className="hidden items-center gap-2 lg:flex">
+          {!onLaunch && (
             <Button
               size="lg"
-              variant="outline"
-              onClick={disconnect}
-              className="h-10 rounded-full border-white/20 bg-transparent text-white hover:border-white/50"
+              render={<Link href="/launch" />}
+              className="h-10 rounded-full border-primary bg-primary px-4 font-semibold text-white hover:bg-[#b42318]"
             >
-              {short}
-            </Button>
-          ) : connecting ? (
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => disconnect()}
-              className="h-10 rounded-full border-white/20 bg-transparent text-white hover:border-primary hover:text-primary"
-            >
-              Cancel
-            </Button>
-          ) : (
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => void connect()}
-              className="h-10 rounded-full border-white/20 bg-transparent text-white hover:border-primary hover:text-primary"
-            >
-              Connect
+              Launch
             </Button>
           )}
+          <WalletMenu />
         </div>
 
+        {/* Mobile: search icon + hamburger */}
+        <button
+          type="button"
+          onClick={openSearch}
+          aria-label="Search collections"
+          className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-line text-ink-body hover:border-line-strong hover:text-ink lg:hidden"
+        >
+          <Search className="h-4 w-4" aria-hidden />
+        </button>
         <Sheet open={navbarOpen} onOpenChange={setNavbarOpen}>
           <SheetTrigger
             render={
               <button
-                className="ml-auto flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-[10px] border border-white/20 p-2 lg:hidden"
+                className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-[10px] border border-line p-2 lg:hidden"
                 aria-label="Toggle mobile menu"
               />
             }
           >
-            <span className="block h-[1.5px] w-4 bg-white" />
-            <span className="block h-[1.5px] w-4 bg-white" />
+            <span className="block h-[1.5px] w-4 bg-ink" />
+            <span className="block h-[1.5px] w-4 bg-ink" />
           </SheetTrigger>
           <SheetContent
             side="right"
-            className="w-full max-w-[min(20rem,100vw)] border-l border-white/20 bg-[#0a0908] p-0"
+            className="w-full max-w-[min(20rem,100vw)] border-l border-line-strong bg-surface-0 p-0"
           >
-            <div className="flex items-center justify-between p-4">
+            <div className="flex items-center justify-between border-b border-line p-4">
               <Logo />
             </div>
-            <nav className="flex flex-col items-start p-4">
-              {headerData.map((item, index) => (
+            <div className="p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setNavbarOpen(false);
+                  // let the sheet close before the dialog takes focus
+                  window.setTimeout(openSearch, 150);
+                }}
+                className="flex h-11 w-full items-center gap-2.5 rounded-full border border-line bg-surface-1 px-4 text-left text-sm text-ink-muted"
+              >
+                <Search className="h-4 w-4 text-ink-subtle" aria-hidden />
+                Search collections
+              </button>
+            </div>
+            <nav aria-label="Mobile" className="flex flex-col items-start px-4">
+              {headerData.map((item) => (
                 <MobileHeaderLink
-                  key={index}
+                  key={item.href}
                   item={item}
                   activeHash={activeHash}
                   setActiveHash={setActiveHash}
                   onClick={() => setNavbarOpen(false)}
                 />
               ))}
-              <CreatorDashboardLink
-                className="text-base flex w-fit items-center py-2 text-white transition-all duration-300 hover:text-primary"
-                onNavigate={() => setNavbarOpen(false)}
-              />
-              <div className="mt-4 flex w-full flex-col gap-3">
+            </nav>
+            <div className="mt-4 flex w-full flex-col gap-3 border-t border-line p-4">
+              {!onLaunch && (
                 <Button
                   size="lg"
                   render={<Link href="/launch" />}
                   onClick={() => setNavbarOpen(false)}
-                  className="w-full rounded-full bg-primary text-white"
+                  className="h-11 w-full rounded-full bg-primary font-semibold text-white hover:bg-[#b42318]"
                 >
-                  Launch
+                  Launch a collection
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => {
-                    setNavbarOpen(false);
-                    if (short || connecting) disconnect();
-                    else void connect();
-                  }}
-                  className="w-full rounded-full border-white/20 text-white"
-                >
-                  {short ?? (connecting ? "Cancel connect" : "Connect")}
-                </Button>
-              </div>
-            </nav>
+              )}
+              <WalletMenu fullWidth onNavigate={() => setNavbarOpen(false)} />
+            </div>
           </SheetContent>
         </Sheet>
       </div>

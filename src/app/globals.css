@@ -74,6 +74,23 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-tealGreen: var(--tealGreen);
   --color-charcoalGray: var(--charcoalGray);
+  /* Surface ladder + cream ink (see :root) */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-body: var(--ink-body);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-verified: var(--verified);
+  --color-gold: var(--gold);
+  --color-cream: var(--cream);
+  --radius-card: var(--radius-card);
 }
 
 /* ── Always-dark kitchen palette ── */
@@ -87,6 +104,30 @@
   --gold: #f5c542;
   --flour: #fff8ee;
   --lime: #7cff4a;
+
+  /* Surface ladder: canvas → card → raised/hover → popover */
+  --surface-0: #0a0908;
+  --surface-1: #110f0d;
+  --surface-2: #1a1613;
+  --surface-3: #241f1b;
+
+  /* Cream-tinted ink ladder (never pure white for body copy) */
+  --ink: #fff8ee;
+  --ink-body: rgb(243 230 208 / 0.78);
+  --ink-muted: rgb(243 230 208 / 0.55);
+  --ink-subtle: rgb(243 230 208 / 0.38);
+
+  /* Hairlines */
+  --line: rgb(243 230 208 / 0.1);
+  --line-strong: rgb(243 230 208 / 0.2);
+
+  /* Semantic */
+  --up: #4ecb8d;
+  --down: #e23c2f;
+  --verified: #f5c542;
+  --radius-card: 1rem;
+  --focus-ring: 0 0 0 3px rgb(226 60 47 / 0.35);
+
   --nav-h: 64px;
   --feedback-fab-size: 2.75rem;
   --feedback-fab-gap: 1.5rem;
@@ -98,22 +139,22 @@
   --tile-radius: 1rem;
   --hairline: 1px;
   --background: #0a0908;
-  --foreground: #ffffff;
-  --card: #161311;
-  --card-foreground: #ffffff;
-  --popover: #161311;
-  --popover-foreground: #ffffff;
+  --foreground: #fff8ee;
+  --card: #110f0d;
+  --card-foreground: #fff8ee;
+  --popover: #241f1b;
+  --popover-foreground: #fff8ee;
   --primary: #e23c2f;
   --primary-foreground: #ffffff;
   --secondary: #f5c542;
   --secondary-foreground: #0a0908;
-  --muted: #2a231e;
-  --muted-foreground: rgb(255 255 255 / 0.55);
-  --accent: #2a231e;
-  --accent-foreground: #ffffff;
+  --muted: #1a1613;
+  --muted-foreground: rgb(243 230 208 / 0.55);
+  --accent: #1a1613;
+  --accent-foreground: #fff8ee;
   --destructive: #e23c2f;
-  --border: rgb(255 255 255 / 0.22);
-  --input: rgb(255 255 255 / 0.18);
+  --border: rgb(243 230 208 / 0.12);
+  --input: rgb(243 230 208 / 0.14);
   --ring: #e23c2f;
   --chart-1: #e23c2f;
   --chart-2: #f5c542;
@@ -130,9 +171,9 @@
   --sidebar-ring: #e23c2f;
   --tealGreen: #e23c2f;
   --charcoalGray: #8a7a6a;
-  --header-bg: color-mix(in srgb, #0a0908 92%, transparent);
-  --header-fg: #ffffff;
-  --header-border: rgb(255 255 255 / 0.22);
+  --header-bg: color-mix(in srgb, #0a0908 90%, transparent);
+  --header-fg: #fff8ee;
+  --header-border: rgb(243 230 208 / 0.1);
 }
 
 @layer base {
@@ -162,6 +203,28 @@
 @layer utilities {
   .container {
     @apply mx-auto w-full max-w-8xl px-4 py-0 sm:px-7;
+  }
+  /* Tabular numerals for every price / volume / count cell. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  /* Section eyebrow — the only place the mono uppercase kicker should appear. */
+  .eyebrow {
+    font-family: var(--font-mono, ui-monospace);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .surface-1 {
+    background: var(--surface-1);
+  }
+  .surface-2 {
+    background: var(--surface-2);
+  }
+  .hairline {
+    border: 1px solid var(--line);
   }
 }
 
@@ -209,27 +272,51 @@ html {
   background-size: 3px 3px;
 }
 
-section {
-  background: var(--background);
+@layer base {
+  section {
+    background: var(--background);
+  }
+}
+
+/* Landing page ambient glow: several soft radial blooms stacked down the page. */
+.page-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(55% 900px at 12% 0px, rgb(226 60 47 / 0.16), transparent 70%),
+    radial-gradient(40% 700px at 92% 520px, rgb(245 197 66 / 0.07), transparent 70%),
+    radial-gradient(45% 800px at 85% 1250px, rgb(226 60 47 / 0.07), transparent 70%),
+    radial-gradient(45% 800px at 8% 1900px, rgb(245 197 66 / 0.06), transparent 70%),
+    radial-gradient(50% 900px at 18% 2700px, rgb(226 60 47 / 0.09), transparent 70%),
+    radial-gradient(45% 800px at 90% 3350px, rgb(78 203 141 / 0.05), transparent 70%);
 }
 
 .input {
   width: 100%;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: rgb(255 255 255 / 0.05);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
   padding: 0.55rem 0.75rem;
-  color: #ffffff;
+  color: var(--ink);
   outline: none;
   font-family: var(--font-body, system-ui);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .input::placeholder {
-  color: var(--muted-foreground);
+  color: var(--ink-subtle);
 }
 
-.input:focus {
+.input:hover {
+  border-color: var(--line-strong);
+}
+
+.input:focus,
+.input:focus-visible {
   border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 select option {
@@ -238,23 +325,34 @@ select option {
 }
 
 .tile {
-  background: var(--card);
-  color: #ffffff;
-  border: 1px solid rgb(255 255 255 / 0.15);
+  background: var(--surface-1);
+  color: var(--ink);
+  border: 1px solid var(--line);
   box-shadow: 0 24px 64px rgb(0 0 0 / 0.55);
 }
 
 .nft-card {
   overflow: hidden;
-  border-radius: 1.15rem;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  background: var(--card);
-  color: #ffffff;
-  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  color: var(--ink);
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease,
+    background-color 180ms ease;
 }
 
 .nft-card:hover {
   transform: translateY(-2px);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  /* OpenSea-style "lit from inside" edge: neutral drop + brand-tinted 1px ring */
+  box-shadow: 0 16px 32px -12px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(226 60 47 / 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nft-card:hover {
+    transform: none;
+  }
 }
 
 .nft-frame-legendary {

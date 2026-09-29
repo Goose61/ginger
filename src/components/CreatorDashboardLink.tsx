@@ -9,9 +9,11 @@ import { isLaunchedCreatorCollection } from "@/lib/creator-access";
 export function CreatorDashboardLink({
   className,
   onNavigate,
+  label = "Dashboard",
 }: {
   className: string;
   onNavigate?: () => void;
+  label?: string;
 }) {
   const { publicKey } = useWallet();
   const path = usePathname();
@@ -49,7 +51,7 @@ export function CreatorDashboardLink({
       onClick={onNavigate}
       className={`${className} ${path === "/dashboard" ? "text-primary" : ""}`}
     >
-      Dashboard
+      {label}
     </Link>
   );
 }

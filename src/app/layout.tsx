@@ -8,6 +8,7 @@ import { FeedbackPill } from "@/components/FeedbackPill";
 import Aoscompo from "@/utils/aos";
 import { SolanaAdapterProvider } from "@/components/SolanaAdapterProvider";
 import { WalletProvider } from "@/components/WalletProvider";
+import { GlobalSearchProvider } from "@/components/GlobalSearch";
 
 const display = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
     "Launch NFT collections on Solana. Auto metadata, permanent storage, programmable fees, and in-ecosystem secondary trading.",
   icons: {
     icon: "/favicon.ico",
-    apple: "/images/ginger.jpg",
+    apple: "/images/ginger.png",
   },
 };
 
@@ -54,16 +55,18 @@ export default function RootLayout({
       <body className={`${display.variable} ${body.variable} ${mono.variable} font-[family-name:var(--font-body)]`}>
         <SolanaAdapterProvider>
           <WalletProvider>
-            <div className="flour" aria-hidden />
-            <Header />
-            <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
-              <Aoscompo>
-                {children}
-                <Footer />
-              </Aoscompo>
-            </div>
-            <ScrollToTop />
-            <FeedbackPill />
+            <GlobalSearchProvider>
+              <div className="flour" aria-hidden />
+              <Header />
+              <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
+                <Aoscompo>
+                  {children}
+                  <Footer />
+                </Aoscompo>
+              </div>
+              <ScrollToTop />
+              <FeedbackPill />
+            </GlobalSearchProvider>
           </WalletProvider>
         </SolanaAdapterProvider>
       </body>

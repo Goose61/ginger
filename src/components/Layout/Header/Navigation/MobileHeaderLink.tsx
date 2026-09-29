@@ -4,6 +4,7 @@ import Link from "next/link";
 import { HeaderItem } from "../../../../types/menu";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 const MobileHeaderLink: React.FC<{
   item: HeaderItem;
@@ -11,31 +12,7 @@ const MobileHeaderLink: React.FC<{
   setActiveHash: (hash: string) => void;
   onClick?: () => void;
 }> = ({ item, activeHash, setActiveHash, onClick }) => {
-  const [submenuOpen, setSubmenuOpen] = useState(false);
-
-  const handleToggle = () => {
-    setSubmenuOpen(!submenuOpen);
-  };
-
   const path = usePathname();
-
-  useEffect(() => {
-    setActiveHash(window.location.hash);
-  }, [path, setActiveHash]);
-
-  const handleLinkClick = (href: string) => {
-    if (item.submenu) {
-      handleToggle();
-      return;
-    }
-    if (href.includes("#")) {
-      const hash = "#" + href.split("#")[1];
-      setActiveHash(hash);
-    } else {
-      setActiveHash("");
-    }
-    if (onClick) onClick();
-  };
 
   const isActive = (href: string) => {
     if (href.includes("#")) {
@@ -45,53 +22,65 @@ const MobileHeaderLink: React.FC<{
     return path === href;
   };
 
-  return (
-    <div className="relative w-full">
-      <Link
-        href={item.href}
-        onClick={() => handleLinkClick(item.href)}
-        className={`text-base flex items-center justify-between w-fit py-2 transition-all duration-300 focus:outline-hidden hover:text-primary ${
-          isActive(item.href) ? "text-primary font-semibold" : "text-white"
-        }`}
-      >
-        {item.label}
-        {item.submenu && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="1.5em"
-            height="1.5em"
-            viewBox="0 0 24 24"
-          >
-            <path
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-              d="m7 10l5 5l5-5"
-            />
-          </svg>
+  const groupActive =
+    isActive(item.href) || Boolean(item.submenu?.some((s) => isActive(s.href)));
+  const [submenuOpen, setSubmenuOpen] = useState(groupActive);
+
+  useEffect(() => {
+    setActiveHash(window.location.hash);
+  }, [path, setActiveHash]);
+
+  const handleLinkClick = (href: string) => {
+    setActiveHash(href.includes("#") ? "#" + href.split("#")[1] : "");
+    onClick?.();
+  };
+
+  const rowCls = (active: boolean) =>
+    `flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-base transition ${
+      active ? "bg-surface-2 font-semibold text-ink" : "text-ink-body hover:bg-surface-1 hover:text-ink"
+    }`;
+
+  if (item.submenu) {
+    return (
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={() => setSubmenuOpen((v) => !v)}
+          aria-expanded={submenuOpen}
+          className={rowCls(groupActive)}
+        >
+          {item.label}
+          <ChevronDown
+            className={`h-4 w-4 text-ink-muted transition ${submenuOpen ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+        </button>
+        {submenuOpen && (
+          <div className="mb-1 ml-3 mt-1 space-y-0.5 border-l border-line pl-2">
+            {item.submenu.map((subItem) => (
+              <Link
+                key={subItem.href}
+                href={subItem.href}
+                onClick={() => handleLinkClick(subItem.href)}
+                className={`block rounded-lg px-3 py-2 text-[15px] transition ${
+                  isActive(subItem.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-ink-body hover:bg-surface-1 hover:text-ink"
+                }`}
+              >
+                {subItem.label}
+              </Link>
+            ))}
+          </div>
         )}
-      </Link>
-      {submenuOpen && item.submenu && (
-        <div className="bg-primary/5 p-2 w-full rounded-lg mt-1 space-y-1">
-          {item.submenu.map((subItem, index) => (
-            <Link
-              key={index}
-              href={subItem.href}
-              onClick={() => handleLinkClick(subItem.href)}
-              className={`block py-2 px-4 rounded-md transition-all duration-300 ${
-                isActive(subItem.href)
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-white/80 hover:bg-primary/10 hover:text-primary"
-              }`}
-            >
-              {subItem.label}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={item.href} onClick={() => handleLinkClick(item.href)} className={rowCls(isActive(item.href))}>
+      {item.label}
+    </Link>
   );
 };
 

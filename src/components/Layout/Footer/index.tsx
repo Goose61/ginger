@@ -1,92 +1,94 @@
 import React, { FC } from "react";
 import Link from "next/link";
-import { headerData } from "../Header/Navigation/menuData";
-import { footerlabels } from "@/app/api/data";
 import { Icon } from "@iconify/react";
+import { ArrowRight } from "lucide-react";
 import Logo from "../Header/Logo";
+import { createLinks, exploreLinks, trustLinks } from "../Header/Navigation/menuData";
 import { CreatorDashboardLink } from "@/components/CreatorDashboardLink";
+import { SITE, SOCIAL_LINKS } from "@/lib/site-config";
 
 const Footer: FC = () => {
   return (
-    <footer className="bg-background pt-10 sm:pt-16">
-      <div className="container px-4">
-        <div className="grid grid-cols-1 gap-6 pb-8 sm:grid-cols-11 sm:gap-12 md:gap-6 lg:gap-20">
-          <div className="col-span-6 flex flex-col gap-6 md:col-span-6 lg:col-span-4">
+    <footer className="border-t border-line bg-surface-0 pt-12 sm:pt-16">
+      <div className="container mx-auto max-w-6xl px-4">
+        <div className="grid grid-cols-2 gap-8 pb-12 md:grid-cols-12 md:gap-6">
+          {/* Brand */}
+          <div className="col-span-2 flex flex-col gap-5 md:col-span-5">
             <Logo />
-            <p className="text-foreground/60">
-              Ginger: launch collections, mint on Solana, and keep secondary
-              trading in-ecosystem.
+            <p className="max-w-sm text-sm leading-6 text-ink-muted">
+              Launch collections, mint on Solana, and keep resale in one place. Your wallet, your
+              keys.
             </p>
-            <div className="relative z-1 flex items-center gap-6">
-              <Link href="/" className="group">
-                <Icon
-                  icon="mdi:storefront-outline"
-                  width="24"
-                  height="24"
-                  className="text-foreground group-hover:text-primary"
-                />
-              </Link>
-              <Link href="https://x.com/" className="group">
-                <Icon
-                  icon="fa6-brands:x-twitter"
-                  width="24"
-                  height="24"
-                  className="text-foreground group-hover:text-primary"
-                />
-              </Link>
-              <Link href="https://t.me/" className="group">
-                <Icon
-                  icon="fa6-brands:telegram"
-                  width="24"
-                  height="24"
-                  className="text-foreground group-hover:text-primary"
-                />
-              </Link>
-            </div>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line px-3 py-1 text-[11px] text-ink-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden />
+              Built on Solana · Metaplex Core
+            </span>
+            {SOCIAL_LINKS.length > 0 && (
+              <ul className="flex items-center gap-4">
+                {SOCIAL_LINKS.map((s) => (
+                  <li key={s.id}>
+                    <a
+                      href={s.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      aria-label={s.label}
+                      className="text-ink-muted transition hover:text-ink"
+                    >
+                      <Icon icon={s.icon} width="22" height="22" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div className="col-span-6 md:col-span-3 lg:col-span-2">
-            <h4 className="text-24 mb-4 font-medium text-foreground">Marketplace</h4>
-            <ul>
-              {headerData.map((item, index) => (
-                <li key={index} className="pb-4">
-                  <Link href={item.href} className="text-17 text-foreground/60 hover:text-primary">
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="col-span-6 md:col-span-3 lg:col-span-2">
-            <h4 className="text-24 mb-4 font-medium text-foreground">Creators</h4>
-            <ul>
-              {footerlabels.map((item, index) => (
-                <li key={index} className="pb-4">
-                  <Link href={item.herf} className="text-17 text-foreground/60 hover:text-primary">
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-              <li className="pb-4">
-                <CreatorDashboardLink className="text-17 text-foreground/60 hover:text-primary" />
-              </li>
-            </ul>
-          </div>
-          <div className="col-span-6 md:col-span-4 lg:col-span-3">
-            <h3 className="text-24 mb-4 font-medium text-foreground">Go live</h3>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Upload your art and launch the first collection as a proof of concept.
-            </p>
-            <Link
-              href="/launch"
-              className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white"
-            >
-              Launch a collection
-            </Link>
-          </div>
+
+          <Column title="Explore" links={exploreLinks} />
+          <Column title="Create" links={createLinks}>
+            <li>
+              <CreatorDashboardLink className="text-sm text-ink-muted hover:text-ink" label="Creator dashboard" />
+            </li>
+          </Column>
+          <Column title="Trust" links={trustLinks} />
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-line py-6 text-xs text-ink-subtle sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            © {new Date().getFullYear()} {SITE.name}. {SITE.tagline}.
+          </p>
+          <Link href="/launch" className="inline-flex items-center gap-1.5 text-ink-body hover:text-ink">
+            Ready to launch a collection?
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         </div>
       </div>
     </footer>
   );
 };
+
+function Column({
+  title,
+  links,
+  children,
+}: {
+  title: string;
+  links: { label: string; href: string }[];
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="md:col-span-2 md:last:col-span-3">
+      <h4 className="eyebrow mb-4">{title}</h4>
+      <ul className="space-y-2.5">
+        {links.map((item) => (
+          <li key={item.href}>
+            <Link href={item.href} className="text-sm text-ink-muted transition hover:text-ink">
+              {item.label}
+            </Link>
+          </li>
+        ))}
+        {children}
+      </ul>
+    </div>
+  );
+}
 
 export default Footer;

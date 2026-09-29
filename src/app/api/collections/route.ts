@@ -10,10 +10,23 @@ import { getPlatformPublicKey } from "@/lib/platform-key";
 import { parseNetwork } from "@/lib/solana-config";
 import { FEATURE_ON_MARKET_DAYS, FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
 import { getClientIp } from "@/lib/request-ip";
+import { getMarketCards, toSearchItem } from "@/lib/market-data";
 
 export async function GET(req: NextRequest) {
   try {
     const view = req.nextUrl.searchParams.get("view");
+    if (view === "search") {
+      // Header search: public live/sold-out collections only, slim fields, sorted by volume.
+      const { live } = await getMarketCards();
+      const items = live
+        .filter((card) => card.kind !== "gift_bundle")
+        .map(toSearchItem)
+        .sort((a, b) => b.volumeUsd - a.volumeUsd);
+      return NextResponse.json(
+        { collections: items },
+        { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } },
+      );
+    }
     if (view === "nav") {
       const nav = await listCollectionNav();
       return NextResponse.json({
