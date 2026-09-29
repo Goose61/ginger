@@ -88,7 +88,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       signTransaction: (tx) => signTransaction(tx as Parameters<typeof signTransaction>[0]),
       signAndSendTransaction: async (tx, opts) => {
         const signature = await sendTransaction(tx as Parameters<typeof sendTransaction>[0], connection, {
-          skipPreflight: opts?.skipPreflight,
+          skipPreflight: opts?.skipPreflight ?? false,
         });
         return { signature };
       },
@@ -219,18 +219,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const signAndSendTx = useCallback(
     async (txBase64: string): Promise<string> => {
-      if (!sendTransaction) throw new Error("Connect a wallet to continue.");
+      if (!signTransaction) {
+        throw new Error("This wallet cannot sign transactions. Try Phantom, Solflare, Backpack, or MetaMask.");
+      }
       const { VersionedTransaction, Transaction } = await import("@solana/web3.js");
       const bytes = Buffer.from(txBase64, "base64");
       let tx: InstanceType<typeof VersionedTransaction> | InstanceType<typeof Transaction>;
+      let isVersioned = true;
       try {
         tx = VersionedTransaction.deserialize(bytes);
       } catch {
+        isVersioned = false;
         tx = Transaction.from(bytes);
       }
-      return sendTransaction(tx, connection, { skipPreflight: true });
+
+      // Phantom docs: simulate before signing; use signTransaction (not signAndSend) when
+      // possible, then broadcast with preflight so the wallet can predict outcomes.
+      // https://docs.phantom.com/developer-powertools/domain-and-transaction-warnings
+      const simOpts = { sigVerify: false, commitment: "confirmed" as const };
+      const sim = isVersioned
+        ? await connection.simulateTransaction(tx as InstanceType<typeof VersionedTransaction>, simOpts)
+        : await connection.simulateTransaction(tx as InstanceType<typeof Transaction>, undefined, false);
+      if (sim.value.err) {
+        throw new Error(`Transaction would fail: ${JSON.stringify(sim.value.err)}`);
+      }
+
+      const signed = (await signTransaction(tx)) as typeof tx;
+      return connection.sendRawTransaction(signed.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3,
+      });
     },
-    [sendTransaction, connection],
+    [signTransaction, connection],
   );
 
   const value = useMemo(

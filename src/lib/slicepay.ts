@@ -1,6 +1,6 @@
 import { getDb } from "./db";
 import { isPaidStatus, PAID_STATUSES } from "./slicepay-shared";
-import { getSlicePayMerchantId, SLICEPAY_API_BASE } from "./slicepay-config";
+import { slicePayConfigured, slicePayGatewayFetch } from "./slicepay-config";
 
 export { isPaidStatus, PAID_STATUSES };
 export { slicePayConfigured } from "./slicepay-config";
@@ -99,8 +99,7 @@ export async function fetchSlicePayStatus(invoiceId: string): Promise<{
   amountUsd?: number;
   raw: Record<string, unknown>;
 }> {
-  const merchantId = getSlicePayMerchantId();
-  if (!merchantId) {
+  if (!slicePayConfigured()) {
     const stored = await getStoredInvoice(invoiceId);
     return {
       status: stored?.status ?? "waiting",
@@ -109,8 +108,9 @@ export async function fetchSlicePayStatus(invoiceId: string): Promise<{
     };
   }
 
-  const res = await fetch(
-    `${SLICEPAY_API_BASE}/payment-status/${encodeURIComponent(invoiceId)}`,
+  const res = await slicePayGatewayFetch(
+    `/payment-status/${encodeURIComponent(invoiceId)}`,
+    { method: "GET", cache: "no-store" },
   );
   if (!res.ok) {
     throw new Error("Could not fetch payment status");
@@ -159,8 +159,7 @@ export async function confirmInvoicePaidFromSlicePay(
   if (!stored) return { ok: false, error: "Unknown invoice" };
   if (stored.redeemedAt) return { ok: true };
 
-  const merchantId = getSlicePayMerchantId();
-  if (!merchantId) {
+  if (!slicePayConfigured()) {
     if (isPaidStatus(stored.status)) return { ok: true };
     return { ok: false, error: "Payment not completed" };
   }
@@ -210,8 +209,7 @@ export async function verifySlicePayInvoice(
 
   if (isPaidStatus(stored.status)) return { ok: true };
 
-  const merchantId = getSlicePayMerchantId();
-  if (!merchantId) {
+  if (!slicePayConfigured()) {
     if (!invoiceId.startsWith("demo_")) {
       return { ok: false, error: "Payment provider not configured" };
     }

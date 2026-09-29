@@ -1,8 +1,8 @@
 /**
  * SlicePay hosted checkout — https://slicechain.io/website-pay-widget/
  *
- * merchantId is public (it is passed on checkout URLs and embed tags).
- * apiKey is optional and must stay server-side.
+ * merchantId is public (checkout URLs / embed). apiKey is secret — server-only;
+ * gateway create-invoice and payment-status require it.
  */
 
 export const SLICEPAY_CHECKOUT_ORIGIN = "https://pay.slicechain.io";
@@ -20,8 +20,37 @@ export function getSlicePayApiKey(): string | undefined {
   return process.env.SLICEPAY_API_KEY?.trim() || undefined;
 }
 
+/** True when merchant id and secret API key are set (production SlicePay). */
 export function slicePayConfigured(): boolean {
-  return getSlicePayMerchantId().length > 0;
+  return getSlicePayMerchantId().length > 0 && Boolean(getSlicePayApiKey());
+}
+
+/** Headers for authenticated gateway API calls (create-invoice, payment-status). */
+export function slicePayGatewayAuthHeaders(): Record<string, string> {
+  const apiKey = getSlicePayApiKey();
+  if (!apiKey) return {};
+  return { Authorization: `Bearer ${apiKey}` };
+}
+
+export async function slicePayGatewayFetch(
+  path: string,
+  init: RequestInit & { json?: Record<string, unknown> } = {},
+): Promise<Response> {
+  const apiKey = getSlicePayApiKey();
+  if (!apiKey) {
+    throw new Error("SLICEPAY_API_KEY is not configured");
+  }
+  const headers = new Headers(init.headers);
+  if (!headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${apiKey}`);
+  }
+  let body = init.body;
+  if (init.json !== undefined) {
+    headers.set("Content-Type", "application/json");
+    body = JSON.stringify(init.json);
+  }
+  const { json: _json, ...rest } = init;
+  return fetch(`${SLICEPAY_API_BASE}${path}`, { ...rest, headers, body });
 }
 
 export function slicePayCheckoutInvoiceUrl(invoiceId: string): string {

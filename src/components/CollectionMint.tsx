@@ -627,7 +627,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
       {slicePayLive === false && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100/90">
-          SlicePay checkout is not live. Check the merchant ID on the server.
+          SlicePay checkout is not live. Set SLICEPAY_MERCHANT_ID and SLICEPAY_API_KEY on the server.
         </div>
       )}
 
