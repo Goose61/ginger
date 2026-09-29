@@ -11,8 +11,8 @@ const Logo: React.FC = () => {
       <Image
         src="/images/ginger.png"
         alt=""
-        width={1254}
-        height={1254}
+        width={956}
+        height={950}
         priority
         aria-hidden
         className="h-[50px] w-[50px] object-contain sm:h-[60px] sm:w-[60px]"
