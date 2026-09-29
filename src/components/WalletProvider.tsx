@@ -224,7 +224,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const signAndSendTx = useCallback(
     async (txBase64: string): Promise<string> => {
-      if (!sendTransaction) {
+      if (!signTransaction) {
         throw new Error("This wallet cannot sign transactions. Try Phantom, Solflare, Backpack, or MetaMask.");
       }
       const { VersionedTransaction, Transaction } = await import("@solana/web3.js");
@@ -236,17 +236,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         tx = Transaction.from(bytes);
       }
 
-      // Single-signer transfer: let Phantom sign AND send so it simulates in its own context.
-      // Phantom recommends signAndSendTransaction for single transactions; manual broadcast can
-      // trip its "could not simulate / unsafe" heuristic. Preflight stays on so real failures surface.
-      // https://docs.phantom.com/developer-powertools/domain-and-transaction-warnings
-      return sendTransaction(tx, connection, {
+      // Mirror the gift-mint flow (which does NOT trip Phantom's Lighthouse warning):
+      // Phantom only SIGNS via signTransaction, then WE broadcast. signAndSendTransaction
+      // lets Phantom submit and runs its block screen at submit time, which was the warning.
+      const signed = (await signTransaction(tx)) as typeof tx;
+      return connection.sendRawTransaction(signed.serialize(), {
         skipPreflight: false,
         preflightCommitment: "confirmed",
         maxRetries: 3,
       });
     },
-    [sendTransaction, connection],
+    [signTransaction, connection],
   );
 
   const value = useMemo(
