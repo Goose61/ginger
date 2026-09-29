@@ -1,4 +1,4 @@
-import { getMarketCards } from "@/lib/market-data";
+import { getMarketCards, getMarketCardsFresh } from "@/lib/market-data";
 import { aggregateMarket } from "@/lib/market-view";
 import { MarketHero } from "@/components/market/MarketHero";
 import { MarketStats } from "@/components/market/MarketStats";
@@ -19,8 +19,21 @@ export async function MarketHome() {
   let giftBundle: Awaited<ReturnType<typeof getMarketCards>>["giftBundle"];
   try {
     ({ live, secondary, giftBundle } = await getMarketCards());
+    // If Mongo timed out during a background revalidate, Next may serve a poisoned
+    // empty cache entry — refetch once uncached before rendering an empty market.
+    if (live.length === 0) {
+      const fresh = await getMarketCardsFresh();
+      if (fresh.live.length > 0) {
+        ({ live, secondary, giftBundle } = fresh);
+      }
+    }
   } catch (err) {
     console.error("[market] database unavailable", err);
+    try {
+      ({ live, secondary, giftBundle } = await getMarketCardsFresh());
+    } catch (retryErr) {
+      console.error("[market] database unavailable (retry)", retryErr);
+    }
   }
 
   const stats = aggregateMarket(live);

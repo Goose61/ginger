@@ -10,14 +10,17 @@ import { getPlatformPublicKey } from "@/lib/platform-key";
 import { parseNetwork } from "@/lib/solana-config";
 import { FEATURE_ON_MARKET_DAYS, FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
 import { getClientIp } from "@/lib/request-ip";
-import { getMarketCards, toSearchItem } from "@/lib/market-data";
+import { getMarketCards, getMarketCardsFresh, toSearchItem } from "@/lib/market-data";
 
 export async function GET(req: NextRequest) {
   try {
     const view = req.nextUrl.searchParams.get("view");
     if (view === "search") {
       // Header search: public live/sold-out collections only, slim fields, sorted by volume.
-      const { live } = await getMarketCards();
+      let { live } = await getMarketCards();
+      if (live.length === 0) {
+        ({ live } = await getMarketCardsFresh());
+      }
       const items = live
         .filter((card) => card.kind !== "gift_bundle")
         .map(toSearchItem)

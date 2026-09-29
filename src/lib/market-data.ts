@@ -4,20 +4,23 @@ import { partitionMarketCards } from "./market-card";
 
 export * from "./market-view";
 
+/** Bump when cache shape or fetch semantics change (invalidates stale entries). */
+const MARKET_CARDS_CACHE_KEY = "market-cards-v2";
+
+async function loadMarketCards() {
+  return partitionMarketCards(await listCollectionsForMarket());
+}
+
 /**
  * Shared, 30s-cached market snapshot used by the landing page and the
- * header search endpoint so both read the same partitioned cards.
- * Server-only: pulls in the Mongo store.
+ * header search endpoint. Never cache empty fallbacks on DB errors — that
+ * poisons the homepage until revalidate (collections “disappear”).
  */
-export const getMarketCards = unstable_cache(
-  async () => {
-    try {
-      return partitionMarketCards(await listCollectionsForMarket());
-    } catch (err) {
-      console.error("[market] getMarketCards failed", err);
-      return { live: [] as Awaited<ReturnType<typeof partitionMarketCards>>["live"], secondary: [], giftBundle: undefined };
-    }
-  },
-  ["market-cards"],
-  { revalidate: 30 },
-);
+export const getMarketCards = unstable_cache(loadMarketCards, [MARKET_CARDS_CACHE_KEY], {
+  revalidate: 30,
+});
+
+/** Uncached read for recovery when the cached snapshot may be stale or empty. */
+export async function getMarketCardsFresh() {
+  return loadMarketCards();
+}
