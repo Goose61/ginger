@@ -13,8 +13,8 @@ import { applyRevealTriggers } from "@/lib/reveal";
 import { rateLimit } from "@/lib/rate-limit";
 import { readAuthHeaders, assertCreatorAuth, assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
 import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@/lib/slicepay";
-import { consumeSolSignature, verifySolPayment } from "@/lib/verify-payment";
 import { getQuote } from "@/lib/quotes";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { isValidSolanaAddress } from "@/lib/mint-nft";
 import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { nftPrice } from "@/lib/collection-ui";
@@ -186,18 +186,18 @@ export async function POST(req: NextRequest, { params }: Params) {
           return NextResponse.json({ error: verified.error ?? "Payment not verified" }, { status: 402 });
         }
       } else if (method === "sol") {
-        const quote = await getQuote(expectedUsd);
-        const payTo = getMintPaymentRecipient();
-        if (!payTo) {
+        // Atomic pay-and-mint: the sale price is transferred inside the mint tx (see
+        // buildPendingMintForToken payment) and verified at confirm-mint. A standalone
+        // SOL transfer looks like a drainer to Phantom/Blowfish; bundling it with the
+        // NFT receipt does not. Nothing to verify up front.
+        if (!getMintPaymentRecipient()) {
           return NextResponse.json({ error: "Platform payment wallet not configured" }, { status: 503 });
         }
         if (!pre.payments.creatorWallet) {
           return NextResponse.json({ error: "Creator payout wallet not set" }, { status: 400 });
         }
-        const network = serverNetwork(body.network);
-        const verified = await verifySolPayment(txSignature, payTo, quote.sol, network, payerAddr);
-        if (!verified.ok) {
-          return NextResponse.json({ error: verified.error ?? "SOL payment not verified" }, { status: 402 });
+        if (!getPlatformSecretKey()) {
+          return NextResponse.json({ error: "On-chain mint not configured for SOL payments" }, { status: 503 });
         }
       } else if (method === "demo") {
         if (slicePayConfigured()) {
@@ -241,7 +241,14 @@ export async function POST(req: NextRequest, { params }: Params) {
         );
       }
 
+      const solAtomic = method === "sol";
       const useOnChain = pick.length === 1 && Boolean(getPlatformSecretKey());
+      if (solAtomic && !useOnChain) {
+        return NextResponse.json(
+          { error: "On-chain mint required for SOL payments" },
+          { status: 503 },
+        );
+      }
       const mintedTokenIds: number[] = [];
 
       for (const token of pick) {
@@ -265,6 +272,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (useOnChain) {
         const tokenId = mintedTokenIds[0];
         const network = serverNetwork(body.network);
+        // For SOL, fold the sale price into the mint tx so the wallet sees a fair swap.
+        let payment: { recipient: string; lamports: number } | undefined;
+        let saleUsd: number | undefined;
+        if (solAtomic) {
+          const tok = pre.tokens.find((t) => t.tokenId === tokenId);
+          saleUsd = tok ? nftPrice(pre, tok) : expectedUsd;
+          const quote = await getQuote(saleUsd);
+          payment = {
+            recipient: getMintPaymentRecipient()!,
+            lamports: Math.ceil(quote.sol * LAMPORTS_PER_SOL),
+          };
+        }
         try {
           const built = await buildPendingMintForToken({
             collection: pre,
@@ -272,6 +291,8 @@ export async function POST(req: NextRequest, { params }: Params) {
             payer: payerAddr,
             recipient: recipientAddr,
             network,
+            payment,
+            saleUsd,
           });
           txResult = built.txResult;
         } catch (e) {
@@ -298,32 +319,25 @@ export async function POST(req: NextRequest, { params }: Params) {
           });
           return NextResponse.json({ error: consumed.error ?? "Invoice already used" }, { status: 402 });
         }
-      } else if (method === "sol") {
-        const consumed = await consumeSolSignature(txSignature);
-        if (!consumed.ok) {
-          await rollbackMint({
-            id,
-            tokenIds: mintedTokenIds,
-            recipient: recipientAddr,
-            onChain: useOnChain,
-          });
-          return NextResponse.json({ error: consumed.error ?? "SOL payment already used" }, { status: 402 });
-        }
       }
+      // SOL settles atomically with the mint; there is no standalone signature to consume.
 
       const feeBreakdowns: ReturnType<typeof accrueSaleFees>["breakdown"][] = [];
       let collection = await updateCollection(id, (current) => {
         for (const tokenId of mintedTokenIds) {
           const token = current.tokens.find((t) => t.tokenId === tokenId);
           if (!token) continue;
-          const saleUsd = nftPrice(current, token);
-          const accrued = accrueSaleFees(current, {
-            saleUsd,
-            kind: "primary_mint",
-            tokenId: token.tokenId,
-            payer: payerAddr,
-          });
-          feeBreakdowns.push(accrued.breakdown);
+          // SOL fees accrue at confirm-mint, once the atomic pay+mint has actually landed.
+          if (!solAtomic) {
+            const saleUsd = nftPrice(current, token);
+            const accrued = accrueSaleFees(current, {
+              saleUsd,
+              kind: "primary_mint",
+              tokenId: token.tokenId,
+              payer: payerAddr,
+            });
+            feeBreakdowns.push(accrued.breakdown);
+          }
           if (txResult && tokenId === mintedTokenIds[0]) {
             token.assetAddress = txResult.assetAddress;
           }
@@ -333,6 +347,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
+        // Defer treasury milestones + reveal for SOL until payment confirms.
+        if (solAtomic) return current;
         let updated = applySaleTreasury(current);
         updated = applyRevealTriggers(updated);
         return updated;
@@ -345,9 +361,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       let holderDistribution: Awaited<
         ReturnType<typeof processPrimaryMintProceeds>
       >["holderDistribution"] = null;
+      // SOL proceeds (creator payout, buyback, holder rewards) are processed at
+      // confirm-mint, after the atomic pay+mint lands. SlicePay is captured up front.
       const paysOnChainFromPlatform =
-        (method === "sol" || method === "slicepay") && collection.payments.creatorWallet;
-      if (paysOnChainFromPlatform) {
+        method === "slicepay" && collection.payments.creatorWallet;
+      if (solAtomic) {
+        // no-op: settlement deferred to confirm-mint
+      } else if (paysOnChainFromPlatform) {
         const proceeds = await processPrimaryMintProceeds({
           collectionId: id,
           network,

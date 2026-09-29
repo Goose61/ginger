@@ -176,6 +176,15 @@ export type PendingMint = {
   tokenId?: number;
   /** Exact unsigned tx shown to the wallet at prepare-sign (avoids rebuild drift at cosign). */
   preparedTxBase64?: string;
+  /**
+   * Atomic pay-and-mint (SOL): the mint tx also transfers the sale price to the
+   * platform, so the wallet sees a fair swap (pay + receive NFT) instead of a bare
+   * outflow that Phantom/Blowfish flags as a drainer. Settled at confirm-mint.
+   */
+  paymentLamports?: number;
+  paymentRecipient?: string;
+  /** USD sale price snapshot so fees accrue at confirm-mint (after payment lands). */
+  saleUsd?: number;
 };
 
 /** Co-sign data for marketplace Core collection creation at go-live. */

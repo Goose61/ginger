@@ -100,6 +100,17 @@ export async function POST(req: NextRequest) {
         )
       : tokenName(collection, token);
 
+    const existingPay =
+      collection.pendingMint?.tokenId === tokenId &&
+      collection.pendingMint.paymentRecipient &&
+      collection.pendingMint.paymentLamports
+        ? {
+            recipient: collection.pendingMint.paymentRecipient,
+            lamports: collection.pendingMint.paymentLamports,
+            saleUsd: collection.pendingMint.saleUsd,
+          }
+        : undefined;
+
     const txResult = await buildGiftTransaction({
       name: nftName,
       metadataUri: token.metadataUri,
@@ -108,6 +119,9 @@ export async function POST(req: NextRequest) {
       network,
       coreCollectionAddress:
         collection.coreCollectionAddress ?? (isGiftBundle(collection) ? undefined : null),
+      ...(existingPay
+        ? { payment: { recipient: existingPay.recipient, lamports: existingPay.lamports }, saleUsd: existingPay.saleUsd }
+        : {}),
     });
 
     if (!txResult) {

@@ -65,12 +65,16 @@ export function formatInsufficientBalanceMessage(params: {
   balanceSol: number;
   requiredSol: number;
   mintOnly?: boolean;
+  includeSalePrice?: boolean;
 }): string {
   const shortfall = Math.max(0, params.requiredSol - params.balanceSol);
   if (params.mintOnly) {
+    const needFor = params.includeSalePrice
+      ? "sale price, NFT rent, and fees"
+      : "NFT account rent";
     return (
       `Not enough SOL left for the mint step. You have ~${params.balanceSol.toFixed(4)} SOL ` +
-      `but need ~${params.requiredSol.toFixed(4)} SOL for NFT account rent. ` +
+      `but need ~${params.requiredSol.toFixed(4)} SOL for ${needFor}. ` +
       `Add ~${shortfall.toFixed(4)} SOL to your wallet and try again.`
     );
   }

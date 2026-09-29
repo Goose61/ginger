@@ -13,9 +13,11 @@ import {
   generateSigner,
   createNoopSigner,
   createSignerFromKeypair,
+  lamports as umiLamports,
   publicKey as umiPublicKey,
 } from "@metaplex-foundation/umi";
 import { create } from "@metaplex-foundation/mpl-core";
+import { transferSol } from "@metaplex-foundation/mpl-toolbox";
 import { base64 } from "@metaplex-foundation/umi/serializers";
 import { Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getDirectRpcUrl, getSolanaNetwork, type SolanaNetwork } from "./solana-config";
@@ -123,10 +125,12 @@ async function fetchWalletBalanceLamports(
 async function assertPayerCanAffordMintStep(params: {
   payer: string;
   network: SolanaNetwork;
+  extraLamports?: number;
 }): Promise<void> {
   const rpcUrl = getDirectRpcUrl(params.network);
   const balanceLamports = await fetchWalletBalanceLamports(rpcUrl, params.payer);
-  const requiredLamports = getMintStepMinLamports();
+  const requiredLamports =
+    getMintStepMinLamports() + BigInt(Math.max(0, Math.floor(params.extraLamports ?? 0)));
   if (balanceLamports >= requiredLamports) return;
 
   throw new Error(
@@ -134,6 +138,7 @@ async function assertPayerCanAffordMintStep(params: {
       balanceSol: lamportsToSol(balanceLamports),
       requiredSol: lamportsToSol(requiredLamports),
       mintOnly: true,
+      includeSalePrice: (params.extraLamports ?? 0) > 0,
     }),
   );
 }
@@ -148,6 +153,8 @@ async function buildUnsignedGiftTx(params: {
   coreCollectionAddress?: string | null;
   recentBlockhash?: string;
   immutableMetadata?: boolean;
+  /** Atomic pay-and-mint: add a SOL transfer (payer → recipient) to the mint tx. */
+  payment?: { recipient: string; lamports: number };
 }): Promise<{
   txBase64: string;
   assetAddress: string;
@@ -206,7 +213,22 @@ async function buildUnsignedGiftTx(params: {
     }
   }
 
-  const tx = await create(umi, createArgs)
+  let builder = create(umi, createArgs);
+
+  // Atomic pay-and-mint: Core create first (same as warning-free gift mints), then
+  // the sale-price transfer. Phantom/Blowfish then simulates a fair swap (receive NFT
+  // + pay) instead of a bare SOL outflow that looks like a drainer.
+  if (params.payment && params.payment.lamports > 0) {
+    builder = builder.add(
+      transferSol(umi, {
+        source: payerNoop,
+        destination: umiPublicKey(params.payment.recipient),
+        amount: umiLamports(BigInt(Math.floor(params.payment.lamports))),
+      }),
+    );
+  }
+
+  const tx = await builder
     .useV0()
     .setFeePayer(payerNoop)
     .setBlockhash(blockhash)
@@ -258,6 +280,29 @@ function signatureIsPresent(sig: Uint8Array | null | undefined): boolean {
   return Boolean(sig && sig.length > 0 && !sig.every((b) => b === 0));
 }
 
+const SYSTEM_PROGRAM_ID = new PublicKey("11111111111111111111111111111111");
+
+/**
+ * Sum lamports transferred to `destination` by System Program transfer instructions
+ * in a compiled (versioned) message. Used to prove the atomic pay-and-mint payment
+ * survived any wallet-injected instructions before we co-sign and broadcast.
+ */
+function sumSolTransferredTo(tx: VersionedTransaction, destination: PublicKey): bigint {
+  const keys = tx.message.staticAccountKeys;
+  let total = 0n;
+  for (const ix of tx.message.compiledInstructions) {
+    if (!keys[ix.programIdIndex]?.equals(SYSTEM_PROGRAM_ID)) continue;
+    const data = ix.data;
+    // System Transfer: u32 discriminator (2) + u64 lamports (little-endian).
+    if (data.length < 12) continue;
+    if (data[0] !== 2 || data[1] !== 0 || data[2] !== 0 || data[3] !== 0) continue;
+    const destIndex = ix.accountKeyIndexes[1];
+    if (destIndex == null || !keys[destIndex]?.equals(destination)) continue;
+    total += Buffer.from(data.buffer, data.byteOffset, data.length).readBigUInt64LE(4);
+  }
+  return total;
+}
+
 /** Wallets may inject priority-fee instructions; verify payer + asset instead of byte equality. */
 function assertUserSignedGiftMintTx(
   tx: VersionedTransaction,
@@ -285,6 +330,16 @@ function assertUserSignedGiftMintTx(
 
   if (!signatureIsPresent(tx.signatures[0])) {
     throw new Error("Transaction is missing the payer signature.");
+  }
+
+  // Atomic pay-and-mint: the wallet must not have stripped the sale-price transfer.
+  if (pendingMint.paymentRecipient && pendingMint.paymentLamports) {
+    const paid = sumSolTransferredTo(tx, new PublicKey(pendingMint.paymentRecipient));
+    // 2% slippage tolerance to mirror verifySolPayment.
+    const minLamports = BigInt(Math.floor(pendingMint.paymentLamports * 0.98));
+    if (paid < minLamports) {
+      throw new Error("Transaction is missing the required mint payment.");
+    }
   }
 
   const preparedTxBase64 = pendingMint.preparedTxBase64?.trim();
@@ -339,6 +394,15 @@ export async function prepareGiftTransactionForSigning(params: {
   }
   const assetSecret = secretKeyFromB64(params.pendingMint.assetSecretKeyB64);
 
+  // Preserve the atomic pay-and-mint transfer across the blockhash refresh.
+  const payment =
+    params.pendingMint.paymentRecipient && params.pendingMint.paymentLamports
+      ? {
+          recipient: params.pendingMint.paymentRecipient,
+          lamports: params.pendingMint.paymentLamports,
+        }
+      : undefined;
+
   const { txBase64, assetAddress } = await buildUnsignedGiftTx({
     name: params.pendingMint.name,
     metadataUri: params.pendingMint.metadataUri,
@@ -347,13 +411,18 @@ export async function prepareGiftTransactionForSigning(params: {
     network,
     assetSecretKey: assetSecret,
     coreCollectionAddress: params.pendingMint.coreCollectionAddress ?? null,
+    payment,
   });
 
   if (assetAddress !== params.pendingMint.assetAddress) {
     throw new Error("Asset address mismatch when refreshing transaction.");
   }
 
-  await assertPayerCanAffordMintStep({ payer: params.payer, network });
+  await assertPayerCanAffordMintStep({
+    payer: params.payer,
+    network,
+    extraLamports: payment?.lamports,
+  });
   await simulateUnsignedTransaction(txBase64, network);
 
   // Re-bake with a fresh blockhash after slow simulate/RPC so Phantom/cosign
@@ -369,6 +438,7 @@ export async function prepareGiftTransactionForSigning(params: {
     assetSecretKey: assetSecret,
     coreCollectionAddress: params.pendingMint.coreCollectionAddress ?? null,
     recentBlockhash: latest.blockhash,
+    payment,
   });
   if (fresh.assetAddress !== params.pendingMint.assetAddress) {
     throw new Error("Asset address mismatch when refreshing transaction.");
@@ -385,6 +455,9 @@ export async function buildGiftTransaction(params: {
   network?: SolanaNetwork;
   coreCollectionAddress?: string | null;
   immutableMetadata?: boolean;
+  /** Atomic pay-and-mint: fold the sale price + a USD snapshot into the mint tx. */
+  payment?: { recipient: string; lamports: number };
+  saleUsd?: number;
 }): Promise<BuildTxResult | null> {
   if (!getPlatformSecretKey()) return null;
 
@@ -402,6 +475,7 @@ export async function buildGiftTransaction(params: {
       network,
       coreCollectionAddress,
       immutableMetadata: params.immutableMetadata,
+      payment: params.payment,
     });
 
   return {
@@ -416,6 +490,13 @@ export async function buildGiftTransaction(params: {
       recipient: params.recipient,
       payer: params.payer,
       ...(resolvedCore ? { coreCollectionAddress: resolvedCore } : {}),
+      ...(params.payment
+        ? {
+            paymentLamports: params.payment.lamports,
+            paymentRecipient: params.payment.recipient,
+          }
+        : {}),
+      ...(params.saleUsd != null ? { saleUsd: params.saleUsd } : {}),
     },
   };
 }

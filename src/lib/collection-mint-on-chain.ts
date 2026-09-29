@@ -10,6 +10,9 @@ export async function buildPendingMintForToken(params: {
   payer: string;
   recipient: string;
   network: SolanaNetwork;
+  /** Atomic pay-and-mint (SOL): embed the sale-price transfer + USD snapshot in the mint tx. */
+  payment?: { recipient: string; lamports: number };
+  saleUsd?: number;
 }) {
   const { collection, tokenId, payer, recipient, network } = params;
   const token = collection.tokens.find((t) => t.tokenId === tokenId);
@@ -29,6 +32,8 @@ export async function buildPendingMintForToken(params: {
     network,
     coreCollectionAddress,
     immutableMetadata: collection.immutableMetadata !== false,
+    payment: params.payment,
+    saleUsd: params.saleUsd,
   });
 
   if (!txResult) {

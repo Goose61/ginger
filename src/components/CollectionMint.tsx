@@ -31,8 +31,7 @@ import { isPaidStatus } from "@/lib/slicepay-shared";
 
 export function CollectionMint({ initial }: { initial: Collection }) {
   const searchParams = useSearchParams();
-  const { publicKey, connect, signMintTx, signAndSendTx, connection: walletConnection } =
-    useWallet();
+  const { publicKey, connect, signMintTx } = useWallet();
   const [collection, setCollection] = useState(initial);
   const [selected, setSelected] = useState<GeneratedToken | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -117,21 +116,6 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       cancelled = true;
     };
   }, []);
-
-  async function resolvePlatformWallet(): Promise<string | null> {
-    if (platformWallet) return platformWallet;
-    try {
-      const res = await fetch("/api/network", { cache: "no-store" });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { platformWallet?: string | null };
-      const wallet = data.platformWallet ?? null;
-      setPlatformWallet(wallet);
-      setPlatformWalletReady(true);
-      return wallet;
-    } catch {
-      return null;
-    }
-  }
 
   const pendingOnChainToken = useMemo(() => {
     if (!publicKey) return null;
@@ -385,8 +369,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       await connect();
       return;
     }
-    const payTo = await resolvePlatformWallet();
-    if (!payTo) {
+    if (!platformWallet) {
       setMessage(
         "Platform payment wallet not configured on the server (ARWEAVE_SOLANA_KEY on Vercel). Try SlicePay or refresh and retry.",
       );
@@ -399,38 +382,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     setBusy(true);
     setMessage(null);
     try {
-      const amountUsd = nftPrice(collection, token);
-      const { quote } = await fetch(`/api/quotes?usd=${amountUsd}`).then((r) => r.json()) as {
-        quote: { sol: number };
-      };
-      const { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } =
-        await import("@solana/web3.js");
-      const { getClientNetwork } = await import("@/lib/solana-config");
-      const network = await getClientNetwork();
-      const { blockhash, lastValidBlockHeight } = await walletConnection.getLatestBlockhash(
-        "confirmed",
-      );
-      const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: new PublicKey(publicKey),
-          toPubkey: new PublicKey(payTo),
-          lamports: Math.ceil(quote.sol * LAMPORTS_PER_SOL),
-        }),
-      );
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = new PublicKey(publicKey);
-      const txBase64 = Buffer.from(
-        tx.serialize({ requireAllSignatures: false, verifySignatures: false }),
-      ).toString("base64");
-      setMessage(`Sending ${quote.sol.toFixed(4)} SOL…`);
-      const txSignature = await signAndSendTx(txBase64);
-      setMessage("Confirming SOL payment on-chain…");
-      await walletConnection.confirmTransaction(
-        { signature: txSignature, blockhash, lastValidBlockHeight },
-        "confirmed",
-      );
-      setClientNetwork(network);
-      await finalizeMint(token, "sol", txSignature);
+      // Atomic pay-and-mint: a single wallet approval both pays the price and mints the
+      // NFT (the transfer is embedded in the Core create tx). Phantom then simulates a
+      // fair swap instead of flagging a bare SOL outflow as a possible drainer.
+      await finalizeMint(token, "sol");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "SOL payment failed");
     } finally {
@@ -469,7 +424,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     if (!res.ok) throw new Error(data.error);
     setCollection(data.collection);
     if (data.requiresOnChainMint) {
-      setMessage(`Paid. Approve the on-chain mint in Phantom for #${token.tokenId}…`);
+      setMessage("Approve pay + mint in your wallet…");
       await completeOnChainMint(token.tokenId, data.collection);
     } else {
       const feeNote =
@@ -1122,9 +1077,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                           : !platformWallet
                             ? "SOL pay unavailable (server wallet not set)"
                             : busy
-                              ? "Processing…"
+                              ? "Approve in wallet…"
                               : publicKey
-                                ? `Pay ${formatUsdAndSol(nftPrice(collection, selected), solUsd)}`
+                                ? `Mint for ${formatUsdAndSol(nftPrice(collection, selected), solUsd)}`
                                 : "Connect wallet"}
                       </button>
                     ) : checkoutPending ? (
