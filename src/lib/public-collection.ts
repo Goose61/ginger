@@ -102,6 +102,7 @@ function toPublicPendingCoreCollection(pending: PendingCoreCollection): PendingC
 /** Strip server-only fields before any collection leaves the process. */
 export function toPublicCollection(collection: Collection): Collection {
   const stripped = stripExpiredReservations(collection).collection;
+  stripped.mintedCount = stripped.tokens.filter((t) => tokenIsCommitted(t, stripped)).length;
   const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = stripped;
   void _zip;
   return {

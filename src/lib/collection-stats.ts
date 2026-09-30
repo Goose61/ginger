@@ -46,10 +46,16 @@ export function collectionListedCount(collection: Collection): number {
 }
 
 export function collectionSoldCount(collection: Collection): number {
-  if (typeof collection.mintedCount === "number" && collection.mintedCount >= 0) {
-    return collection.mintedCount;
+  const tokens = collection.tokens ?? [];
+  const fromTokens = tokens.filter((t) => isTokenSold(t, collection)).length;
+  if (tokens.some((t) => t.owner || t.assetAddress)) {
+    return fromTokens;
   }
-  return (collection.tokens ?? []).filter((t) => isTokenSold(t, collection)).length;
+  const minted =
+    typeof collection.mintedCount === "number" && collection.mintedCount >= 0
+      ? collection.mintedCount
+      : 0;
+  return Math.max(fromTokens, minted);
 }
 
 export function collectionMarketStats(collection: Collection): CollectionMarketStats {

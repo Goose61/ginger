@@ -81,8 +81,9 @@ export function coverImageSrc(collection: Collection) {
 
 export function isTokenSold(token: GeneratedToken, collection: Collection) {
   if (token.owner || isTokenReservationActive(token, collection)) return true;
+  if (token.assetAddress) return true;
   const tokens = collection.tokens ?? [];
-  if (tokens.some((t) => t.owner)) return false;
+  if (tokens.some((t) => t.owner || t.assetAddress)) return false;
   const ordered = [...tokens].sort((a, b) => a.tokenId - b.tokenId);
   const index = ordered.findIndex((t) => t.tokenId === token.tokenId);
   return index >= 0 && index < collection.mintedCount;
@@ -152,7 +153,7 @@ export function filterTokensByStatus(
     const sold = isTokenSold(token, collection);
     const listed = Boolean(token.listing);
     if (status === "listed") return listed;
-    if (status === "sold") return sold && !listed;
+    if (status === "sold") return sold;
     return !sold;
   });
 }
