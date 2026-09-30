@@ -3,6 +3,7 @@ import type { Collection } from "./types";
 import {
   isExpirableReservation,
   isTokenReservationActive,
+  reconcileCollectionMintState,
   stripExpiredReservations,
   TOKEN_RESERVATION_TTL_MS,
   tokenIsCommitted,
@@ -83,9 +84,10 @@ export async function listCollectionsForMarket(): Promise<Collection[]> {
       },
     )
     .toArray();
-  return docs.map(asCollection).filter((c) => !isHiddenFromMarket(c)).map((c) => {
-    return stripExpiredReservations(c).collection;
-  });
+  return docs
+    .map(asCollection)
+    .filter((c) => !isHiddenFromMarket(c))
+    .map((c) => reconcileCollectionMintState(c).collection);
 }
 
 /** Public collection URLs for sitemap.xml. Skips drafts and hidden test launches. */

@@ -5,7 +5,7 @@ import { partitionMarketCards } from "./market-card";
 export * from "./market-view";
 
 /** Bump when cache shape or fetch semantics change (invalidates stale entries). */
-const MARKET_CARDS_CACHE_KEY = "market-cards-v2";
+const MARKET_CARDS_CACHE_KEY = "market-cards-v3";
 
 async function loadMarketCards() {
   return partitionMarketCards(await listCollectionsForMarket());

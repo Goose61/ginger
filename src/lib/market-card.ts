@@ -23,6 +23,7 @@ export type MarketCard = {
 
 export function toMarketCard(collection: Collection): MarketCard {
   const tokens = collection.tokens ?? [];
+  const stats = collectionMarketStats(collection);
   return {
     id: collection.id,
     slug: collection.slug,
@@ -30,10 +31,10 @@ export function toMarketCard(collection: Collection): MarketCard {
     description: collection.description,
     chain: collection.chain,
     kind: collection.kind,
-    mintedCount: collection.mintedCount,
+    mintedCount: stats.sold,
     supply: collection.supply,
     coverSrc: coverImageSrc(collection),
-    stats: collectionMarketStats(collection),
+    stats,
     hasListings:
       Boolean(collection.secondaryEnabled) && tokens.some((t) => Boolean(t.listing)),
     featuredUntil: collection.featuredUntil ?? null,

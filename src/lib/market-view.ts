@@ -17,7 +17,7 @@ export function aggregateMarket(live: MarketCard[]): MarketAggregate {
       if (card.kind === "gift_bundle") return acc;
       acc.liveCount += 1;
       acc.volumeUsd += card.stats.volumeUsd;
-      acc.mintedCount += card.mintedCount;
+      acc.mintedCount += card.stats.sold;
       acc.listedCount += card.stats.listedCount;
       return acc;
     },
