@@ -58,13 +58,12 @@ function MintCard({ collection }: { collection: MarketCard }) {
     <Link
       href={collectionHref(collection)}
       className="nft-card group block"
-      aria-label={`${collection.name}, floor ${formatUsd(collection.stats.floorUsd)}, ${pct}% minted`}
     >
       <div className="relative aspect-square overflow-hidden bg-surface-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={collection.coverSrc}
-          alt=""
+          alt={`${collection.name} NFT artwork`}
           loading="lazy"
           decoding="async"
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"

@@ -370,7 +370,7 @@ function SearchDialog({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={row.item.coverSrc}
-                        alt=""
+                        alt={`${row.item.name} cover`}
                         loading="lazy"
                         className="h-10 w-10 shrink-0 rounded-lg border border-line bg-surface-2 object-contain"
                       />

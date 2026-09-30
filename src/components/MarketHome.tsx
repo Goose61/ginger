@@ -7,6 +7,9 @@ import { MintGrid } from "@/components/market/MintGrid";
 import { LaunchPromo } from "@/components/market/LaunchPromo";
 import { TrustStrip } from "@/components/market/TrustStrip";
 import { GiftStrip } from "@/components/market/GiftStrip";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { SITE_URL, absoluteUrl } from "@/lib/seo";
+import { collectionHref } from "@/components/market/utils";
 
 /**
  * Landing page cadence:
@@ -56,6 +59,23 @@ export async function MarketHome() {
           {giftBundle && <GiftStrip collection={giftBundle} />}
         </div>
       </div>
+      {live.length > 0 && (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "NFT collections on Ginger",
+            numberOfItems: Math.min(live.length, 24),
+            itemListElement: live.slice(0, 24).map((card, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              name: card.name,
+              url: absoluteUrl(collectionHref(card)),
+            })),
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+          }}
+        />
+      )}
     </main>
   );
 }

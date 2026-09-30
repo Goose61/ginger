@@ -257,7 +257,7 @@ function DashboardRow({
           {logo ? (
             <div className="collection-logo-frame h-14 w-14 shrink-0 rounded-xl p-1">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt="" className="collection-logo" />
+              <img src={logo} alt={`${c.name} logo`} className="collection-logo" />
             </div>
           ) : (
             <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs text-white/35">

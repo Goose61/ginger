@@ -9,6 +9,15 @@ import Aoscompo from "@/utils/aos";
 import { SolanaAdapterProvider } from "@/components/SolanaAdapterProvider";
 import { WalletProvider } from "@/components/WalletProvider";
 import { GlobalSearchProvider } from "@/components/GlobalSearch";
+import { Analytics } from "@/components/seo/Analytics";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  DEFAULT_DESCRIPTION,
+  HOME_TITLE,
+  OG_IMAGE,
+  SITE_URL,
+  organizationJsonLd,
+} from "@/lib/seo";
 
 const display = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -34,15 +43,49 @@ export const viewport = {
   viewportFit: "cover" as const,
 };
 
+const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+const bingVerification = process.env.BING_SITE_VERIFICATION;
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://gingernft.store"),
-  title: "Ginger · NFT marketplace",
-  description:
-    "Launch NFT collections on Solana. Auto metadata, permanent storage, programmable fees, and in-ecosystem secondary trading.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: HOME_TITLE,
+    template: "%s",
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: "Ginger",
+  authors: [{ name: "Ginger", url: SITE_URL }],
+  creator: "Ginger",
+  publisher: "Ginger",
+  category: "NFT marketplace",
+  robots: { index: true, follow: true },
   icons: {
     icon: "/favicon.ico",
     apple: "/images/ginger.png",
   },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "Ginger",
+    title: HOME_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: [{ url: OG_IMAGE, alt: "Ginger NFT marketplace" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: HOME_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  ...(googleVerification || bingVerification
+    ? {
+        verification: {
+          ...(googleVerification ? { google: googleVerification } : {}),
+          ...(bingVerification ? { other: { "msvalidate.01": bingVerification } } : {}),
+        },
+      }
+    : {}),
 };
 
 export default function RootLayout({
@@ -53,6 +96,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${display.variable} ${body.variable} ${mono.variable} font-[family-name:var(--font-body)]`}>
+        <JsonLd data={organizationJsonLd()} />
+        <Analytics />
         <SolanaAdapterProvider>
           <WalletProvider>
             <GlobalSearchProvider>

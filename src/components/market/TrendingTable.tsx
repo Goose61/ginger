@@ -90,7 +90,7 @@ export function TrendingTable({
                     <span className="num w-5 font-[family-name:var(--font-mono)] text-xs text-ink-subtle">
                       {i + 1}
                     </span>
-                    <Cover src={c.coverSrc} size={44} />
+                    <Cover src={c.coverSrc} alt={`${c.name} cover`} size={44} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium text-ink">{c.name}</span>
@@ -137,7 +137,7 @@ export function TrendingTable({
                         <Link href={href} className="flex items-center gap-3 text-ink">
                           {/* stretched link: covers the whole row */}
                           <span className="absolute inset-0" aria-hidden />
-                          <Cover src={c.coverSrc} size={40} />
+                          <Cover src={c.coverSrc} alt={`${c.name} cover`} size={40} />
                           <span className="flex min-w-0 items-center gap-2">
                             <span className="truncate font-medium group-hover:text-ink">{c.name}</span>
                             {isLiveFeatured(c) && (
@@ -185,12 +185,12 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
   return <td className={`px-4 py-3 ${className}`}>{children}</td>;
 }
 
-function Cover({ src, size }: { src: string; size: number }) {
+function Cover({ src, alt, size }: { src: string; alt: string; size: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
-      alt=""
+      alt={alt}
       loading="lazy"
       decoding="async"
       width={size}

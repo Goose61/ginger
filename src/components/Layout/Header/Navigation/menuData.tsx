@@ -14,6 +14,7 @@ export const headerData: HeaderItem[] = [
     submenu: [
       { label: "FAQ", href: "/faq" },
       { label: "Security", href: "/security" },
+      { label: "About", href: "/about" },
     ],
   },
 ];
@@ -32,5 +33,6 @@ export const createLinks = [
 
 export const trustLinks = [
   { label: "Security", href: "/security" },
+  { label: "About", href: "/about" },
   { label: "Security report (.md)", href: "/api/security/report" },
 ];

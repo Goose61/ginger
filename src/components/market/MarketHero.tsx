@@ -141,7 +141,9 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
           <img
             key={active.id}
             src={active.coverSrc}
-            alt={active.name}
+            alt={`${active.name} NFT artwork`}
+            fetchPriority="high"
+            decoding="async"
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           />
           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />

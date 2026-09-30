@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getCollection } from "@/lib/store";
 import { isListedPublicly, isTokenReservationActive, toPublicCollection } from "@/lib/public-collection";
 import { CollectionMint } from "@/components/CollectionMint";
@@ -10,9 +11,54 @@ import {
   txSignatureFromMintUrl,
   verifyMintTransaction,
 } from "@/lib/verify-mint";
+import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  SITE_URL,
+  breadcrumbJsonLd,
+  clampMeta,
+  collectionPageTitle,
+  pageMetadata,
+} from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
+
+function collectionPath(collection: Collection) {
+  return `/collection/${collection.slug || collection.id}`;
+}
+
+function httpsImage(url?: string | null) {
+  return url && /^https:\/\//.test(url) ? url : undefined;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  let collection: Collection | null = null;
+  try {
+    collection = await getCollection(id);
+  } catch {
+    return { robots: { index: false, follow: true } };
+  }
+  if (!collection || !isListedPublicly(collection)) {
+    return { title: { absolute: "Collection not found · Ginger" }, robots: { index: false, follow: false } };
+  }
+  const path = collectionPath(collection);
+  const description =
+    collection.description?.trim() ||
+    `Mint ${collection.name} on Ginger, the Solana NFT marketplace. Pay with SOL or card and keep the NFT in your wallet.`;
+  return pageMetadata({
+    title: collectionPageTitle(collection.name),
+    description,
+    path,
+    image: httpsImage(collection.logoUrl),
+    imageAlt: `${collection.name} on Ginger`,
+  });
+}
 
 export default async function CollectionPage({
   params,
@@ -38,6 +84,9 @@ export default async function CollectionPage({
   if (!isListedPublicly(collection)) {
     notFound();
   }
+  if (collection.slug && id !== collection.slug) {
+    permanentRedirect(collectionPath(collection));
+  }
 
   // Only heal in-flight reserved mints. Verifying every sold token on each page
   // load hammers RPC and blocks navigation back to Market.
@@ -59,10 +108,38 @@ export default async function CollectionPage({
     ...collection,
     layers: [],
   });
+  const path = collectionPath(collection);
+  const crumbs = [
+    { name: "Home", path: "/" },
+    { name: collection.name, path },
+  ];
+  const description = clampMeta(
+    collection.description?.trim() ||
+      `Mint ${collection.name} on Ginger, the Solana NFT marketplace.`,
+  );
 
   return (
-    <Suspense fallback={<div className="container mx-auto px-4 py-20 text-white/50">Loading…</div>}>
-      <CollectionMint initial={publicCollection} />
-    </Suspense>
+    <>
+      <div className="container mx-auto max-w-6xl px-4 pt-6">
+        <Breadcrumbs items={crumbs} />
+      </div>
+      <Suspense fallback={<div className="container mx-auto px-4 py-20 text-white/50">Loading…</div>}>
+        <CollectionMint initial={publicCollection} />
+      </Suspense>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: collection.name,
+          description,
+          url: `${SITE_URL}${path}`,
+          datePublished: collection.createdAt,
+          dateModified: collection.updatedAt,
+          isPartOf: { "@id": `${SITE_URL}/#website` },
+          ...(httpsImage(collection.logoUrl) ? { image: collection.logoUrl } : {}),
+        }}
+      />
+      <JsonLd data={breadcrumbJsonLd(crumbs)} />
+    </>
   );
 }

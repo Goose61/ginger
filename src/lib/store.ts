@@ -88,6 +88,35 @@ export async function listCollectionsForMarket(): Promise<Collection[]> {
   });
 }
 
+/** Public collection URLs for sitemap.xml. Skips drafts and hidden test launches. */
+export async function listSitemapCollections(): Promise<
+  { slug: string; updatedAt: string; holderPageUnlocked: boolean }[]
+> {
+  const col = await getCollectionsCol();
+  const docs = await col
+    .find(
+      { status: { $in: ["live", "sold_out"] } },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          slug: 1,
+          name: 1,
+          updatedAt: 1,
+          holderPageUnlocked: 1,
+        },
+      },
+    )
+    .toArray();
+  return docs
+    .filter((doc) => doc.id && !isHiddenFromMarket(doc))
+    .map((doc) => ({
+      slug: doc.slug || doc.id,
+      updatedAt: doc.updatedAt,
+      holderPageUnlocked: Boolean(doc.holderPageUnlocked),
+    }));
+}
+
 export async function getCollection(id: string): Promise<Collection | null> {
   const col = await getCollectionsCol();
   const doc = await col.findOne(

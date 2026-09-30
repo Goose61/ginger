@@ -4,8 +4,17 @@ const ALLOWED_ORIGINS =
   process.env.ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 
 export function middleware(req: NextRequest) {
+  const host = req.headers.get("host")?.replace(/:\d+$/, "");
+  if (host === "gingernft.store") {
+    const url = req.nextUrl.clone();
+    url.hostname = "www.gingernft.store";
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 308);
+  }
+
   const { pathname } = req.nextUrl;
   const origin = req.headers.get("origin") ?? "";
+  const ga = /^G-[A-Z0-9]+$/.test(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "");
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   const corsHeaders: Record<string, string> = {};
@@ -39,9 +48,19 @@ export function middleware(req: NextRequest) {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pay.slicechain.io",
+      [
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pay.slicechain.io",
+        ga ? "https://www.googletagmanager.com" : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https://gateway.irys.xyz https://arweave.net https://blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.datasprite-cdn.com",
+      [
+        "img-src 'self' data: blob: https://gateway.irys.xyz https://arweave.net https://blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.datasprite-cdn.com",
+        ga ? "https://www.google-analytics.com https://www.googletagmanager.com" : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       [
         "connect-src 'self'",
         "https://uploader.irys.xyz",
@@ -66,6 +85,13 @@ export function middleware(req: NextRequest) {
         "https://api.iconify.design",
         "https://api.simplesvg.com",
         "https://api.unisvg.com",
+        ...(ga
+          ? [
+              "https://www.google-analytics.com",
+              "https://analytics.google.com",
+              "https://www.googletagmanager.com",
+            ]
+          : []),
       ].join(" "),
       "font-src 'self' data: https://fonts.gstatic.com",
       "frame-src https://dexscreener.com https://pay.slicechain.io",

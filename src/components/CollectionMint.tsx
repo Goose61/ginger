@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken } from "@/lib/types";
 import { useWallet } from "./WalletProvider";
@@ -649,6 +650,16 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           <p className="mt-5 max-w-xl font-[family-name:var(--font-body)] text-sm leading-6 text-white/60">
             {collection.description}
           </p>
+          {collection.holderPageUnlocked && (
+            <p className="mt-4 text-sm">
+              <Link
+                href={`/collection/${collection.slug || collection.id}/holders`}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Holder lounge
+              </Link>
+            </p>
+          )}
 
           <dl className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat label="Floor" value={formatUsdAndSol(stats.floorUsd, solUsd)} tip="Lowest listing, or cheapest remaining mint price" />

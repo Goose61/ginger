@@ -1,9 +1,35 @@
-import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getCollection } from "@/lib/store";
 import { isListedPublicly } from "@/lib/public-collection";
 import { HolderFeePanel } from "@/components/HolderFeePanel";
+import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { breadcrumbJsonLd, collectionPageTitle, pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+function collectionPath(collection: { id: string; slug?: string }) {
+  return `/collection/${collection.slug || collection.id}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const collection = await getCollection(id).catch(() => null);
+  if (!collection || !isListedPublicly(collection) || !collection.holderPageUnlocked) {
+    return { robots: { index: false, follow: false } };
+  }
+  const name = collection.name;
+  return pageMetadata({
+    title: collectionPageTitle(`${name} holders`),
+    description: `Holder lounge for ${name} on Ginger. Snapshots, perks, and fee claims for wallets that hold this Solana NFT collection.`,
+    path: `${collectionPath(collection)}/holders`,
+  });
+}
 
 export default async function HoldersPage({
   params,
@@ -15,6 +41,9 @@ export default async function HoldersPage({
   if (!collection) notFound();
   if (!isListedPublicly(collection)) {
     notFound();
+  }
+  if (collection.slug && id !== collection.slug) {
+    permanentRedirect(`${collectionPath(collection)}/holders`);
   }
   if (!collection.holderPageUnlocked) {
     return (
@@ -28,10 +57,17 @@ export default async function HoldersPage({
   }
 
   const snapshots = collection.holderSnapshots ?? [];
+  const path = collectionPath(collection);
+  const crumbs = [
+    { name: "Home", path: "/" },
+    { name: collection.name, path },
+    { name: "Holders", path: `${path}/holders` },
+  ];
 
   return (
     <main className="container mx-auto max-w-2xl px-4 py-20 pt-16">
-      <h1 className="text-3xl text-white">{collection.name} holders</h1>
+      <Breadcrumbs items={crumbs} />
+      <h1 className="mt-6 text-3xl text-white">{collection.name} holders</h1>
       <p className="mt-3 text-sm text-white/50">
         Exclusive space for this collection. Perks unlock as milestones fire on-chain and in the
         marketplace.
@@ -94,6 +130,7 @@ export default async function HoldersPage({
       )}
 
       <HolderFeePanel collectionId={collection.id} />
+      <JsonLd data={breadcrumbJsonLd(crumbs)} />
     </main>
   );
 }
