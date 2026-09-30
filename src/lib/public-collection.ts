@@ -87,6 +87,49 @@ export function stripExpiredReservations(
   return { collection: next, changed: true };
 }
 
+/** Clear abandoned on-chain prep fields and sync mintedCount to committed tokens. */
+export function reconcileCollectionMintState(
+  collection: Collection,
+  now = Date.now(),
+): { collection: Collection; changed: boolean } {
+  const stripped = stripExpiredReservations(collection, now);
+  let changed = stripped.changed;
+  let next = stripped.collection;
+
+  const tokens = next.tokens.map((token) => {
+    if (tokenIsCommitted(token, next)) return token;
+    if (!token.assetAddress && !token.mintTxUrl) return token;
+    changed = true;
+    const cleaned = { ...token };
+    delete cleaned.assetAddress;
+    delete cleaned.mintTxUrl;
+    return cleaned;
+  });
+
+  let pendingMint = next.pendingMint;
+  if (pendingMint?.tokenId != null) {
+    const tok = tokens.find((t) => t.tokenId === pendingMint!.tokenId);
+    if (tok && !tokenIsCommitted(tok, next)) {
+      pendingMint = undefined;
+      changed = true;
+    }
+  }
+
+  const committed = tokens.filter((t) => tokenIsCommitted(t, next)).length;
+  if (next.mintedCount !== committed) changed = true;
+
+  next = { ...next, tokens, mintedCount: committed };
+  if (pendingMint) next.pendingMint = pendingMint;
+  else delete next.pendingMint;
+
+  if (next.status === "sold_out" && committed < next.supply) {
+    next.status = "live";
+    changed = true;
+  }
+
+  return { collection: next, changed };
+}
+
 function toPublicPendingMint(pendingMint: PendingMint): PendingMint {
   const { assetSecretKeyB64: _secret, ...rest } = pendingMint;
   void _secret;
@@ -101,9 +144,8 @@ function toPublicPendingCoreCollection(pending: PendingCoreCollection): PendingC
 
 /** Strip server-only fields before any collection leaves the process. */
 export function toPublicCollection(collection: Collection): Collection {
-  const stripped = stripExpiredReservations(collection).collection;
-  stripped.mintedCount = stripped.tokens.filter((t) => tokenIsCommitted(t, stripped)).length;
-  const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = stripped;
+  const { collection: reconciled } = reconcileCollectionMintState(collection);
+  const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = reconciled;
   void _zip;
   return {
     ...rest,

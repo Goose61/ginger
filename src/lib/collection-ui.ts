@@ -3,7 +3,7 @@ import { giftDisplayNameFromToken, isGiftBundle } from "./gift-bundle";
 import { isTokenRevealed, placeholderImageSrc } from "./reveal";
 import type { OverallRarity } from "./rarity";
 import { OVERALL_RARITY_LABEL, rarityRankByTokenId, tokenOverallRarity } from "./rarity";
-import { isTokenReservationActive } from "./public-collection";
+import { tokenIsCommitted } from "./public-collection";
 
 export const COLLECTION_GRID_PAGE_SIZE = 48;
 
@@ -79,14 +79,9 @@ export function coverImageSrc(collection: Collection) {
   return tokenImageSrc(collection, token);
 }
 
+/** Sold = minted or held in an active checkout — never inferred from mintedCount order alone. */
 export function isTokenSold(token: GeneratedToken, collection: Collection) {
-  if (token.owner || isTokenReservationActive(token, collection)) return true;
-  if (token.assetAddress) return true;
-  const tokens = collection.tokens ?? [];
-  if (tokens.some((t) => t.owner || t.assetAddress)) return false;
-  const ordered = [...tokens].sort((a, b) => a.tokenId - b.tokenId);
-  const index = ordered.findIndex((t) => t.tokenId === token.tokenId);
-  return index >= 0 && index < collection.mintedCount;
+  return tokenIsCommitted(token, collection);
 }
 
 export function formatUsd(value: number) {

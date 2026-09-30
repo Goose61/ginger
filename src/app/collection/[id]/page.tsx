@@ -1,8 +1,13 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { getCollection } from "@/lib/store";
-import { isListedPublicly, isTokenReservationActive, toPublicCollection } from "@/lib/public-collection";
+import { getCollection, updateCollection } from "@/lib/store";
+import {
+  isListedPublicly,
+  isTokenReservationActive,
+  reconcileCollectionMintState,
+  toPublicCollection,
+} from "@/lib/public-collection";
 import { CollectionMint } from "@/components/CollectionMint";
 import { getSolanaNetwork } from "@/lib/solana-config";
 import type { Collection } from "@/lib/types";
@@ -102,6 +107,13 @@ export default async function CollectionPage({
         collection = (await getCollection(id)) ?? collection;
       }
     }
+  }
+
+  const reconciled = reconcileCollectionMintState(collection);
+  if (reconciled.changed) {
+    const saved = await updateCollection(collection.id, () => reconciled.collection);
+    if (saved) collection = saved;
+    else collection = reconciled.collection;
   }
 
   const publicCollection = toPublicCollection({
