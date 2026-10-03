@@ -2,9 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
+import { injected } from "@wagmi/core";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { avalanche, avalancheFuji } from "wagmi/chains";
-import { injected } from "wagmi/connectors";
 import { getAvalancheNetwork, getAvalancheRpcUrl } from "@/lib/avalanche-config";
 import { CORE_CONNECTOR_ID, getCoreProvider } from "@/lib/core-wallet";
 

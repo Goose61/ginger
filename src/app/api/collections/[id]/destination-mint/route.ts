@@ -93,7 +93,7 @@ export async function POST(
       return NextResponse.json({ error: "Token metadata is not published" }, { status: 400 });
     }
 
-    let homeDebitTx = token.homeDebitTx;
+    const homeDebitTx = token.homeDebitTx;
     if (rec.offHome && !homeDebitTx) {
       const home = collectionHomeChain(collection);
       if (home === "avalanche") {
