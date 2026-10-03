@@ -18,12 +18,12 @@ const STEPS = [
   {
     icon: Tag,
     title: "Set price & fees",
-    text: "Price in USD. Collectors pay with SOL or card at a live quote. Royalties are yours to set.",
+    text: "Price in USD. Collectors pay with SOL, card, or dest-chain gas on Avalanche. Royalties are yours to set.",
   },
   {
     icon: Rocket,
     title: "Go live from your wallet",
-    text: "Publish permanently to Arweave and mint on Metaplex Core. Milestones unlock resale.",
+    text: "Publish permanently to Arweave. Home can be Solana (Metaplex Core) or Avalanche (ERC-721). Collectors mint onto the chain they choose.",
   },
 ];
 
@@ -60,7 +60,7 @@ export function LaunchPromo() {
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href="/launch"
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-[#b42318]"
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-[#6d4ed4]"
             >
               Start a launch
               <ArrowRight className="h-4 w-4" aria-hidden />

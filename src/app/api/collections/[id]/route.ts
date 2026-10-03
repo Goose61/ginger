@@ -11,11 +11,13 @@ import {
 import { applySaleTreasury } from "@/lib/milestones";
 import { applyRevealTriggers } from "@/lib/reveal";
 import { rateLimit } from "@/lib/rate-limit";
-import { readAuthHeaders, assertCreatorAuth, assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
+import { readAuthHeaders, readAuthHeadersAsync, assertCreatorAuth, assertPayerAuth, requireWalletAuth, requireWalletAuthAsync } from "@/lib/wallet-auth";
 import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@/lib/slicepay";
 import { getQuote } from "@/lib/quotes";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { isValidSolanaAddress } from "@/lib/mint-nft";
+import { isEvmAddress } from "@/lib/chain-registry";
+import { consumeDryRun, requireSimulatedDryRun, withClearedMintQuote } from "@/lib/mint-dry-run-store";
 import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { nftPrice } from "@/lib/collection-ui";
 import { buildPendingMintForToken } from "@/lib/collection-mint-on-chain";
@@ -139,13 +141,35 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
       const payerAddr = String(body.payer || "");
-      if (!payerAddr || !isValidSolanaAddress(payerAddr)) {
-        return NextResponse.json({ error: "Valid payer wallet required" }, { status: 400 });
+      const dryRunId = String(body.dryRunId || "");
+      const quoted = await getCollection(id);
+      if (!quoted) return NextResponse.json({ error: "not found" }, { status: 404 });
+      let dryRun;
+      try {
+        dryRun = requireSimulatedDryRun({
+          dryRunId,
+          collectionId: id,
+          tokenId: body.tokenId != null ? Number(body.tokenId) : undefined,
+          collection: quoted,
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Dry-run required before mint";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+      const destIsEvm = dryRun.destination !== "solana";
+      if (!payerAddr || (destIsEvm ? !isEvmAddress(payerAddr) : !isValidSolanaAddress(payerAddr))) {
+        return NextResponse.json(
+          { error: destIsEvm ? "Valid Avalanche wallet required" : "Valid payer wallet required" },
+          { status: 400 },
+        );
+      }
+      if (dryRun.recipient.toLowerCase() !== payerAddr.toLowerCase() && dryRun.recipient !== payerAddr) {
+        return NextResponse.json({ error: "Payer must match the quoted destination wallet" }, { status: 400 });
       }
 
       let payerAuth;
       try {
-        payerAuth = requireWalletAuth(req);
+        payerAuth = destIsEvm ? await requireWalletAuthAsync(req) : requireWalletAuth(req);
         assertPayerAuth(payerAuth, payerAddr);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unauthorized";
@@ -186,6 +210,12 @@ export async function POST(req: NextRequest, { params }: Params) {
           return NextResponse.json({ error: verified.error ?? "Payment not verified" }, { status: 402 });
         }
       } else if (method === "sol") {
+        if (destIsEvm) {
+          return NextResponse.json(
+            { error: "SOL pay-and-mint is only for Solana destinations. Pay with SlicePay or mint onto Solana." },
+            { status: 400 },
+          );
+        }
         // Atomic pay-and-mint: the sale price is transferred inside the mint tx (see
         // buildPendingMintForToken payment) and verified at confirm-mint. A standalone
         // SOL transfer looks like a drainer to Phantom/Blowfish; bundling it with the
@@ -224,8 +254,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       const qty = Math.max(1, Math.min(10, Number(body.qty ?? 1)));
       const remaining = pre.supply - committedCount(pre);
       const minted = Math.min(qty, remaining);
-      const recipient = String(body.recipient || body.payer || "");
-      if (recipient && !isValidSolanaAddress(recipient)) {
+      const recipient = destIsEvm
+        ? dryRun.recipient
+        : String(body.recipient || body.payer || "");
+      if (!destIsEvm && recipient && !isValidSolanaAddress(recipient)) {
         return NextResponse.json({ error: "Invalid recipient wallet" }, { status: 400 });
       }
       const recipientAddr = recipient || payerAddr;
@@ -242,7 +274,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       const solAtomic = method === "sol";
-      const useOnChain = pick.length === 1 && Boolean(getPlatformSecretKey());
+      const useOnChain = !destIsEvm && pick.length === 1 && Boolean(getPlatformSecretKey());
+      const destMint = destIsEvm;
       if (solAtomic && !useOnChain) {
         return NextResponse.json(
           { error: "On-chain mint required for SOL payments" },
@@ -252,7 +285,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const mintedTokenIds: number[] = [];
 
       for (const token of pick) {
-        if (useOnChain) {
+        if (useOnChain || destMint) {
           const reserved = await tryReserveToken(id, token.tokenId, recipientAddr);
           if (!reserved) {
             await rollbackMint({ id, tokenIds: mintedTokenIds, recipient: recipientAddr, onChain: true });
@@ -348,12 +381,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
         // Defer treasury milestones + reveal for SOL until payment confirms.
-        if (solAtomic) return current;
-        let updated = applySaleTreasury(current);
-        updated = applyRevealTriggers(updated);
-        return updated;
+        const next = solAtomic ? current : applyRevealTriggers(applySaleTreasury(current));
+        return withClearedMintQuote(next, dryRunId);
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      consumeDryRun(dryRunId);
 
       const network = serverNetwork(body.network);
       let creatorDisburse: Awaited<ReturnType<typeof processPrimaryMintProceeds>>["creatorDisburse"];
@@ -394,6 +426,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         mintedTokenIds,
         recipient: recipientAddr,
         requiresOnChainMint: Boolean(txResult),
+        requiresDestinationMint: destMint,
+        dryRunId: destMint ? dryRun.dryRunId : undefined,
+        destination: dryRun.destination,
         feeBreakdowns,
         mintPaymentWallet: method === "sol" ? getPlatformPublicKey() : null,
         creatorDisburse: creatorDisburse
@@ -428,7 +463,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (body.action === "list_secondary") {
       let auth;
       try {
-        auth = requireWalletAuth(req);
+        auth = await requireWalletAuthAsync(req);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unauthorized";
         return NextResponse.json({ error: message }, { status: 401 });
@@ -443,7 +478,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (!current.secondaryEnabled) throw new Error("Secondary market not enabled");
         const token = current.tokens.find((t) => t.tokenId === tokenId);
         if (!token?.owner) throw new Error("Token not owned");
-        if (token.owner !== wallet) throw new Error("Only the owner can list");
+        const owner = token.owner.startsWith("0x") ? token.owner.toLowerCase() : token.owner;
+        const lister = wallet.startsWith("0x") ? wallet.toLowerCase() : wallet;
+        if (owner !== lister) throw new Error("Only the owner can list");
+        if (token.location === "in_flight") throw new Error("Cannot list while the NFT is in flight");
         token.listing = { priceUsd, listedAt: new Date().toISOString() };
         return current;
       });
@@ -454,7 +492,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (body.action === "unlist_secondary") {
       let auth;
       try {
-        auth = requireWalletAuth(req);
+        auth = await requireWalletAuthAsync(req);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unauthorized";
         return NextResponse.json({ error: message }, { status: 401 });
@@ -464,7 +502,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       const collection = await updateCollection(id, (current) => {
         const token = current.tokens.find((t) => t.tokenId === tokenId);
         if (!token?.listing) throw new Error("Not listed");
-        if (token.owner !== wallet) throw new Error("Only the owner can unlist");
+        const owner = token.owner?.startsWith("0x") ? token.owner.toLowerCase() : token.owner;
+        const actor = wallet.startsWith("0x") ? wallet.toLowerCase() : wallet;
+        if (owner !== actor) throw new Error("Only the owner can unlist");
         token.listing = null;
         return current;
       });
@@ -474,12 +514,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (body.action === "buy_secondary") {
       const payerAddr = String(body.payer || "");
-      if (!payerAddr || !isValidSolanaAddress(payerAddr)) {
+      const evmBuy = isEvmAddress(payerAddr);
+      if (!payerAddr || (!evmBuy && !isValidSolanaAddress(payerAddr))) {
         return NextResponse.json({ error: "Valid payer wallet required" }, { status: 400 });
       }
 
       try {
-        assertPayerAuth(requireWalletAuth(req), payerAddr);
+        assertPayerAuth(evmBuy ? await requireWalletAuthAsync(req) : requireWalletAuth(req), payerAddr);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unauthorized";
         return NextResponse.json({ error: message }, { status: 401 });
@@ -490,6 +531,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!pre) return NextResponse.json({ error: "not found" }, { status: 404 });
       const token = pre.tokens.find((t) => t.tokenId === tokenId);
       if (!token?.listing) return NextResponse.json({ error: "Not listed for sale" }, { status: 400 });
+      if (token.location === "in_flight") {
+        return NextResponse.json({ error: "Cannot buy while the NFT is in flight" }, { status: 409 });
+      }
+      const loc = token.location ?? "solana";
+      if (loc === "solana" && evmBuy) {
+        return NextResponse.json({ error: "This NFT lives on Solana. Connect a Solana wallet to buy." }, { status: 400 });
+      }
+      if (loc !== "solana" && !evmBuy) {
+        return NextResponse.json({ error: "This NFT lives on Avalanche. Connect MetaMask or Core to buy." }, { status: 400 });
+      }
       const expectedUsd = token.listing.priceUsd;
       const method = String(body.method || "slicepay");
       const invoiceId = String(body.invoiceId || "");

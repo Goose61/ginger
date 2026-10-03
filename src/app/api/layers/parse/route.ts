@@ -4,8 +4,9 @@ import { parseLayerZip, persistLayerFiles } from "@/lib/compositor";
 import { loadZipBufferFromImportForm } from "@/lib/import-zip-server";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
-import { defaultPayments, type Collection } from "@/lib/types";
-import { requireWalletAuth } from "@/lib/wallet-auth";
+import { defaultPayments, type Collection, type MintDestination } from "@/lib/types";
+import { parseHomeChain, isMintDestination, homeChainToDestination } from "@/lib/chain-registry";
+import { requireWalletAuthAsync } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     let auth;
     try {
-      auth = requireWalletAuth(req);
+      auth = await requireWalletAuthAsync(req);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unauthorized";
       return NextResponse.json({ error: message }, { status: 401 });
@@ -44,6 +45,15 @@ export async function POST(req: NextRequest) {
     }
 
     const name = String(form.get("name") || "Untitled collection");
+    const homeChain = parseHomeChain(form.get("homeChain") || form.get("chain"));
+    const destRaw = String(form.get("mintDestinations") || "");
+    const mintDestinations = destRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(isMintDestination);
+    const dests = Array.from(
+      new Set<MintDestination>([homeChainToDestination(homeChain), ...mintDestinations]),
+    );
     const buffer = await loadZipBufferFromImportForm(form);
     const parsed = await parseLayerZip(buffer);
     if (parsed.layers.length === 0) {
@@ -62,7 +72,9 @@ export async function POST(req: NextRequest) {
       symbol: name.slice(0, 6).toUpperCase().replace(/\s/g, ""),
       description: "",
       nameTemplate: "{name} #{id}",
-      chain: "solana",
+      chain: homeChain,
+      homeChain,
+      mintDestinations: dests,
       status: "draft",
       supply: 100,
       mintedCount: 0,
@@ -75,7 +87,11 @@ export async function POST(req: NextRequest) {
       revealAtPercent: 50,
       revealed: false,
       milestones: [],
-      payments: defaultPayments({ creatorWallet: auth.wallet }),
+      payments: defaultPayments({
+        creatorWallet: auth.wallet,
+        acceptSol: homeChain === "solana",
+        acceptAvax: homeChain === "avalanche",
+      }),
       fees: {
         ownerPercent: 98,
         holdersPercent: 1,

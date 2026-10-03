@@ -9,6 +9,7 @@ function holderCounts(collection: Collection): Map<string, number> {
   const counts = new Map<string, number>();
   for (const t of collection.tokens) {
     if (!t.owner) continue;
+    if (t.location === "in_flight") continue;
     counts.set(t.owner, (counts.get(t.owner) ?? 0) + 1);
   }
   return counts;

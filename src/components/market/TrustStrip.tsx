@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ShieldCheck, Wallet, ReceiptText, KeyRound, Download, ArrowRight } from "lucide-react";
+import Image from "next/image";
 import {
+  GINGER_LOGO_SRC,
   SECURITY_AUDIT_META,
   SECURITY_OPEN_FINDINGS,
   SECURITY_REPORT_DOWNLOAD,
@@ -29,11 +31,14 @@ export function TrustStrip() {
   return (
     <section id="security" className="scroll-mt-28 bg-transparent">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Trust & safety</p>
-          <h2 className="mt-1.5 font-[family-name:var(--font-display)] text-[1.75rem] leading-none tracking-tight text-ink sm:text-[2.1rem]">
-            Built to be checked
-          </h2>
+        <div className="flex items-center gap-3">
+          <Image src={GINGER_LOGO_SRC} alt="" width={56} height={56} className="h-12 w-12 object-contain" />
+          <div>
+            <p className="eyebrow">Trust & safety</p>
+            <h2 className="mt-1.5 font-[family-name:var(--font-display)] text-[1.75rem] leading-none tracking-tight text-ink sm:text-[2.1rem]">
+              Built to be checked
+            </h2>
+          </div>
         </div>
         <Link href="/security" className="inline-flex items-center gap-1.5 text-sm text-ink-body hover:text-ink">
           Read the security report
@@ -51,7 +56,6 @@ export function TrustStrip() {
             </span>
             <p className="mt-4 text-sm leading-6 text-ink-body">
               {SECURITY_AUDIT_META.remediatedCount} improvements shipped in the latest review.
-              Risk level: <span className="text-ink">{SECURITY_AUDIT_META.overallRisk}</span>.
             </p>
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-3 text-xs">

@@ -7,12 +7,14 @@ export const SECURITY_REPORT_DOWNLOAD = {
 export const SECURITY_AUDIT_META = {
   reportDate: "29 September 2026",
   productionUrl: "https://www.gingernft.store",
-  overallRisk: "Low to medium (public beta)",
+  status: "Public beta",
   remediatedCount: 9,
 } as const;
 
+export const GINGER_LOGO_SRC = "/images/ginger.png";
+
 export const SECURITY_EXECUTIVE_SUMMARY = [
-  "Ginger is a Solana NFT marketplace where you always custody assets in your own wallet. We never hold your private keys.",
+  "Ginger is an NFT marketplace on Solana and Avalanche where you always custody assets in your own wallet. We never hold your private keys.",
   "Paid mints require verified SOL or SlicePay checkout tied to your wallet, the collection, and the exact token being purchased.",
   "Creators control drafts, allowlists, gifts, and treasury tools through wallet signatures. Unpublished work stays private.",
 ];

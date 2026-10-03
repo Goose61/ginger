@@ -22,10 +22,10 @@ const Faq = () => {
               NFT marketplace FAQ
             </h1>
             <p className="mt-2 text-muted-foreground">
-              How to launch, mint, and trade Solana NFTs on Ginger.
+              How to launch, mint onto Solana or Avalanche, and trade on Ginger.
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Updated <time dateTime={FAQ_UPDATED}>30 September 2026</time>
+              Updated <time dateTime={FAQ_UPDATED}>3 October 2026</time>
             </p>
             <p className="mt-3 text-sm text-muted-foreground">
               Security:{" "}

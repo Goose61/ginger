@@ -10,12 +10,11 @@ const Logo: React.FC = () => {
     >
       <Image
         src="/images/ginger.png"
-        alt=""
+        alt="Ginger"
         width={956}
         height={950}
         priority
-        aria-hidden
-        className="h-[50px] w-[50px] object-contain sm:h-[60px] sm:w-[60px]"
+        className="h-11 w-auto object-contain sm:h-12"
       />
     </Link>
   );

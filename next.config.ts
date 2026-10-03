@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async redirects() {
     return [
-      { source: "/market", destination: "/", permanent: true },
-      { source: "/marketplace", destination: "/", permanent: true },
-      { source: "/discover", destination: "/", permanent: true },
+      { source: "/market", destination: "/explore", permanent: true },
+      { source: "/marketplace", destination: "/explore", permanent: true },
+      { source: "/discover", destination: "/explore", permanent: true },
     ];
   },
   async headers() {

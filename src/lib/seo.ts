@@ -6,13 +6,13 @@ export const SITE_URL = SITE.url.replace(/\/$/, "");
 
 export const OG_IMAGE = "/images/ginger.png";
 
-export const HOME_TITLE = "Ginger NFT Marketplace — Launch and Trade on Solana";
+export const HOME_TITLE = "Ginger NFT Marketplace — Launch on Solana or Avalanche";
 
 export const DEFAULT_DESCRIPTION =
-  "Launch NFT collections on Solana, mint with SOL or card, and resell on Ginger. Art is stored permanently, and you keep the keys in your wallet.";
+  "Launch NFT collections on Solana or Avalanche. Collectors mint onto the chain they choose, pay that chain’s gas, and resell on Ginger. Art is stored permanently, and you keep the keys in your wallet.";
 
 /** Visible and schema freshness for editorial pages. */
-export const CONTENT_UPDATED = "2026-09-30";
+export const CONTENT_UPDATED = "2026-10-03";
 
 export type PublicPage = {
   path: string;
@@ -21,9 +21,10 @@ export type PublicPage = {
   priority: number;
 };
 
-/** Indexable routes. Alias URLs (/market, /marketplace, /discover) 308 to /. */
+/** Indexable routes. Alias URLs (/market, /marketplace, /discover) 308 to /explore. */
 export const PUBLIC_PAGES: PublicPage[] = [
-  { path: "/", label: "Market", changeFrequency: "daily", priority: 1 },
+  { path: "/", label: "Home", changeFrequency: "weekly", priority: 1 },
+  { path: "/explore", label: "Explore", changeFrequency: "daily", priority: 0.95 },
   { path: "/launch", label: "Launch", changeFrequency: "weekly", priority: 0.9 },
   { path: "/gift", label: "Gift", changeFrequency: "weekly", priority: 0.8 },
   { path: "/faq", label: "FAQ", changeFrequency: "monthly", priority: 0.7 },

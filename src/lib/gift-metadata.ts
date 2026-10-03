@@ -1,5 +1,5 @@
 /**
- * Off-chain JSON for Metaplex Core mints.
+ * Off-chain JSON for gift mints (Bubblegum V2 cNFT + Arweave metadata).
  * Avoid words like "Gift" in names/JSON (Phantom spam filter).
  */
 

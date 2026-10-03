@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { newId, saveCollection, getCollection } from "@/lib/store";
 import { buildImportingCollectionStub } from "@/lib/import-collection-stub";
 import { seedCollectionFromSidecars } from "@/lib/metadata-review";
-import { requireWalletAuth } from "@/lib/wallet-auth";
+import { requireWalletAuthAsync } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
-import type { Collection, GeneratedToken, LayerCatalog } from "@/lib/types";
+import { isMintDestination, parseHomeChain } from "@/lib/chain-registry";
+import type { Collection, GeneratedToken, LayerCatalog, MintDestination } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,11 +21,14 @@ type ImportDraftBody = {
   stackOrder?: string[];
   sidecarJsonCount?: number;
   supply?: number;
+  homeChain?: string;
+  chain?: string;
+  mintDestinations?: MintDestination[];
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = requireWalletAuth(req);
+    const auth = await requireWalletAuthAsync(req);
     const body = (await req.json()) as ImportDraftBody;
 
     if (body.mode !== "ready" && body.mode !== "layers") {
@@ -45,12 +49,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const homeChain = parseHomeChain(body.homeChain ?? body.chain);
+    const mintDestinations = (body.mintDestinations ?? []).filter(isMintDestination);
+
     let collection: Collection = {
       ...buildImportingCollectionStub({
         id,
         name,
         description,
         creatorWallet: auth.wallet,
+        homeChain,
+        mintDestinations,
       }),
       status: "draft",
       artPath: body.mode === "layers" ? "path-b" : "path-a",

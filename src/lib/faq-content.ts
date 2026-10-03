@@ -8,7 +8,7 @@ export const MARKETPLACE_FAQ_ITEMS: FaqItem[] = [
   {
     question: "What is this marketplace?",
     answer:
-      "Ginger is a Solana NFT marketplace for launching collections, running primary mints, and listing secondary sales in the same product. Collections do not graduate to another site.",
+      "Ginger is an NFT marketplace for launching collections on Solana or Avalanche, running primary mints onto the chain a collector chooses, and listing secondary sales in the same product. Collections do not graduate to another site.",
   },
   {
     question: "What can I launch here?",
@@ -23,7 +23,12 @@ export const MARKETPLACE_FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do collectors pay?",
     answer:
-      "Creators can accept SlicePay (card / USDC) and SOL. Every method is quoted from a live SOL/USD rate against the same USD mint price. There is no meme-token discount.",
+      "Creators can accept SlicePay (card / USDC) and SOL for the mint price. Destination mint gas is paid by the collector on that chain (SOL on Solana, AVAX on Avalanche). Every method is quoted from a live rate against the same USD mint price.",
+  },
+  {
+    question: "Can collectors mint onto Avalanche?",
+    answer:
+      "Yes. At launch you pick a home chain (Solana or Avalanche C-Chain) and which destinations collectors may mint onto: Solana, Avalanche C-Chain, and a Fuji L1 stub. Supply is debited on home first. The collector then pays gas on the destination. Ginger does not pay those fees. Gifts stay Solana-only.",
   },
   {
     question: "Where is the art stored?",
@@ -48,7 +53,7 @@ export const MARKETPLACE_FAQ_ITEMS: FaqItem[] = [
   {
     question: "Which wallets work with Ginger?",
     answer:
-      "Phantom, Solflare, Backpack, and MetaMask can connect. Card and USDC checkout uses SlicePay, which works with Solflare, Backpack, and MetaMask. Phantom is not supported for SlicePay.",
+      "Phantom, Solflare, and Backpack for Solana. MetaMask or Core for Avalanche. Card and USDC checkout uses SlicePay, which works with Solflare, Backpack, and MetaMask. Phantom is not supported for SlicePay.",
   },
   {
     question: "Can I resell an NFT I minted on Ginger?",
@@ -58,7 +63,7 @@ export const MARKETPLACE_FAQ_ITEMS: FaqItem[] = [
   {
     question: "Is there a gift mint or allowlist?",
     answer:
-      "Yes. After launch, the creator dashboard can gift unminted pieces to any wallet for free (you only pay on-chain rent). Allowlist and waitlist are in the launch checklist, and buyers can gift a mint when you enable that option.",
+      "Yes. After launch, the creator dashboard can gift unminted pieces to any Solana wallet for free (you only pay on-chain fees). Allowlist and waitlist are in the launch checklist, and buyers can gift a mint when you enable that option. Gift mints stay on Solana.",
   },
 ];
 

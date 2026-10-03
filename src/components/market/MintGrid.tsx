@@ -8,21 +8,33 @@ import { formatUsd } from "@/lib/collection-ui";
 import { StatusPill } from "@/components/GlobalSearch";
 import { Shelf } from "./Shelf";
 import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
+import { chainLabel } from "@/lib/chain-registry";
+import type { ChainKey } from "@/lib/types";
 
 const INITIAL = 6;
+type ChainFilter = "all" | "solana" | "avalanche";
 
 export function MintGrid({ live }: { live: MarketCard[] }) {
   const [showAll, setShowAll] = useState(false);
+  const [chain, setChain] = useState<ChainFilter>("all");
   const cards = useMemo(
     () =>
       sortCards(
-        live.filter((c) => c.kind !== "gift_bundle" && c.supply > 0 && c.mintedCount < c.supply),
+        live.filter(
+          (c) =>
+            c.kind !== "gift_bundle" &&
+            c.supply > 0 &&
+            c.mintedCount < c.supply &&
+            (chain === "all" || c.chain === chain),
+        ),
         "volume",
       ),
-    [live],
+    [live, chain],
   );
 
-  if (cards.length === 0) return null;
+  if (live.filter((c) => c.kind !== "gift_bundle" && c.supply > 0 && c.mintedCount < c.supply).length === 0) {
+    return null;
+  }
   const visible = showAll ? cards : cards.slice(0, INITIAL);
 
   return (
@@ -30,7 +42,7 @@ export function MintGrid({ live }: { live: MarketCard[] }) {
       id="mints"
       eyebrow="Primary"
       title="Open mints"
-      hint="Live drops you can mint now. Pay with SOL or card at a live USD quote."
+      hint="Live drops you can mint now. Pay with SOL, AVAX, or card at a live USD quote."
       aside={
         cards.length > INITIAL ? (
           <button
@@ -43,11 +55,31 @@ export function MintGrid({ live }: { live: MarketCard[] }) {
         ) : undefined
       }
     >
+      <div className="mb-4 flex flex-wrap gap-1.5" aria-label="Chain filter">
+        {(["all", "solana", "avalanche"] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setChain(id)}
+            className={`h-8 rounded-full px-3 text-xs font-medium transition ${
+              chain === id
+                ? "bg-primary text-white"
+                : "border border-line text-ink-body hover:border-line-strong hover:text-ink"
+            }`}
+          >
+            {id === "all" ? "All chains" : chainLabel(id as ChainKey)}
+          </button>
+        ))}
+      </div>
+      {cards.length === 0 ? (
+        <p className="text-sm text-ink-muted">No open mints on this chain.</p>
+      ) : (
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((c) => (
           <MintCard key={c.id} collection={c} />
         ))}
       </div>
+      )}
     </Shelf>
   );
 }
@@ -77,6 +109,9 @@ function MintCard({ collection }: { collection: MarketCard }) {
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0 truncate text-[17px] font-semibold text-ink">{collection.name}</h3>
+          <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-subtle">
+            {chainLabel(collection.chain)}
+          </span>
           <StatusPill status={marketStatus(collection)} />
         </div>
         <div className="mt-3 flex items-end justify-between gap-3">

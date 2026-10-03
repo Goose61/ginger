@@ -63,8 +63,18 @@ export async function POST(req: NextRequest) {
       c.pendingMint = {
         ...c.pendingMint,
         ...pendingMint,
+        assetAddress: prepared.assetAddress,
         preparedTxBase64: prepared.txBase64,
+        ...(prepared.merkleTree ? { merkleTree: prepared.merkleTree } : {}),
+        ...(prepared.leafIndex != null ? { leafIndex: prepared.leafIndex } : {}),
       };
+      const tokenId = c.pendingMint.tokenId;
+      const token = tokenId != null ? c.tokens.find((t) => t.tokenId === tokenId) : undefined;
+      if (token) {
+        token.assetAddress = prepared.assetAddress;
+        if (prepared.merkleTree) token.merkleTree = prepared.merkleTree;
+        if (c.pendingMint.standard) token.standard = c.pendingMint.standard;
+      }
       return c;
     });
 

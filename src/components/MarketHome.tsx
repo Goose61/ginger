@@ -42,7 +42,7 @@ export async function MarketHome() {
   const stats = aggregateMarket(live);
 
   return (
-    <main className="relative overflow-hidden">
+    <div className="relative overflow-hidden">
       <div aria-hidden className="page-glow" />
       <MarketHero live={live} />
 
@@ -76,6 +76,6 @@ export async function MarketHome() {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }

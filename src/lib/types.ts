@@ -1,4 +1,35 @@
-export type ChainKey = "solana" | "ethereum" | "base" | "polygon";
+export type ChainKey = "solana" | "avalanche" | "ethereum" | "base" | "polygon";
+
+/** Where an NFT is minted / currently held. */
+export type MintDestination = "solana" | "avalanche" | "avalanche_l1";
+
+export type TokenLocation = MintDestination | "in_flight";
+
+/** Persisted mint quote so dry-run + destination mint work across serverless instances. */
+export type ActiveMintQuote = {
+  dryRunId: string;
+  collectionId: string;
+  tokenId: number;
+  destination: MintDestination;
+  recipient: string;
+  home: string;
+  offHome: boolean;
+  lineItems: {
+    mintUsd: number;
+    platformUsd: number;
+    creatorUsd: number;
+    destGasUsd: number;
+    homeDebitUsd: number;
+    bufferUsd: number;
+    totalUsd: number;
+  };
+  destGasNative: number;
+  destGasSymbol: string;
+  avaxUsd: number;
+  solUsd: number;
+  createdAt: number;
+  simulated?: boolean;
+};
 
 export type CollectionStatus = "draft" | "importing" | "live" | "sold_out" | "archived";
 
@@ -88,6 +119,7 @@ export type PaymentSettings = {
   basePriceUsd: number;
   acceptSol: boolean;
   acceptUsdc: boolean;
+  acceptAvax?: boolean;
   acceptPizza: boolean;
   acceptSlicePay: boolean;
   pizzaDiscountPercent: number;
@@ -102,6 +134,7 @@ export const defaultPayments = (
   basePriceUsd: 25,
   acceptSol: true,
   acceptUsdc: true,
+  acceptAvax: false,
   acceptPizza: true,
   acceptSlicePay: true,
   pizzaDiscountPercent: 0,
@@ -145,10 +178,22 @@ export type GeneratedToken = {
   metadataUri?: string;
   sidecar?: TokenSidecar;
   owner?: string | null;
-  /** On-chain Metaplex Core asset address, set after a real mint */
+  /** On-chain Metaplex Core asset address, or cNFT asset-id PDA after mint */
   assetAddress?: string;
+  /** `cnft` = Bubblegum leaf; omit / `core` = Metaplex Core account */
+  standard?: "core" | "cnft";
+  /** Bubblegum merkle tree when standard is cnft */
+  merkleTree?: string;
   /** Explorer link for the mint transaction */
   mintTxUrl?: string;
+  /** Chain the NFT currently lives on (undefined = unminted). */
+  location?: TokenLocation;
+  /** Spoke / remote contract when location is not the home chain. */
+  spokeAddress?: string;
+  /** Home-chain debit / issue receipt. */
+  homeDebitTx?: string;
+  /** Teleporter / ICM message id while an L1 transfer is in flight. */
+  icmMessageId?: string;
   /** Secondary market listing (when secondaryEnabled on collection) */
   listing?: {
     priceUsd: number;
@@ -172,6 +217,12 @@ export type PendingMint = {
   tmCollectionMint?: string;
   /** Metaplex Core collection for verified grouping. */
   coreCollectionAddress?: string;
+  /** Gift mints use Bubblegum V2 (`cnft`); paid drops stay Core. */
+  standard?: "core" | "cnft";
+  /** Merkle tree for a compressed gift mint. */
+  merkleTree?: string;
+  /** Predicted leaf index (tree numMinted at tx build). */
+  leafIndex?: number;
   /** Token id within a gift bundle collection (if applicable). */
   tokenId?: number;
   /** Exact unsigned tx shown to the wallet at prepare-sign (avoids rebuild drift at cosign). */
@@ -295,7 +346,18 @@ export type Collection = {
   symbol: string;
   description: string;
   nameTemplate: string;
+  /** Display / home chain. Prefer `homeChain`; `chain` is kept for market cards and legacy docs. */
   chain: ChainKey;
+  /** Canonical supply ledger / collection contract chain. Defaults to `chain`. */
+  homeChain?: ChainKey;
+  /** Chains collectors may mint onto. Always includes home. */
+  mintDestinations?: MintDestination[];
+  /** C-Chain (or EVM) collection clone; same role as `coreCollectionAddress` on Solana. */
+  onChainCollectionAddress?: string;
+  /** Allowlisted ICNFTT remote (Fuji stub or a dedicated mainnet L1). */
+  l1RemoteAddress?: string;
+  /** Server-only mint quote. Stripped from public APIs. Survives Vercel multi-instance. */
+  activeMintQuote?: ActiveMintQuote;
   status: CollectionStatus;
   supply: number;
   mintedCount: number;

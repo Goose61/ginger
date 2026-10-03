@@ -4,7 +4,7 @@
  */
 export const SITE = {
   name: "Ginger",
-  tagline: "Solana NFT marketplace",
+  tagline: "NFT marketplace on Solana and Avalanche",
   url: "https://www.gingernft.store",
 } as const;
 

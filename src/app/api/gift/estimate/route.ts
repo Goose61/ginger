@@ -1,7 +1,7 @@
 import {
   estimateGiftFees,
-  GIFT_MINT_RENT_LAMPORTS,
-  GIFT_TX_FEE_LAMPORTS,
+  CNFT_MINT_FEE_LAMPORTS,
+  CNFT_MINT_BUFFER_LAMPORTS,
   lamportsToSol,
 } from "@/lib/gift-fees";
 import { isDevnetNetwork } from "@/lib/solana-config";
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const devnet = isDevnetNetwork();
 
   const [fees, solPrice] = await Promise.all([
-    estimateGiftFees(imageBytes, devnet, metadataBytes || undefined),
+    estimateGiftFees(imageBytes, devnet, metadataBytes || undefined, { cnft: true }),
     getSolPrice(),
   ]);
 
@@ -48,14 +48,9 @@ export async function GET(req: Request) {
           label: "Permanent storage (image + metadata)",
         },
         rent: {
-          lamports: GIFT_MINT_RENT_LAMPORTS.toString(),
-          sol: lamportsToSol(GIFT_MINT_RENT_LAMPORTS),
-          label: "NFT mint account rent (mint step)",
-        },
-        txFee: {
-          lamports: GIFT_TX_FEE_LAMPORTS.toString(),
-          sol: lamportsToSol(GIFT_TX_FEE_LAMPORTS),
-          label: "Mint transaction fee",
+          lamports: (CNFT_MINT_FEE_LAMPORTS + CNFT_MINT_BUFFER_LAMPORTS).toString(),
+          sol: lamportsToSol(CNFT_MINT_FEE_LAMPORTS + CNFT_MINT_BUFFER_LAMPORTS),
+          label: "Compressed mint (transaction fee)",
         },
       },
       lamports: fees.totalLamports.toString(),
@@ -64,6 +59,6 @@ export async function GET(req: Request) {
     },
     solPrice,
     note:
-      "Storage is charged first, then the mint step needs ~0.02 SOL left in your wallet for account rent.",
+      "Storage is charged first. The mint step is a compressed NFT (cNFT) — keep a little SOL for the transaction fee, not account rent.",
   });
 }

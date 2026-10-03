@@ -16,12 +16,12 @@ const Footer: FC = () => {
           <div className="col-span-2 flex flex-col gap-5 md:col-span-5">
             <Logo />
             <p className="max-w-sm text-sm leading-6 text-ink-muted">
-              Launch collections, mint on Solana, and keep resale in one place. Your wallet, your
-              keys.
+              Launch collections on Solana or Avalanche, mint onto the chain you choose, and keep
+              resale in one place. Your wallet, your keys.
             </p>
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line px-3 py-1 text-[11px] text-ink-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden />
-              Built on Solana · Metaplex Core
+              Solana · Avalanche C-Chain
             </span>
             {SOCIAL_LINKS.length > 0 && (
               <ul className="flex items-center gap-4">

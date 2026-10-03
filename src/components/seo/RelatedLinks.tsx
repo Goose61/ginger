@@ -9,7 +9,7 @@ export function RelatedLinks({ current }: { current: string }) {
       <h2 className="text-sm font-medium uppercase tracking-[0.16em] text-white/45">On Ginger</h2>
       <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
         <li>
-          <Link href="/" className="text-sm text-primary underline-offset-2 hover:underline">
+          <Link href="/explore" className="text-sm text-primary underline-offset-2 hover:underline">
             Market
           </Link>
         </li>

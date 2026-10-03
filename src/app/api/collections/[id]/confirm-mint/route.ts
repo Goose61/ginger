@@ -87,6 +87,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         token.reservedBy ||
         c.pendingMint?.recipient ||
         pending?.recipient;
+      token.location = token.location ?? "solana";
       if (!token.owner) {
         throw new Error("Mint confirmed on-chain but no owner wallet was recorded");
       }

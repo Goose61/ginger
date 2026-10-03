@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { Download } from "lucide-react";
 import {
+  GINGER_LOGO_SRC,
   SECURITY_AUDIT_META,
   SECURITY_CONTROLS,
   SECURITY_DEP_SNAPSHOT,
@@ -20,7 +22,14 @@ export function SecurityAuditReport() {
       <div className="container px-4">
         <div className="mx-auto max-w-4xl">
           <div className="mb-10 text-center">
-            <p className="text-sm uppercase tracking-[0.18em] text-primary">Trust & safety</p>
+            <Image
+              src={GINGER_LOGO_SRC}
+              alt=""
+              width={96}
+              height={96}
+              className="mx-auto h-16 w-16 object-contain"
+            />
+            <p className="mt-4 text-sm uppercase tracking-[0.18em] text-primary">Trust & safety</p>
             <h1 className="mt-2 text-3xl font-semibold md:text-4xl">Security</h1>
             <p className="mt-3 text-muted-foreground">
               How Ginger protects collectors and creators · {SECURITY_AUDIT_META.reportDate}
@@ -49,7 +58,7 @@ export function SecurityAuditReport() {
           <div className="mb-10 grid gap-3 sm:grid-cols-3">
             <MetaCard label="Site" value="gingernft.store" />
             <MetaCard label="Last reviewed" value={SECURITY_AUDIT_META.reportDate} />
-            <MetaCard label="Risk level" value={SECURITY_AUDIT_META.overallRisk} />
+            <MetaCard label="Status" value={SECURITY_AUDIT_META.status} />
           </div>
 
           <ReportBlock title="At a glance">
@@ -201,7 +210,10 @@ function MetaCard({ label, value }: { label: string; value: string }) {
 function ReportBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mb-8 rounded-2xl border border-white/10 bg-card/40 p-5 sm:p-6">
-      <h2 className="mb-4 text-lg font-semibold text-white">{title}</h2>
+      <h2 className="mb-4 flex items-center gap-3 text-lg font-semibold text-white">
+        <Image src={GINGER_LOGO_SRC} alt="" width={40} height={40} className="h-8 w-8 object-contain" />
+        {title}
+      </h2>
       {children}
     </div>
   );

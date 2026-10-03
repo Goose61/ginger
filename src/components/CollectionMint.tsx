@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import type { Collection, GeneratedToken } from "@/lib/types";
+import type { Collection, GeneratedToken, MintDestination } from "@/lib/types";
 import { useWallet } from "./WalletProvider";
+import { useEvmWallet } from "./EvmWalletProvider";
 import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
@@ -30,10 +31,39 @@ import {
   parseSlicePayReturnParams,
 } from "@/lib/slicepay-client";
 import { isPaidStatus } from "@/lib/slicepay-shared";
+import {
+  CHAIN_DESCRIPTORS,
+  chainLabel,
+  collectionHomeChain,
+  collectionMintDestinations,
+  explorerAddressUrl,
+  explorerNftUrl,
+  homeChainToDestination,
+  isDestinationWallet,
+  isEvmAddress,
+} from "@/lib/chain-registry";
+import {
+  confirmDestinationMint,
+  confirmHomeDebit,
+  confirmL1Arrival,
+  prepareDestinationMint,
+  requestMintQuote,
+  runMintDryRun,
+  type MintQuotePayload,
+} from "@/lib/destination-checkout";
+import { TokenLocationBadge } from "@/components/TokenLocationBadge";
+import { CollectionContractLinks } from "@/components/CollectionContractLinks";
+import type { AvalancheNetwork } from "@/lib/avalanche-config";
 
 export function CollectionMint({ initial }: { initial: Collection }) {
   const searchParams = useSearchParams();
-  const { publicKey, connect, signMintTx, isPhantom } = useWallet();
+  const { publicKey, connect, signMintTx, signAndSendTx, isPhantom } = useWallet();
+  const { address: evmAddress, connectEvm, ensureAvalancheChain, sendContractTx } = useEvmWallet();
+  const destinations = useMemo(() => collectionMintDestinations(initial), [initial]);
+  const homeDest = homeChainToDestination(collectionHomeChain(initial));
+  const [mintDest, setMintDest] = useState<MintDestination>(destinations[0] ?? homeDest);
+  const [mintQuote, setMintQuote] = useState<MintQuotePayload | null>(null);
+  const [dryRunId, setDryRunId] = useState<string | null>(null);
   const [collection, setCollection] = useState(initial);
   const [selected, setSelected] = useState<GeneratedToken | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -55,6 +85,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [solUsd, setSolUsd] = useState<number | null>(null);
   const [platformWallet, setPlatformWallet] = useState<string | null>(null);
   const [platformWalletReady, setPlatformWalletReady] = useState(false);
+  const [avalancheNetwork, setAvalancheNetwork] = useState<AvalancheNetwork | undefined>(undefined);
   const [visibleCount, setVisibleCount] = useState(COLLECTION_GRID_PAGE_SIZE);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,10 +137,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       .catch(() => {});
     void fetch("/api/network", { cache: "no-store" })
       .then((r) => r.json())
-      .then((data: { platformWallet?: string | null }) => {
+      .then((data: { platformWallet?: string | null; avalancheNetwork?: string }) => {
         if (!cancelled) {
           setPlatformWallet(data.platformWallet ?? null);
           setPlatformWalletReady(true);
+          if (data.avalancheNetwork === "mainnet" || data.avalancheNetwork === "fuji") {
+            setAvalancheNetwork(data.avalancheNetwork);
+          }
         }
       })
       .catch(() => {
@@ -169,6 +203,43 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       setPaymentMethod("slicepay");
     }
   }, [collection.payments.acceptSlicePay, collection.payments.acceptSol, paymentMethod]);
+
+  const destWallet = mintDest === "solana" ? publicKey : evmAddress;
+
+  const connectDestWallet = useCallback(async () => {
+    if (mintDest === "solana") {
+      await connect();
+      return;
+    }
+    await connectEvm();
+    await ensureAvalancheChain();
+  }, [mintDest, connect, connectEvm, ensureAvalancheChain]);
+
+  const ensureQuoteAndDryRun = useCallback(
+    async (token: GeneratedToken, recipientWallet: string) => {
+      if (!isDestinationWallet(mintDest, recipientWallet)) {
+        throw new Error(
+          mintDest === "solana"
+            ? "Connect a Solana wallet to mint onto Solana."
+            : "Connect MetaMask or Core to mint onto Avalanche.",
+        );
+      }
+      setMessage("Quoting mint + gas…");
+      const quote = await requestMintQuote({
+        collectionId: collection.id,
+        tokenId: token.tokenId,
+        destination: mintDest,
+        recipient: recipientWallet,
+      });
+      setMintQuote(quote);
+      setMessage("Simulating mint. Ginger will not charge if this fails…");
+      await runMintDryRun(collection.id, quote.dryRunId);
+      setDryRunId(quote.dryRunId);
+      setMessage(null);
+      return quote;
+    },
+    [collection.id, mintDest],
+  );
 
   useEffect(() => {
     fetch("/api/slicepay/invoice")
@@ -333,12 +404,26 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }
 
   async function startCheckout(token: GeneratedToken, kind: "primary_mint" | "secondary_buy" = "primary_mint") {
-    if (!publicKey || isPhantom) {
-      if (isPhantom) {
-        setMessage("Phantom does not work with SlicePay. Connect Solflare, Backpack, or MetaMask.");
+    if (kind === "primary_mint") {
+      if (!destWallet) {
+        await connectDestWallet();
+        return;
       }
-      await connect({ excludeWalletIds: ["phantom"] });
-      return;
+      try {
+        await ensureQuoteAndDryRun(token, destWallet);
+      } catch (e) {
+        setMessage(e instanceof Error ? e.message : "Dry-run failed");
+        return;
+      }
+    }
+    if (!publicKey || isPhantom) {
+      if (kind === "secondary_buy" || mintDest === "solana") {
+        if (isPhantom) {
+          setMessage("Phantom does not work with SlicePay. Connect Solflare, Backpack, or MetaMask.");
+        }
+        await connect({ excludeWalletIds: ["phantom"] });
+        return;
+      }
     }
     setBusy(true);
     setMessage(null);
@@ -365,7 +450,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           redirectUrl: buildSlicePayReturnUrl(collection.slug || collection.id, token.tokenId),
           collectionId: collection.id,
           tokenId: token.tokenId,
-          payerWallet: publicKey,
+          payerWallet: kind === "primary_mint" ? destWallet || publicKey : publicKey,
           kind,
         }),
       }).then((r) => r.json());
@@ -392,6 +477,10 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }
 
   async function payWithSol(token: GeneratedToken) {
+    if (mintDest !== "solana") {
+      setMessage("SOL pay-and-mint is only for Solana destinations. Pick Solana or pay with SlicePay.");
+      return;
+    }
     if (!publicKey) {
       await connect();
       return;
@@ -409,9 +498,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     setBusy(true);
     setMessage(null);
     try {
-      // Atomic pay-and-mint: a single wallet approval both pays the price and mints the
-      // NFT (the transfer is embedded in the Core create tx). Phantom then simulates a
-      // fair swap instead of flagging a bare SOL outflow as a possible drainer.
+      await ensureQuoteAndDryRun(token, publicKey);
       await finalizeMint(token, "sol");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "SOL payment failed");
@@ -426,32 +513,50 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     txSignature?: string,
     confirmedInvoiceId?: string,
   ) {
-    if (!publicKey) return;
+    const payer = mintDest === "solana" ? publicKey : evmAddress;
+    if (!payer) {
+      await connectDestWallet();
+      return;
+    }
+    let quoteId = dryRunId;
+    if (!quoteId) {
+      const quote = await ensureQuoteAndDryRun(token, payer);
+      quoteId = quote.dryRunId;
+    }
+    if (!quoteId) throw new Error("Dry-run required before mint");
     const network = await getClientNetwork();
     setClientNetwork(network);
+    const giftTo =
+      mintDest === "solana" && collection.payments.giftMintEnabled && recipient ? recipient : payer;
     const res = await fetch(`/api/collections/${collection.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await buildAuthHeaders(publicKey)),
+        ...(await buildAuthHeaders(payer)),
       },
       body: JSON.stringify({
         action: "mint",
-        payer: publicKey,
-        recipient: collection.payments.giftMintEnabled && recipient ? recipient : publicKey,
+        payer,
+        recipient: giftTo,
         qty: 1,
         tokenId: token.tokenId,
         method,
         invoiceId: method === "slicepay" ? (confirmedInvoiceId ?? invoiceId) : undefined,
         txSignature: method === "sol" ? txSignature : undefined,
         network,
+        dryRunId: quoteId,
+        destination: mintDest,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    setCollection(data.collection);
-    if (data.requiresOnChainMint) {
+    if (data.collection) setCollection(data.collection);
+    if (data.requiresDestinationMint) {
+      setMessage("Approve the destination mint in your wallet. You pay this chain’s gas.");
+      await completeEvmDestinationMint(token, payer, quoteId);
+    } else if (data.requiresOnChainMint) {
       setMessage("Approve pay + mint in your wallet…");
+      await payHomeDebitIfNeeded(payer, quoteId);
       await completeOnChainMint(token.tokenId, data.collection);
     } else {
       const feeNote =
@@ -468,19 +573,112 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     setCheckoutPending(false);
     setInvoiceId(null);
     setSelected(null);
+    setDryRunId(null);
+    setMintQuote(null);
+  }
+
+  async function payHomeDebitIfNeeded(wallet: string, quoteId: string) {
+    let prep = await prepareDestinationMint({
+      collectionId: collection.id,
+      dryRunId: quoteId,
+      wallet,
+      debitPayer: publicKey ?? undefined,
+    });
+    if (prep.next === "need_solana_for_debit" || prep.next === "user_sign_solana_debit") {
+      if (!publicKey) await connect();
+      const solPayer = publicKey;
+      if (!solPayer) {
+        throw new Error("Connect a Solana wallet to lock this token on home. You pay that gas.");
+      }
+      if (prep.next === "need_solana_for_debit") {
+        prep = await prepareDestinationMint({
+          collectionId: collection.id,
+          dryRunId: quoteId,
+          wallet,
+          debitPayer: solPayer,
+        });
+      }
+      if (prep.next === "user_sign_solana_debit") {
+        if (!prep.txBase64) throw new Error("Home debit transaction was not returned");
+        setMessage("Approve home-chain debit in your Solana wallet. You pay this gas.");
+        const sig = await signAndSendTx(prep.txBase64);
+        const next = await confirmHomeDebit({
+          collectionId: collection.id,
+          dryRunId: quoteId,
+          wallet,
+          txHash: sig,
+        });
+        setCollection(next);
+      }
+      return;
+    }
+    if (prep.next !== "user_send_debit") return;
+    if (!prep.to || !prep.data) throw new Error("Home debit transaction was not returned");
+    if (!evmAddress) await connectEvm();
+    await ensureAvalancheChain();
+    setMessage("Approve home-chain debit in MetaMask or Core. You pay this gas.");
+    const txHash = await sendContractTx(prep.to, prep.data);
+    const next = await confirmHomeDebit({
+      collectionId: collection.id,
+      dryRunId: quoteId,
+      wallet,
+      txHash,
+    });
+    setCollection(next);
+  }
+
+  async function completeEvmDestinationMint(token: GeneratedToken, wallet: string, quoteId: string) {
+    await payHomeDebitIfNeeded(wallet, quoteId);
+    await ensureAvalancheChain();
+    const prep = await prepareDestinationMint({
+      collectionId: collection.id,
+      dryRunId: quoteId,
+      wallet,
+      debitPayer: publicKey ?? undefined,
+    });
+    if (prep.next === "solana_sign_mint") {
+      await completeOnChainMint(token.tokenId);
+      return;
+    }
+    if (!prep.to || !prep.data) throw new Error("Destination mint transaction was not returned");
+    const txHash = await sendContractTx(prep.to, prep.data);
+    const next = await confirmDestinationMint({
+      collectionId: collection.id,
+      dryRunId: quoteId,
+      wallet,
+      txHash,
+    });
+    setCollection(next);
+    const loc = next.tokens.find((t) => t.tokenId === token.tokenId)?.location;
+    if (loc === "in_flight") {
+      setMessage("Mint submitted. Waiting for Fuji L1 remote…");
+      const arrived = await confirmL1Arrival({
+        collectionId: collection.id,
+        tokenId: token.tokenId,
+        wallet,
+      });
+      if (arrived) {
+        setCollection(arrived);
+        setMessage(`Minted #${token.tokenId} onto Avalanche L1`);
+      }
+    } else {
+      setMessage(`Minted #${token.tokenId} onto ${chainLabel(mintDest)}`);
+    }
   }
 
   async function finalizeSecondaryBuy(token: GeneratedToken, confirmedInvoiceId?: string) {
-    if (!publicKey) return;
+    const loc = token.location ?? "solana";
+    const payer = loc === "solana" ? publicKey : evmAddress;
+    if (!payer) return;
     const res = await fetch(`/api/collections/${collection.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await buildAuthHeaders(publicKey)),
+        ...(await buildAuthHeaders(payer)),
       },
       body: JSON.stringify({
         action: "buy_secondary",
-        payer: publicKey,
+        payer,
         tokenId: token.tokenId,
         method: isDemoCheckout ? "demo" : "slicepay",
         invoiceId: confirmedInvoiceId ?? invoiceId,
@@ -499,8 +697,11 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }
 
   async function listForSale(token: GeneratedToken) {
-    if (!publicKey) {
-      await connect();
+    const wallet =
+      token.owner?.startsWith("0x") ? evmAddress : publicKey;
+    if (!wallet) {
+      if (token.owner?.startsWith("0x")) await connectEvm();
+      else await connect();
       return;
     }
     const priceUsd = Number(listPrice);
@@ -512,7 +713,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     try {
       const headers = {
         "Content-Type": "application/json",
-        ...(await buildAuthHeaders(publicKey)),
+        ...(await buildAuthHeaders(wallet)),
       };
       const res = await fetch(`/api/collections/${collection.id}`, {
         method: "POST",
@@ -531,12 +732,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   }
 
   async function unlist(token: GeneratedToken) {
-    if (!publicKey) return;
+    const wallet = token.owner?.startsWith("0x") ? evmAddress : publicKey;
+    if (!wallet) return;
     setBusy(true);
     try {
       const headers = {
         "Content-Type": "application/json",
-        ...(await buildAuthHeaders(publicKey)),
+        ...(await buildAuthHeaders(wallet)),
       };
       const res = await fetch(`/api/collections/${collection.id}`, {
         method: "POST",
@@ -639,9 +841,14 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             </div>
             <div className="min-w-0">
               <p className="font-[family-name:var(--font-mono)] text-[11px] tracking-[0.22em] text-white/40">
-                {collection.chain.toUpperCase()} · {collection.symbol}
+                {chainLabel(collectionHomeChain(collection)).toUpperCase()} · {collection.symbol}
               </p>
               <h1 className="mt-2 break-words text-3xl font-bold tracking-tight text-white sm:text-5xl">{collection.name}</h1>
+              <CollectionContractLinks
+                collection={collection}
+                solanaClusterQuery={explorerCluster}
+                avalancheNetwork={avalancheNetwork}
+              />
               <div className="mt-4">
                 <CollectionSocialLinks socials={socials} />
               </div>
@@ -693,7 +900,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 SPL from each buyback lands in this wallet.
               </p>
               <a
-                href={`https://explorer.solana.com/address/${buybackTreasuryWallet}${explorerCluster}`}
+                href={explorerAddressUrl("solana", buybackTreasuryWallet, {
+                  solanaClusterQuery: explorerCluster,
+                })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 block break-all font-mono text-xs text-white/80 hover:text-[#f5c542] hover:underline"
@@ -903,6 +1112,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                       {isTokenSold(selected, collection) ? "SOLD" : "AVAILABLE"}
                     </p>
                     <h3 className="mt-1 break-words text-2xl font-bold text-white sm:text-3xl">{tokenName(collection, selected)}</h3>
+                    <div className="mt-2">
+                      <TokenLocationBadge location={selected.location} />
+                    </div>
                     {(() => {
                       const rarity = tokenOverallRarity(
                         selected,
@@ -965,18 +1177,30 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                         <p className="text-white/40 uppercase tracking-wider text-[10px]">Owner wallet</p>
                         <p className="mt-0.5 font-mono text-white break-all">{selected.owner}</p>
                         <p className="mt-1 text-white/40">
-                          The NFT was sent to this address. Check this wallet in Phantom.
+                          The NFT was sent to this address. Check this wallet in{" "}
+                          {isEvmAddress(selected.owner) ? "MetaMask or Core" : "Phantom"}.
                         </p>
                       </div>
                     )}
                     {selected.assetAddress && (
                       <a
-                        href={`https://explorer.solana.com/address/${selected.assetAddress}${explorerCluster}`}
+                        href={
+                          selected.location && selected.location !== "solana" && selected.location !== "in_flight"
+                            ? explorerNftUrl(
+                                selected.location,
+                                selected.spokeAddress || selected.assetAddress,
+                                selected.tokenId,
+                                { avalancheNetwork },
+                              )
+                            : explorerAddressUrl("solana", selected.assetAddress, {
+                                solanaClusterQuery: explorerCluster,
+                              })
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block text-primary hover:underline"
                       >
-                        View asset on Solana Explorer ↗
+                        View asset on {selected.location === "solana" || !selected.location ? "Solana Explorer" : "Snowtrace"} ↗
                       </a>
                     )}
                     {selected.mintTxUrl && (
@@ -1033,7 +1257,8 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 {/* Secondary: owner list / unlist */}
                 {collection.secondaryEnabled &&
                   isTokenSold(selected, collection) &&
-                  selected.owner === publicKey && (
+                  (selected.owner === publicKey ||
+                    (Boolean(evmAddress) && selected.owner?.toLowerCase() === evmAddress?.toLowerCase())) && (
                   <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
                     <p className="text-xs text-white/50">Your NFT on the secondary market</p>
                     {selected.listing ? (
@@ -1072,20 +1297,67 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
                 {!isTokenSold(selected, collection) && collection.status === "live" && (
                   <div className="mt-5 space-y-3">
-                    {collection.payments.giftMintEnabled && (
+                    {destinations.length > 1 && (
+                      <div>
+                        <p className="text-xs text-white/50">Mint onto</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {destinations.map((dest) => (
+                            <button
+                              key={dest}
+                              type="button"
+                              onClick={() => {
+                                setMintDest(dest);
+                                setDryRunId(null);
+                                setMintQuote(null);
+                              }}
+                              className={`rounded-full px-3 py-1 text-xs ${
+                                mintDest === dest ? "bg-primary text-white" : "bg-white/10 text-white/60"
+                              }`}
+                            >
+                              {CHAIN_DESCRIPTORS[dest].label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-[11px] text-white/45">
+                          Connect the wallet for that chain. You pay its gas. If you mint off the home chain, you also pay a small home-chain debit in that chain’s wallet. Ginger does not.
+                        </p>
+                      </div>
+                    )}
+                    {mintQuote && (
+                      <dl className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/60 space-y-1">
+                        <div className="flex justify-between"><dt>Mint</dt><dd>{formatUsd(mintQuote.lineItems.mintUsd)}</dd></div>
+                        <div className="flex justify-between"><dt>Ginger 1%</dt><dd>{formatUsd(mintQuote.lineItems.platformUsd)}</dd></div>
+                        <div className="flex justify-between"><dt>Creator</dt><dd>{formatUsd(mintQuote.lineItems.creatorUsd)}</dd></div>
+                        {mintQuote.offHome && mintQuote.lineItems.homeDebitUsd > 0 && (
+                          <div className="flex justify-between"><dt>Home debit gas (you pay)</dt><dd>{formatUsd(mintQuote.lineItems.homeDebitUsd)}</dd></div>
+                        )}
+                        <div className="flex justify-between"><dt>Dest gas ({mintQuote.destGasSymbol}, you pay)</dt><dd>{formatUsd(mintQuote.lineItems.destGasUsd)}</dd></div>
+                      </dl>
+                    )}
+                    {mintDest === "solana" && collection.payments.giftMintEnabled && (
                       <input
                         className="input"
-                        placeholder="Gift to wallet (optional)"
+                        placeholder="Gift to Solana wallet (optional)"
                         value={recipient}
                         onChange={(e) => setRecipient(e.target.value)}
                       />
                     )}
+                    {mintDest !== "solana" && !evmAddress && (
+                      <button
+                        type="button"
+                        onClick={() => void connectEvm()}
+                        className="w-full rounded-lg border border-primary/50 py-2 text-sm text-white"
+                      >
+                        Connect MetaMask or Core
+                      </button>
+                    )}
 
                     {(collection.payments.acceptSlicePay ||
                       collection.payments.acceptSol ||
-                      collection.payments.acceptUsdc) && (
+                      collection.payments.acceptUsdc ||
+                      collection.payments.acceptAvax) && (
                       <div className="flex gap-2 text-xs">
-                        {collection.payments.acceptSol && (
+                        {collection.payments.acceptSol && mintDest === "solana" && (
                           <button
                             type="button"
                             onClick={() => setPaymentMethod("sol")}

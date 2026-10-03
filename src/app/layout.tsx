@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Outfit, IBM_Plex_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Layout/Header";
-import Footer from "@/components/Layout/Footer";
+import "@/components/ginger/ginger.css";
 import ScrollToTop from "@/components/ScrollToTop";
 import { FeedbackPill } from "@/components/FeedbackPill";
 import Aoscompo from "@/utils/aos";
 import { SolanaAdapterProvider } from "@/components/SolanaAdapterProvider";
 import { WalletProvider } from "@/components/WalletProvider";
+import { EvmWalletRoot } from "@/components/EvmWalletRoot";
+import { EvmWalletProvider } from "@/components/EvmWalletProvider";
 import { GlobalSearchProvider } from "@/components/GlobalSearch";
 import { Analytics } from "@/components/seo/Analytics";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -19,16 +20,9 @@ import {
   organizationJsonLd,
 } from "@/lib/seo";
 
-const display = Bricolage_Grotesque({
+const sans = Inter({
   subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["700", "800"],
-});
-
-const body = Outfit({
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "600"],
+  variable: "--font-sans",
 });
 
 const mono = IBM_Plex_Mono({
@@ -94,25 +88,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${display.variable} ${body.variable} ${mono.variable} font-[family-name:var(--font-body)]`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+      <body className="font-[family-name:var(--font-body)]">
         <JsonLd data={organizationJsonLd()} />
         <Analytics />
         <SolanaAdapterProvider>
-          <WalletProvider>
-            <GlobalSearchProvider>
-              <div className="flour" aria-hidden />
-              <Header />
-              <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
-                <Aoscompo>
-                  {children}
-                  <Footer />
-                </Aoscompo>
-              </div>
-              <ScrollToTop />
-              <FeedbackPill />
-            </GlobalSearchProvider>
-          </WalletProvider>
+          <EvmWalletRoot>
+            <EvmWalletProvider>
+              <WalletProvider>
+                <GlobalSearchProvider>
+                  <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
+                    <Aoscompo>{children}</Aoscompo>
+                  </div>
+                  <ScrollToTop />
+                  <FeedbackPill />
+                </GlobalSearchProvider>
+              </WalletProvider>
+            </EvmWalletProvider>
+          </EvmWalletRoot>
         </SolanaAdapterProvider>
       </body>
     </html>

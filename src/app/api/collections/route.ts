@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCollection, listCollectionNav, listCollections, saveCollection, slugify } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
-import { readAuthHeaders, assertCreatorAuth } from "@/lib/wallet-auth";
+import { readAuthHeaders, readAuthHeadersAsync, assertCreatorAuth } from "@/lib/wallet-auth";
 import { filterCollectionsForViewer, isListedPublicly, toPublicCollection, toPublicListCollection } from "@/lib/public-collection";
 import type { Collection } from "@/lib/types";
 import { getQuote } from "@/lib/quotes";
@@ -11,6 +11,16 @@ import { parseNetwork } from "@/lib/solana-config";
 import { FEATURE_ON_MARKET_DAYS, FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
 import { getClientIp } from "@/lib/request-ip";
 import { getMarketCards, getMarketCardsFresh, toSearchItem } from "@/lib/market-data";
+import {
+  avalancheL1MintEnabled,
+  getAvalancheFactoryAddress,
+  getEvmMinterPrivateKey,
+} from "@/lib/avalanche-config";
+import {
+  collectionHomeChain,
+  collectionMintDestinations,
+  isEvmAddress,
+} from "@/lib/chain-registry";
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,7 +46,7 @@ export async function GET(req: NextRequest) {
         collections: nav.filter((c) => isListedPublicly(c as Collection)),
       });
     }
-    const auth = readAuthHeaders(req);
+    const auth = (await readAuthHeadersAsync(req)) ?? readAuthHeaders(req);
     const collections = await listCollections();
     const wallet = auth?.wallet;
     return NextResponse.json({
@@ -77,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const auth = readAuthHeaders(req);
+  const auth = (await readAuthHeadersAsync(req)) ?? readAuthHeaders(req);
 
   try {
     assertCreatorAuth(auth, existing.payments.creatorWallet);
@@ -90,6 +100,7 @@ export async function POST(req: NextRequest) {
     pendingMint: _pendingMint,
     pendingZipUrl: _pendingZipUrl,
     pendingCoreCollection: _pendingCoreCollection,
+    activeMintQuote: _activeMintQuote,
     tokens: _tokens,
     featuredUntil: _featuredUntil,
     featureOnMarket: _featureOnMarket,
@@ -110,6 +121,7 @@ export async function POST(req: NextRequest) {
   void _treasuryBuybackActive;
   void _pendingMint;
   void _pendingZipUrl;
+  void _activeMintQuote;
   void _tokens;
   void _featuredUntil;
   void _featureOnMarket;
@@ -124,6 +136,13 @@ export async function POST(req: NextRequest) {
     description: body.description !== undefined ? body.description : existing.description,
     nameTemplate: body.nameTemplate !== undefined ? body.nameTemplate : existing.nameTemplate,
     symbol: body.symbol !== undefined ? body.symbol : existing.symbol,
+    chain: body.chain ?? existing.chain,
+    homeChain: body.homeChain ?? existing.homeChain ?? body.chain ?? existing.chain,
+    mintDestinations: body.mintDestinations ?? existing.mintDestinations,
+    onChainCollectionAddress:
+      body.onChainCollectionAddress ?? existing.onChainCollectionAddress,
+    l1RemoteAddress: body.l1RemoteAddress ?? existing.l1RemoteAddress,
+    coreCollectionTxUrl: body.coreCollectionTxUrl ?? existing.coreCollectionTxUrl,
     payments: {
       ...existing.payments,
       ...body.payments,
@@ -216,7 +235,9 @@ export async function POST(req: NextRequest) {
     if (!merged.fees.locked) merged.fees = { ...merged.fees, locked: true };
     merged.publicMintOpen = merged.allowlist.length === 0;
 
-    if (!merged.coreCollectionAddress) {
+    const hasOnChain =
+      Boolean(merged.coreCollectionAddress) || Boolean(merged.onChainCollectionAddress);
+    if (!hasOnChain) {
       return NextResponse.json(
         {
           error:
@@ -224,6 +245,56 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    const dests = collectionMintDestinations(merged);
+    const wantsAvax = dests.includes("avalanche") || dests.includes("avalanche_l1");
+    if (wantsAvax) {
+      if (!getAvalancheFactoryAddress()) {
+        return NextResponse.json(
+          {
+            error:
+              "Avalanche factory is not configured. Deploy with npm run deploy:avalanche-factory and set AVALANCHE_FACTORY_ADDRESS_MAINNET or AVALANCHE_FACTORY_ADDRESS_FUJI.",
+          },
+          { status: 400 },
+        );
+      }
+      if (!getEvmMinterPrivateKey()) {
+        return NextResponse.json(
+          { error: "AVALANCHE_MINTER_KEY is required before Avalanche collections can go live." },
+          { status: 400 },
+        );
+      }
+      if (!merged.onChainCollectionAddress || !isEvmAddress(merged.onChainCollectionAddress)) {
+        return NextResponse.json(
+          {
+            error:
+              "C-Chain collection is missing. Approve the Avalanche collection transaction, then try again.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+    if (dests.includes("avalanche_l1") && !avalancheL1MintEnabled()) {
+      return NextResponse.json(
+        {
+          error:
+            "Avalanche L1 minting is not enabled. On mainnet set AVALANCHE_L1_RPC_URL to a dedicated L1 RPC (not C-Chain).",
+        },
+        { status: 400 },
+      );
+    }
+    if (collectionHomeChain(merged) === "solana") {
+      const core = merged.coreCollectionAddress?.trim();
+      if (!core || isEvmAddress(core)) {
+        return NextResponse.json(
+          {
+            error:
+              "Solana Core collection is missing. Approve the collection transaction in your Solana wallet, then try again.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     if (body.featureOnMarket) {

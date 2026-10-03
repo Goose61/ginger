@@ -1,5 +1,6 @@
 import { slugify } from "@/lib/store";
-import { defaultPayments, type Collection } from "@/lib/types";
+import { homeChainToDestination, parseHomeChain } from "@/lib/chain-registry";
+import { defaultPayments, type ChainKey, type Collection, type MintDestination } from "@/lib/types";
 
 const DEFAULT_ROYALTY_BPS = 500;
 
@@ -9,7 +10,14 @@ export function buildImportingCollectionStub(params: {
   description: string;
   creatorWallet: string;
   pendingZipUrl?: string;
+  homeChain?: ChainKey;
+  mintDestinations?: MintDestination[];
 }): Collection {
+  const homeChain = parseHomeChain(params.homeChain);
+  const homeDest = homeChainToDestination(homeChain);
+  const mintDestinations = Array.from(
+    new Set<MintDestination>([homeDest, ...(params.mintDestinations ?? [])]),
+  );
   const now = new Date().toISOString();
   return {
     id: params.id,
@@ -18,7 +26,15 @@ export function buildImportingCollectionStub(params: {
     symbol: params.name.slice(0, 6).toUpperCase().replace(/\s/g, ""),
     description: params.description,
     nameTemplate: "{name} #{id}",
-    chain: "solana",
+    chain: homeChain,
+    homeChain,
+    mintDestinations,
+    payments: defaultPayments({
+      giftMintEnabled: true,
+      creatorWallet: params.creatorWallet,
+      acceptSol: homeChain === "solana",
+      acceptAvax: homeChain === "avalanche",
+    }),
     status: "importing",
     supply: 0,
     mintedCount: 0,
@@ -31,7 +47,6 @@ export function buildImportingCollectionStub(params: {
     revealed: true,
     royaltyBps: DEFAULT_ROYALTY_BPS,
     milestones: [],
-    payments: defaultPayments({ giftMintEnabled: true, creatorWallet: params.creatorWallet }),
     fees: {
       ownerPercent: 98,
       holdersPercent: 1,

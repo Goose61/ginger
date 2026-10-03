@@ -20,6 +20,7 @@ export async function verifyMintTransaction(
   txSignature: string,
   network: SolanaNetwork,
   expectedAssetAddress?: string,
+  opts?: { merkleTree?: string },
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   try {
     const tx = await rpcCall<{
@@ -37,9 +38,15 @@ export async function verifyMintTransaction(
     if (tx.meta?.err) {
       return { ok: false, reason: `Transaction failed on-chain: ${JSON.stringify(tx.meta.err)}` };
     }
+    const keys = tx.transaction?.message?.accountKeys ?? [];
+    const serialized = JSON.stringify(keys);
+    if (opts?.merkleTree) {
+      if (!serialized.includes(opts.merkleTree)) {
+        return { ok: false, reason: "Transaction does not involve the expected merkle tree." };
+      }
+      return { ok: true };
+    }
     if (expectedAssetAddress) {
-      const keys = tx.transaction?.message?.accountKeys ?? [];
-      const serialized = JSON.stringify(keys);
       if (!serialized.includes(expectedAssetAddress)) {
         return { ok: false, reason: "Transaction does not involve the expected mint asset." };
       }

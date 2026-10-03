@@ -1,3 +1,5 @@
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 # Ginger NFT Marketplace Security Report
 
 **Version:** 1.0  
@@ -7,6 +9,8 @@
 This document describes the security measures built into Ginger for collectors, creators, and partners. It is intended for public review during our beta period.
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 1. Overview
 
@@ -19,6 +23,8 @@ Ginger is a Solana NFT marketplace for launching collections, primary mints, and
 Ginger mints **Metaplex Core** assets on Solana. Art and metadata are published to permanent storage (Arweave via Irys) at go-live.
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 2. Wallet authentication
 
@@ -34,6 +40,8 @@ Ginger uses **wallet signatures**, not passwords.
 Allowlist checks use your **signed wallet address**, not a typed-in field, so early-access lists cannot be bypassed by impersonating another wallet.
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 3. Payment security
 
@@ -59,6 +67,8 @@ Allowlist checks use your **signed wallet address**, not a typed-in field, so ea
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 4. Minting & NFT integrity
 
 | Control | Detail |
@@ -72,6 +82,8 @@ Allowlist checks use your **signed wallet address**, not a typed-in field, so ea
 Compressed NFTs (cNFTs) are **not** supported. Ginger uses full Core assets only.
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 5. Marketplace & access control
 
@@ -97,6 +109,8 @@ Compressed NFTs (cNFTs) are **not** supported. Ginger uses full Core assets only
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 6. Web application protection
 
 Ginger sends industry-standard security headers on every response:
@@ -118,6 +132,8 @@ Production error pages do not expose stack traces or internal paths. Server tech
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 7. Uploads & media
 
 | Control | Detail |
@@ -128,6 +144,8 @@ Production error pages do not expose stack traces or internal paths. Server tech
 | **Solana RPC proxy** | Rate-limited with request body size caps to prevent abuse. |
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 8. API abuse prevention
 
@@ -146,6 +164,8 @@ Client IP detection uses trusted hosting headers to reduce spoofing via `X-Forwa
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 9. Privacy & data
 
 - Ginger **does not use password accounts.** Your identity is your public wallet address.
@@ -155,6 +175,8 @@ Client IP detection uses trusted hosting headers to reduce spoofing via `X-Forwa
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 10. Dependencies & maintenance
 
 - Production dependencies are scanned with **`npm audit`** on each release cycle.
@@ -162,6 +184,8 @@ Client IP detection uses trusted hosting headers to reduce spoofing via `X-Forwa
 - Next.js and core framework packages are kept on supported patch versions.
 
 ---
+
+![Ginger](https://www.gingernft.store/images/ginger.png)
 
 ## 11. Security review summary (September 2026)
 
@@ -178,6 +202,8 @@ A structured review covered payments, access control, headers, uploads, and depe
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 12. Responsible disclosure
 
 If you believe you have found a security issue:
@@ -189,9 +215,11 @@ Please allow reasonable time to investigate and patch before public disclosure. 
 
 ---
 
+![Ginger](https://www.gingernft.store/images/ginger.png)
+
 ## 13. Beta notice
 
-Ginger is in **public beta**. Features and economics may change. This report reflects controls in place at the date above; it is not a third-party certification or guarantee of zero risk. Use the marketplace with the same care you would on any on-chain product. Verify transactions in your wallet before approving.
+Ginger is in **public beta**. Features and economics may change. This report reflects the protections in place at the date above. It is not a third-party certification. Use the marketplace with the same care you would on any on-chain product. Verify transactions in your wallet before approving.
 
 ---
 

@@ -5,23 +5,15 @@ import { HeaderItem } from "@/types/menu";
  * Reference material lives under "Learn" so the bar stays to three verbs + one dropdown.
  */
 export const headerData: HeaderItem[] = [
-  { label: "Explore", href: "/" },
+  { label: "Explore", href: "/explore" },
   { label: "Launch", href: "/launch" },
   { label: "Gift", href: "/gift" },
-  {
-    label: "Learn",
-    href: "/faq",
-    submenu: [
-      { label: "FAQ", href: "/faq" },
-      { label: "Security", href: "/security" },
-      { label: "About", href: "/about" },
-    ],
-  },
+  { label: "Learn", href: "/learn" },
 ];
 
 /** Flat list for footer columns. */
 export const exploreLinks = [
-  { label: "Market", href: "/" },
+  { label: "Market", href: "/explore" },
   { label: "Gift an NFT", href: "/gift" },
   { label: "FAQ", href: "/faq" },
 ];

@@ -24,7 +24,7 @@ function umiCluster(network: SolanaNetwork): Cluster {
 function createMinimalFetchRpc(
   rpcUrl: string,
   network: SolanaNetwork,
-): Pick<RpcInterface, "getEndpoint" | "getCluster" | "getAccount" | "getAccounts"> {
+): Pick<RpcInterface, "getEndpoint" | "getCluster" | "getAccount" | "getAccounts" | "getRent"> {
   async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
     const res = await fetch(rpcUrl, {
       method: "POST",
@@ -73,6 +73,10 @@ function createMinimalFetchRpc(
     },
     async getAccounts(pubkeys: PublicKey[], options): Promise<MaybeRpcAccount[]> {
       return Promise.all(pubkeys.map((pk) => this.getAccount(pk, options)));
+    },
+    async getRent(bytes: number) {
+      const result = await rpcCall<number>("getMinimumBalanceForRentExemption", [bytes]);
+      return lamports(result ?? 0);
     },
   };
 }

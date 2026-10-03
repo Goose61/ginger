@@ -1,5 +1,5 @@
 /**
- * POST /api/gift  — build Core mint tx from client-uploaded Arweave URIs
+ * POST /api/gift  — build Bubblegum V2 (cNFT) mint tx from client-uploaded Arweave URIs
  * PATCH /api/gift — confirm on-chain mint after wallet signature
  *
  * Each gift appends a token to the shared gift bundle collection (Market UI).
@@ -10,7 +10,8 @@ import { saveCollection, getCollection } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 import { type GeneratedToken } from "@/lib/types";
-import { buildGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
+import { isValidSolanaAddress } from "@/lib/mint-nft";
+import { buildCnftGiftTransaction } from "@/lib/mint-cnft";
 import {
   appendGiftToken,
   findGiftToken,
@@ -31,6 +32,7 @@ import { toPublicCollection } from "@/lib/public-collection";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  try {
   const ip = getClientIp(req);
   const rl = await rateLimit(`gift:${ip}`, 20, 60 * 60 * 1000);
   if (!rl.allowed)
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
   let assetAddress: string | null = null;
   let pendingMint = undefined;
 
-  const txResult = await buildGiftTransaction({
+  const txResult = await buildCnftGiftTransaction({
     name: nftName,
     metadataUri,
     recipient,
@@ -97,6 +99,8 @@ export async function POST(req: NextRequest) {
     imageUri,
     metadataUri,
     owner: recipient,
+    standard: "cnft",
+    ...(txResult?.pendingMint.merkleTree ? { merkleTree: txResult.pendingMint.merkleTree } : {}),
     ...(assetAddress ? { assetAddress } : {}),
   };
 
@@ -128,6 +132,12 @@ export async function POST(req: NextRequest) {
             "Image saved, but on-chain mint was skipped. Contact support.",
         }),
   });
+  } catch (err) {
+    console.error("[POST /api/gift]", err);
+    const message = err instanceof Error ? err.message : "Failed to build gift mint";
+    const status = message.includes("not configured") ? 503 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -158,6 +168,11 @@ export async function PATCH(req: NextRequest) {
     txSignature,
     network,
     collection.pendingMint?.assetAddress || token.assetAddress,
+    collection.pendingMint?.merkleTree
+      ? { merkleTree: collection.pendingMint.merkleTree }
+      : token.merkleTree
+        ? { merkleTree: token.merkleTree }
+        : undefined,
   );
   if (!verified.ok) {
     return NextResponse.json({ error: verified.reason }, { status: 400 });

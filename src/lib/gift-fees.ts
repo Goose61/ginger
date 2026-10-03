@@ -1,13 +1,17 @@
 import { fetchIrysPriceLamports } from "@/lib/irys-shared";
 
-/** Token Metadata NFT account rent (legacy TM gifts). */
+/** Token Metadata NFT account rent (legacy TM gifts / Core collection mints). */
 export const GIFT_MINT_RENT_LAMPORTS = BigInt(6_500_000);
 
 /** Mint transaction fee buffer. */
 export const GIFT_TX_FEE_LAMPORTS = BigInt(10_000);
 
-/** Extra buffer so estimates err on the safe side. */
+/** Extra buffer so Core estimates err on the safe side. */
 export const GIFT_FEE_BUFFER_LAMPORTS = BigInt(500_000);
+
+/** cNFT mint has no account rent — tx fee + compute/priority buffer. */
+export const CNFT_MINT_FEE_LAMPORTS = GIFT_TX_FEE_LAMPORTS;
+export const CNFT_MINT_BUFFER_LAMPORTS = BigInt(1_000_000);
 
 const META_BYTES = 512;
 
@@ -25,15 +29,21 @@ export function lamportsToSol(lamports: bigint): number {
   return Number(lamports) / 1_000_000_000;
 }
 
-/** Minimum SOL the payer needs for the mint step alone (after Arweave upload). */
+/** Minimum SOL the payer needs for a Core mint step (paid collections). */
 export function getMintStepMinLamports(): bigint {
   return GIFT_MINT_RENT_LAMPORTS + GIFT_TX_FEE_LAMPORTS + GIFT_FEE_BUFFER_LAMPORTS;
+}
+
+/** Minimum SOL for a Bubblegum V2 gift mint (no asset rent). */
+export function getCnftMintStepMinLamports(): bigint {
+  return CNFT_MINT_FEE_LAMPORTS + CNFT_MINT_BUFFER_LAMPORTS;
 }
 
 export async function estimateGiftFees(
   imageBytes: number,
   devnet: boolean,
   metadataBytes = META_BYTES,
+  opts?: { cnft?: boolean },
 ): Promise<GiftFeeEstimate> {
   const safeImageBytes = Math.max(0, imageBytes);
   const safeMetaBytes = Math.max(META_BYTES, metadataBytes);
@@ -47,7 +57,7 @@ export async function estimateGiftFees(
   const storageLamports = imageLamports + metaLamports;
   const storageWithBufferLamports =
     storageLamports + storageLamports / 10n + BigInt(5000);
-  const mintLamports = getMintStepMinLamports();
+  const mintLamports = opts?.cnft ? getCnftMintStepMinLamports() : getMintStepMinLamports();
   const totalLamports = storageWithBufferLamports + mintLamports;
 
   return {
@@ -66,12 +76,17 @@ export function formatInsufficientBalanceMessage(params: {
   requiredSol: number;
   mintOnly?: boolean;
   includeSalePrice?: boolean;
+  cnft?: boolean;
 }): string {
   const shortfall = Math.max(0, params.requiredSol - params.balanceSol);
   if (params.mintOnly) {
     const needFor = params.includeSalePrice
-      ? "sale price, NFT rent, and fees"
-      : "NFT account rent";
+      ? params.cnft
+        ? "sale price, compressed mint, and fees"
+        : "sale price, NFT rent, and fees"
+      : params.cnft
+        ? "the compressed mint"
+        : "NFT account rent";
     return (
       `Not enough SOL left for the mint step. You have ~${params.balanceSol.toFixed(4)} SOL ` +
       `but need ~${params.requiredSol.toFixed(4)} SOL for ${needFor}. ` +

@@ -6,7 +6,15 @@ import {
 } from "@/lib/metadata-builders";
 import { buildAuthHeaders } from "@/lib/wallet-auth-client";
 import { readJsonResponse } from "@/lib/fetch-json";
-import type { Collection, GeneratedToken, LayerCatalog, MetadataCreator, RoyaltySplit } from "@/lib/types";
+import type {
+  ChainKey,
+  Collection,
+  GeneratedToken,
+  LayerCatalog,
+  MetadataCreator,
+  MintDestination,
+  RoyaltySplit,
+} from "@/lib/types";
 
 export const TOKEN_IMPORT_BATCH_SIZE = 75;
 
@@ -26,6 +34,8 @@ export async function postImportDraft(
     stackOrder?: string[];
     sidecarJsonCount?: number;
     supply?: number;
+    homeChain?: ChainKey;
+    mintDestinations?: MintDestination[];
   },
   authHeaders?: Record<string, string>,
 ): Promise<Collection> {
@@ -80,6 +90,8 @@ export async function postImportDraftWithTokens(
     tokens: GeneratedToken[];
     sidecarJsonCount: number;
     onBatchProgress?: (done: number, total: number) => void;
+    homeChain?: ChainKey;
+    mintDestinations?: MintDestination[];
   },
   authHeaders?: Record<string, string>,
 ): Promise<Collection> {
@@ -92,6 +104,8 @@ export async function postImportDraftWithTokens(
       name: params.name,
       supply: params.tokens.length,
       sidecarJsonCount: params.sidecarJsonCount,
+      homeChain: params.homeChain,
+      mintDestinations: params.mintDestinations,
     },
     headers,
   );

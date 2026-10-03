@@ -30,6 +30,11 @@ import {
   lamportsToSol,
 } from "./gift-fees";
 import type { PendingMint } from "./types";
+import {
+  cosignAndSubmitCnftGiftTransaction,
+  isCnftPendingMint,
+  prepareCnftGiftTransactionForSigning,
+} from "./mint-cnft";
 
 /** Metaplex Core assets are locked at mint unless explicitly disabled. */
 export const DEFAULT_IMMUTABLE_METADATA = true;
@@ -49,6 +54,8 @@ export type BuildTxResult = {
 export type PrepareSignResult = {
   txBase64: string;
   assetAddress: string;
+  merkleTree?: string;
+  leafIndex?: number;
 };
 
 export function isValidSolanaAddress(addr: string): boolean {
@@ -384,6 +391,9 @@ export async function prepareGiftTransactionForSigning(params: {
   payer: string;
   network?: SolanaNetwork;
 }): Promise<PrepareSignResult> {
+  if (isCnftPendingMint(params.pendingMint)) {
+    return prepareCnftGiftTransactionForSigning(params);
+  }
   if (params.payer !== params.pendingMint.payer) {
     throw new Error("Connected wallet does not match the mint payer.");
   }
@@ -506,6 +516,9 @@ export async function cosignAndSubmitGiftTransaction(params: {
   pendingMint: PendingMint;
   network?: SolanaNetwork;
 }): Promise<string> {
+  if (isCnftPendingMint(params.pendingMint)) {
+    return cosignAndSubmitCnftGiftTransaction(params);
+  }
   const platformSecret = getPlatformSecretKey();
   if (!platformSecret) {
     throw new Error("Server mint key not configured (ARWEAVE_SOLANA_KEY).");

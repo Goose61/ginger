@@ -1,0 +1,853 @@
+/* Ginger shell. Hero rules stay under .ginger-hero; inner pages under .ginger-page. */
+
+.ginger-hero {
+  --u: max(min(calc(100vw / 1563), calc(100vh / 460)), 0.8px);
+  --ink-nav: rgba(255, 255, 255, 0.91);
+  --hairline: rgba(255, 255, 255, 0.98);
+  --glass-bg: rgba(255, 255, 255, 0.12);
+  --glass-line: rgba(255, 255, 255, 0.15);
+  --r-btn: calc(10 * var(--u));
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  isolation: isolate;
+  color: #fff;
+  font-family: var(--font-body), "Inter", "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+
+@supports (height: 100dvh) {
+  .ginger-hero {
+    --u: max(min(calc(100vw / 1563), calc(100dvh / 460)), 0.8px);
+  }
+}
+
+.ginger-hero .sky {
+  position: absolute;
+  top: calc(-1.5 * var(--u));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: auto;
+  min-height: calc(100% + 1.5 * var(--u));
+  object-fit: cover;
+  object-position: center top;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ginger-hero .veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.06);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ginger-hero .screen {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(1563 * var(--u));
+  height: calc(1006 * var(--u));
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ginger-hero .hero {
+  position: absolute;
+  left: calc(0.9 * var(--u));
+  right: calc(-0.9 * var(--u));
+  top: 0;
+  text-align: center;
+}
+
+.ginger-hero .hero > * {
+  pointer-events: auto;
+}
+
+.ginger-hero .bar,
+.ginger-page .bar {
+  z-index: 3;
+}
+
+.ginger-hero .bar {
+  position: absolute;
+  left: calc(50% - 495.5 * var(--u));
+  top: calc(7.5 * var(--u));
+  width: calc(983.5 * var(--u));
+  height: calc(36.2 * var(--u));
+}
+
+.ginger-hero .brand,
+.ginger-page .brand {
+  display: flex;
+  align-items: center;
+  color: #fff;
+  text-decoration: none;
+}
+
+.ginger-hero .brand {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ginger-hero .ginger-logo {
+  display: block;
+  width: auto;
+  height: calc(42 * var(--u));
+  object-fit: contain;
+  transition: filter 0.25s ease;
+}
+
+.ginger-hero .links,
+.ginger-page .links {
+  display: flex;
+}
+
+.ginger-hero .links {
+  position: absolute;
+  left: calc(353.8 * var(--u));
+  top: 50%;
+  transform: translateY(-50%);
+  gap: calc(25.2 * var(--u));
+}
+
+.ginger-hero .links a,
+.ginger-page .links a,
+.ginger-hero .sheet a,
+.ginger-page .sheet a {
+  color: rgba(255, 255, 255, 0.91);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ginger-hero .links a {
+  font-size: calc(11.9 * var(--u));
+  font-weight: 450;
+  letter-spacing: calc(-0.3 * var(--u));
+  transition: color 0.18s ease;
+}
+
+.ginger-hero .links a:hover,
+.ginger-page .links a:hover,
+.ginger-hero .sheet a:hover,
+.ginger-page .sheet a:hover {
+  color: #fff;
+}
+
+.ginger-hero .actions,
+.ginger-page .actions {
+  display: flex;
+  align-items: center;
+}
+
+.ginger-hero .actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  gap: calc(7.8 * var(--u));
+}
+
+.ginger-hero .btn,
+.ginger-page .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
+}
+
+.ginger-hero .btn {
+  border-radius: calc(10 * var(--u));
+}
+
+.ginger-hero .ghost,
+.ginger-page .ghost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.98);
+}
+
+.ginger-hero .ghost {
+  border-width: calc(1 * var(--u));
+}
+
+.ginger-hero .ghost:hover,
+.ginger-page .ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ginger-hero .solid,
+.ginger-page .solid {
+  background: #fff;
+  color: #000;
+}
+
+.ginger-hero .solid:hover,
+.ginger-page .solid:hover {
+  background: #e9e9ea;
+}
+
+.ginger-hero .bar .btn {
+  height: calc(36.2 * var(--u));
+  font-size: calc(11.9 * var(--u));
+  font-weight: 500;
+  letter-spacing: calc(-0.38 * var(--u));
+}
+
+.ginger-hero .bar .ghost {
+  width: calc(85.5 * var(--u));
+}
+
+.ginger-hero .bar .solid {
+  width: calc(88.2 * var(--u));
+  font-size: calc(12.15 * var(--u));
+  font-weight: 550;
+}
+
+.ginger-hero .menu,
+.ginger-page .menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ginger-hero .menu {
+  width: calc(36.2 * var(--u));
+  height: calc(36.2 * var(--u));
+  border-radius: calc(10 * var(--u));
+  border-width: calc(1 * var(--u));
+}
+
+.ginger-hero .menu svg,
+.ginger-page .menu svg {
+  width: 55%;
+  height: 55%;
+}
+
+.ginger-hero .menu:hover,
+.ginger-page .menu:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ginger-hero .sheet,
+.ginger-page .sheet {
+  display: none;
+  position: absolute;
+  right: 0;
+  min-width: 210px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(18, 18, 20, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+}
+
+.ginger-hero .sheet {
+  top: calc(100% + 9 * var(--u));
+  min-width: calc(210 * var(--u));
+  padding: calc(10 * var(--u));
+  border-radius: calc(14 * var(--u));
+}
+
+.ginger-hero .bar[data-open="true"] .sheet,
+.ginger-page .bar[data-open="true"] .sheet {
+  display: block;
+}
+
+.ginger-hero .sheet a,
+.ginger-page .sheet a {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 450;
+}
+
+.ginger-hero .sheet .solid,
+.ginger-page .sheet .solid {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  margin-top: 8px;
+  color: #000;
+}
+
+.ginger-hero .sheet .ginger-sheet-tools,
+.ginger-page .sheet .ginger-sheet-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ginger-hero .pill {
+  position: absolute;
+  top: calc(129.6 * var(--u));
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  width: calc(194.5 * var(--u));
+  height: calc(22.4 * var(--u));
+  padding-left: calc(4 * var(--u));
+  padding-right: calc(8.6 * var(--u));
+  border-radius: 999px;
+  background: var(--glass-bg);
+  border: calc(1 * var(--u)) solid var(--glass-line);
+  backdrop-filter: blur(calc(10 * var(--u)));
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 0.18s ease;
+}
+
+.ginger-hero .pill:hover {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.ginger-hero .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: calc(33.3 * var(--u));
+  height: calc(14 * var(--u));
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font-size: calc(10.2 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ginger-hero .pill-label {
+  margin-left: calc(3.4 * var(--u));
+  position: relative;
+  top: calc(1 * var(--u));
+  color: rgba(255, 255, 255, 0.88);
+  font-size: calc(12.4 * var(--u));
+  font-weight: 450;
+  letter-spacing: calc(-0.48 * var(--u));
+  height: calc(22.4 * var(--u));
+  line-height: calc(22.4 * var(--u));
+}
+
+.ginger-hero .pill svg {
+  width: calc(9.5 * var(--u));
+  height: calc(8 * var(--u));
+  margin-left: auto;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ginger-hero .hero h1 {
+  position: absolute;
+  left: calc(0.6 * var(--u));
+  right: calc(-0.6 * var(--u));
+  top: calc(168.5 * var(--u));
+  margin: 0;
+  font-size: calc(55 * var(--u));
+  font-weight: 545;
+  line-height: calc(56 * var(--u));
+  letter-spacing: calc(-0.76 * var(--u));
+  color: #fff;
+}
+
+.ginger-hero .ln {
+  display: block;
+  overflow: hidden;
+  padding-bottom: calc(7 * var(--u));
+  margin-bottom: calc(-7 * var(--u));
+}
+
+.ginger-hero .ln-i {
+  display: block;
+}
+
+.ginger-hero .hero p {
+  position: absolute;
+  left: 50%;
+  transform: translateX(calc(-50% + 0.25 * var(--u)));
+  top: calc(292.6 * var(--u));
+  margin: 0;
+  width: calc(700 * var(--u));
+  font-size: calc(15.7 * var(--u));
+  font-weight: 400;
+  line-height: calc(24 * var(--u));
+  letter-spacing: calc(-0.05 * var(--u));
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ginger-hero .cta {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(342.8 * var(--u));
+  display: flex;
+  gap: calc(9.9 * var(--u));
+}
+
+.ginger-hero .cta .btn {
+  height: calc(36.4 * var(--u));
+  padding-top: calc(2 * var(--u));
+  font-size: calc(13.3 * var(--u));
+  font-weight: 480;
+  letter-spacing: calc(-0.34 * var(--u));
+}
+
+.ginger-hero .cta .ghost {
+  width: calc(99.6 * var(--u));
+}
+
+.ginger-hero .cta .solid {
+  width: auto;
+  min-width: calc(96.4 * var(--u));
+  padding-left: calc(16 * var(--u));
+  padding-right: calc(16 * var(--u));
+}
+
+.ginger-hero .pizza-space {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  --mouse-x: 0px;
+  --mouse-y: 0px;
+}
+
+.ginger-hero .pizza-object {
+  position: absolute;
+  width: clamp(105px, 14vw, 240px);
+  aspect-ratio: 1.2;
+  filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.38));
+  animation: pizza-drift 9s ease-in-out infinite alternate;
+  --tilt: -14deg;
+  --depth: 1;
+  transform: rotate(var(--tilt));
+  translate: calc(var(--mouse-x) * var(--depth, 1)) calc(var(--mouse-y) * var(--depth, 1));
+}
+
+.ginger-hero .pizza-object img {
+  position: absolute;
+  width: 166.6667%;
+  height: auto;
+  max-width: none;
+  left: 0;
+  top: 0;
+  clip-path: polygon(0 0, 61% 0, 61% 58%, 58% 100%, 0 100%);
+}
+
+.ginger-hero .pizza-box {
+  left: 23%;
+  top: 66%;
+  --depth: 1;
+}
+
+.ginger-hero a.pizza-box {
+  pointer-events: auto;
+  cursor: pointer;
+  display: block;
+  border-radius: 12px;
+}
+
+.ginger-hero a.pizza-box img {
+  transform-origin: 30% 50%;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
+}
+
+.ginger-hero .pizza-slice {
+  width: clamp(78px, 10vw, 165px);
+  aspect-ratio: 0.82;
+  left: 70%;
+  top: 54%;
+  --tilt: 19deg;
+  --depth: 0.72;
+  animation-delay: -4s;
+  animation-duration: 11s;
+}
+
+.ginger-hero .pizza-slice img {
+  width: 250%;
+  left: -150%;
+  clip-path: polygon(61% 0, 100% 0, 100% 100%, 58% 100%, 61% 58%);
+}
+
+.ginger-hero .pizza-distant {
+  left: 60%;
+  top: 82%;
+  width: clamp(45px, 5.5vw, 92px);
+  --tilt: 28deg;
+  --depth: 0.3;
+  animation-delay: -6s;
+  animation-duration: 13s;
+  filter: brightness(0.8) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.4));
+}
+
+.ginger-hero .pizza-crumb {
+  position: absolute;
+  left: var(--cx);
+  top: var(--cy);
+  width: var(--size);
+  height: calc(var(--size) * 0.72);
+  background-image: url("/assets/images/ginger-pizza.png");
+  background-size: 110px 55px;
+  background-position: -85px -9px;
+  background-repeat: no-repeat;
+  opacity: var(--alpha, 0.65);
+  pointer-events: none;
+  translate: calc(var(--mouse-x) * 0.42) calc(var(--mouse-y) * 0.42);
+  animation: crumb-drift var(--duration, 12s) ease-in-out var(--delay, 0s) infinite alternate;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+}
+
+.ginger-hero .links a[aria-current="page"],
+.ginger-page .links a[aria-current="page"] {
+  color: #c9b9ff;
+}
+
+.ginger-hero .sheet a[aria-current="page"],
+.ginger-page .sheet a[aria-current="page"] {
+  background: rgba(155, 140, 255, 0.14);
+  color: #d6caff;
+}
+
+@keyframes pizza-drift {
+  from { transform: translate3d(-6px, 8px, 0) rotate(var(--tilt)); }
+  to { transform: translate3d(9px, -12px, 0) rotate(calc(var(--tilt) + 8deg)); }
+}
+
+@keyframes crumb-drift {
+  from { transform: translate3d(-4px, 6px, 0) rotate(var(--angle, 0deg)); }
+  to { transform: translate3d(7px, -9px, 0) rotate(calc(var(--angle, 0deg) + 65deg)); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ginger-hero .bar .btn:hover,
+  .ginger-hero .cta .btn:hover,
+  .ginger-page .bar .btn:hover {
+    box-shadow: 0 0 18px rgba(238, 138, 38, 0.22);
+  }
+
+  .ginger-hero .brand:hover .ginger-logo,
+  .ginger-page .brand:hover .ginger-logo {
+    filter: drop-shadow(0 0 7px rgba(238, 138, 38, 0.48));
+  }
+
+  .ginger-hero a.pizza-box:hover img {
+    transform: scale(1.075) rotate(-4deg);
+    filter: brightness(1.08);
+  }
+}
+
+.ginger-hero a.pizza-box:active img {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ginger-hero {
+    --e-reveal: cubic-bezier(0.18, 0.85, 0.26, 1);
+    --e-soft: cubic-bezier(0.22, 1, 0.36, 1);
+    --e-nav: cubic-bezier(0.33, 1, 0.68, 1);
+    --rise: calc(10 * var(--u));
+    --rise-lg: calc(13 * var(--u));
+  }
+
+  .ginger-hero.intro .brand,
+  .ginger-hero.intro .links a,
+  .ginger-hero.intro .actions > .btn,
+  .ginger-hero.intro .actions > .menu,
+  .ginger-hero.intro .pill,
+  .ginger-hero.intro .hero p,
+  .ginger-hero.intro .cta .btn {
+    opacity: 0;
+  }
+
+  .ginger-hero.intro .ln-i {
+    transform: translate3d(0, 115%, 0);
+  }
+
+  .ginger-hero.intro-play .brand { animation: i-rise-cy 0.62s var(--e-nav) 0s both; }
+  .ginger-hero.intro-play .links a { animation: i-rise 0.55s var(--e-nav) both; }
+  .ginger-hero.intro-play .links a:nth-child(1) { animation-delay: 0.07s; }
+  .ginger-hero.intro-play .links a:nth-child(2) { animation-delay: 0.115s; }
+  .ginger-hero.intro-play .links a:nth-child(3) { animation-delay: 0.16s; }
+  .ginger-hero.intro-play .links a:nth-child(4) { animation-delay: 0.205s; }
+  .ginger-hero.intro-play .actions > .btn,
+  .ginger-hero.intro-play .actions > .menu { animation: i-rise 0.55s var(--e-nav) 0.215s both; }
+  .ginger-hero.intro-play .pill { animation: i-pill 0.62s var(--e-soft) 0.26s both; }
+  .ginger-hero.intro-play .ln:nth-child(1) .ln-i { animation: i-line 0.95s var(--e-reveal) 0.34s both; }
+  .ginger-hero.intro-play .ln:nth-child(2) .ln-i { animation: i-line 0.95s var(--e-reveal) 0.48s both; }
+  .ginger-hero.intro-play .hero p { animation: i-sub 0.7s var(--e-soft) 0.86s both; }
+  .ginger-hero.intro-play .cta .btn:nth-child(1) { animation: i-btn 0.62s var(--e-soft) 1s both; }
+  .ginger-hero.intro-play .cta .btn:nth-child(2) { animation: i-btn 0.62s var(--e-soft) 1.07s both; }
+}
+
+@keyframes i-rise {
+  from { opacity: 0; transform: translate3d(0, var(--rise), 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes i-rise-cy {
+  from { opacity: 0; transform: translateY(-50%) translate3d(0, var(--rise), 0); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
+@keyframes i-pill {
+  from { opacity: 0; transform: translateX(-50%) translate3d(0, var(--rise-lg), 0) scale(0.972); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+@keyframes i-sub {
+  from { opacity: 0; transform: translateX(calc(-50% + 0.25 * var(--u))) translate3d(0, var(--rise-lg), 0); }
+  to { opacity: 1; transform: translateX(calc(-50% + 0.25 * var(--u))); }
+}
+@keyframes i-btn {
+  from { opacity: 0; transform: translate3d(0, var(--rise-lg), 0) scale(0.986); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes i-line {
+  from { transform: translate3d(0, 115%, 0); }
+  to { transform: none; }
+}
+
+@media (max-width: 1023px) {
+  .ginger-hero { --u: calc(100vw / 900); }
+  .ginger-hero .bar { left: 4.2vw; width: 91.6vw; }
+  .ginger-hero .links,
+  .ginger-page .links,
+  .ginger-hero .actions > .solid,
+  .ginger-page .actions > .solid,
+  .ginger-hero .ginger-wallet,
+  .ginger-page .ginger-wallet { display: none; }
+  .ginger-hero .menu,
+  .ginger-page .menu { display: inline-flex; }
+}
+
+@media (max-width: 640px) {
+  .ginger-hero { --u: calc(100vw / 486); }
+  .ginger-hero .bar { left: 5.2vw; width: 89.6vw; }
+  .ginger-hero .hero p { width: min(calc(560 * var(--u)), 88vw); line-height: calc(23 * var(--u)); }
+  .ginger-hero .actions > .ghost,
+  .ginger-page .actions > .ghost { display: none; }
+  .ginger-hero .pizza-box { left: 9%; top: 65%; width: 110px; }
+  .ginger-hero .pizza-slice { left: 73%; top: 58%; width: 72px; }
+  .ginger-hero .pizza-distant { left: 62%; top: 83%; width: 48px; }
+}
+
+@media (max-width: 380px) {
+  .ginger-hero { --u: calc(100vw / 470); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ginger-hero *,
+  .ginger-page * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .ginger-hero .pizza-object,
+  .ginger-hero .pizza-crumb {
+    translate: none !important;
+  }
+}
+
+/* Inner pages */
+.ginger-page {
+  min-height: 100svh;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 85% 100%, rgba(99, 66, 177, 0.16), transparent 55%),
+    radial-gradient(ellipse at 8% 80%, rgba(103, 186, 157, 0.06), transparent 45%),
+    #08080c;
+  color: #fff;
+}
+
+.ginger-page section {
+  background: transparent;
+}
+
+.ginger-page .bar {
+  position: relative;
+  z-index: 30;
+  top: 0;
+  left: auto;
+  display: flex;
+  align-items: center;
+  width: min(1120px, calc(100% - 64px));
+  height: 88px;
+  margin: 0 auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.ginger-page .brand {
+  position: relative;
+  transform: none;
+  flex: 0 0 auto;
+}
+
+.ginger-page .ginger-logo {
+  display: block;
+  width: auto;
+  height: 52px;
+  object-fit: contain;
+  transition: filter 0.25s ease;
+}
+
+.ginger-page .links {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  gap: 30px;
+}
+
+.ginger-page .links a {
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  font-weight: 450;
+}
+
+.ginger-page .actions {
+  position: relative;
+  margin-left: auto;
+  gap: 8px;
+}
+
+.ginger-page .bar .btn {
+  height: 38px;
+  width: 88px;
+  font-size: 13px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.ginger-page .menu {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.ginger-page .sheet {
+  top: calc(100% + 14px);
+  z-index: 40;
+}
+
+.ginger-page .page-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 72px 0 48px;
+}
+
+.ginger-page .page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.ginger-page .page-heading h1 {
+  margin: 0;
+  font-size: clamp(42px, 6vw, 76px);
+  line-height: 1.06;
+  font-weight: 545;
+  letter-spacing: -2.8px;
+  color: #fff;
+}
+
+.ginger-page .page-heading > a {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ginger-page .page-heading > a:hover {
+  color: #fff;
+}
+
+.ginger-page .content-surface {
+  min-height: clamp(380px, 57vh, 740px);
+  border: 1px solid rgba(207, 188, 255, 0.14);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.008));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.12);
+  padding: 32px;
+}
+
+.ginger-page [hidden] {
+  display: none !important;
+}
+
+.ginger-page .learn-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.ginger-page .learn-tabs button {
+  font: inherit;
+  font-size: 14px;
+  color: #aaa5b6;
+  padding: 11px 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ginger-page .learn-tabs button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ginger-page .learn-tabs button[aria-selected="true"] {
+  color: #e0d5ff;
+  background: rgba(151, 117, 236, 0.13);
+  border-color: rgba(179, 151, 248, 0.23);
+}
+
+.ginger-search {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #fff !important;
+  background: transparent !important;
+}
+
+@media (max-width: 1200px) {
+  .ginger-page .page-shell { margin: 0 32px; }
+}
+
+@media (max-width: 640px) {
+  .ginger-page .bar { width: calc(100% - 40px); height: 76px; }
+  .ginger-page .page-shell { margin: 0 20px; padding-top: 48px; }
+  .ginger-page .page-heading { margin-bottom: 26px; }
+  .ginger-page .page-heading h1 { letter-spacing: -1.6px; }
+  .ginger-page .content-surface { border-radius: 20px; padding: 20px; min-height: 58vh; }
+  .ginger-page .ginger-logo { height: 44px; }
+  .ginger-page .learn-tabs button { padding: 10px 18px; }
+}
+
+html.ginger-home,
+html.ginger-home body {
+  overflow: hidden;
+  background: #000;
+}

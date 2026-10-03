@@ -8,6 +8,7 @@ import { defaultProgramRepository } from "@metaplex-foundation/umi-program-repos
 import { web3JsEddsa } from "@metaplex-foundation/umi-eddsa-web3js";
 import { web3JsTransactionFactory } from "@metaplex-foundation/umi-transaction-factory-web3js";
 import { mplCore } from "@metaplex-foundation/mpl-core";
+import { mplBubblegum } from "@metaplex-foundation/mpl-bubblegum";
 import { attachMinimalFetchRpc } from "./minimal-fetch-rpc";
 import { getDirectRpcUrl, type SolanaNetwork } from "./solana-config";
 
@@ -18,6 +19,7 @@ export function createMintUmi(network: SolanaNetwork): Umi {
   umi.use(web3JsEddsa());
   umi.use(web3JsTransactionFactory());
   umi.use(mplCore());
+  umi.use(mplBubblegum());
   attachMinimalFetchRpc(umi, getDirectRpcUrl(network), network);
   return umi;
 }

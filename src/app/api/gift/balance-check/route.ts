@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     }
 
     const devnet = network === "devnet";
-    const fees = await estimateGiftFees(imageBytes, devnet, metadataBytes || undefined);
+    const fees = await estimateGiftFees(imageBytes, devnet, metadataBytes || undefined, { cnft: true });
     const rpcUrl = getDirectRpcUrl(network);
     const balanceLamports = await fetchWalletBalanceLamports(rpcUrl, wallet);
     const balanceSol = lamportsToSol(balanceLamports);

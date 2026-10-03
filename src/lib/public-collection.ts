@@ -145,7 +145,14 @@ function toPublicPendingCoreCollection(pending: PendingCoreCollection): PendingC
 /** Strip server-only fields before any collection leaves the process. */
 export function toPublicCollection(collection: Collection): Collection {
   const { collection: reconciled } = reconcileCollectionMintState(collection);
-  const { pendingZipUrl: _zip, pendingMint, pendingCoreCollection, ...rest } = reconciled;
+  const {
+    pendingZipUrl: _zip,
+    pendingMint,
+    pendingCoreCollection,
+    activeMintQuote: _quote,
+    ...rest
+  } = reconciled;
+  void _quote;
   void _zip;
   return {
     ...rest,

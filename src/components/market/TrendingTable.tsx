@@ -9,8 +9,11 @@ import { formatUsd, formatUsdAmount } from "@/lib/collection-ui";
 import { StatusPill } from "@/components/GlobalSearch";
 import { Shelf } from "./Shelf";
 import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
+import { chainLabel } from "@/lib/chain-registry";
+import type { ChainKey } from "@/lib/types";
 
 type Tab = "trending" | "mints" | "listings" | "newest";
+type ChainFilter = "all" | "solana" | "avalanche";
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: "trending", label: "Trending", hint: "Ranked by volume, then mint progress." },
@@ -27,23 +30,28 @@ export function TrendingTable({
   secondary: MarketCard[];
 }) {
   const [tab, setTab] = useState<Tab>("trending");
+  const [chain, setChain] = useState<ChainFilter>("all");
 
   const rows = useMemo(() => {
     const cards = live.filter((c) => c.kind !== "gift_bundle");
+    const byChain =
+      chain === "all" ? cards : cards.filter((c) => c.chain === chain);
+    const listed =
+      chain === "all" ? secondary : secondary.filter((c) => c.chain === chain);
     switch (tab) {
       case "mints":
         return sortCards(
-          cards.filter((c) => c.supply > 0 && c.mintedCount < c.supply),
+          byChain.filter((c) => c.supply > 0 && c.mintedCount < c.supply),
           "minted",
         );
       case "listings":
-        return sortCards(secondary, "volume");
+        return sortCards(listed, "volume");
       case "newest":
-        return sortCards(cards, "newest");
+        return sortCards(byChain, "newest");
       default:
-        return sortCards(cards, "volume");
+        return sortCards(byChain, "volume");
     }
-  }, [live, secondary, tab]);
+  }, [live, secondary, tab, chain]);
 
   const active = TABS.find((t) => t.id === tab)!;
 
@@ -70,6 +78,23 @@ export function TrendingTable({
             }`}
           >
             {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-1.5" aria-label="Chain filter">
+        {(["all", "solana", "avalanche"] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setChain(id)}
+            className={`h-8 rounded-full px-3 text-xs font-medium transition ${
+              chain === id
+                ? "bg-primary text-white"
+                : "border border-line text-ink-body hover:border-line-strong hover:text-ink"
+            }`}
+          >
+            {id === "all" ? "All chains" : chainLabel(id as ChainKey)}
           </button>
         ))}
       </div>
@@ -140,6 +165,9 @@ export function TrendingTable({
                           <Cover src={c.coverSrc} alt={`${c.name} cover`} size={40} />
                           <span className="flex min-w-0 items-center gap-2">
                             <span className="truncate font-medium group-hover:text-ink">{c.name}</span>
+                            <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-subtle">
+                              {chainLabel(c.chain)}
+                            </span>
                             {isLiveFeatured(c) && (
                               <Star className="h-3.5 w-3.5 shrink-0 fill-gold text-gold" aria-label="Featured" />
                             )}
@@ -225,7 +253,7 @@ function EmptyState({ tab }: { tab: Tab }) {
       </p>
       <Link
         href="/launch"
-        className="mt-5 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white hover:bg-[#b42318]"
+        className="mt-5 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white hover:bg-[#6d4ed4]"
       >
         Launch the first one
       </Link>

@@ -121,7 +121,7 @@ export function SearchTrigger({
           <kbd>⌘</kbd>
           <kbd>K</kbd>
         </span>
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white transition group-hover:bg-[#b42318]">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white transition group-hover:bg-[#6d4ed4]">
           <ArrowRight className="h-4 w-4" aria-hidden />
         </span>
       </button>
@@ -412,7 +412,7 @@ function SearchDialog({
             <kbd className="font-[family-name:var(--font-mono)]">↵</kbd> open
           </span>
           <Link
-            href="/"
+            href="/explore"
             onClick={() => onOpenChange(false)}
             className="ml-auto text-ink-muted hover:text-ink"
           >

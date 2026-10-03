@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCollection, updateCollection, saveCollection } from "@/lib/store";
 import { buildGiftTransaction, isValidSolanaAddress } from "@/lib/mint-nft";
-import { findGiftToken, isGiftBundle, syncGiftBundleCounts } from "@/lib/gift-bundle";
+import { buildCnftGiftTransaction } from "@/lib/mint-cnft";
+import { findGiftToken, isGiftBundle, isStandaloneGiftRecord, syncGiftBundleCounts } from "@/lib/gift-bundle";
 import { giftMintName } from "@/lib/gift-metadata";
 import { tokenName } from "@/lib/collection-ui";
 import { explorerClusterQuery, parseNetwork, serverNetwork, type SolanaNetwork } from "@/lib/solana-config";
@@ -111,18 +112,29 @@ export async function POST(req: NextRequest) {
           }
         : undefined;
 
-    const txResult = await buildGiftTransaction({
-      name: nftName,
-      metadataUri: token.metadataUri,
-      recipient,
-      payer,
-      network,
-      coreCollectionAddress:
-        collection.coreCollectionAddress ?? (isGiftBundle(collection) ? undefined : null),
-      ...(existingPay
-        ? { payment: { recipient: existingPay.recipient, lamports: existingPay.lamports }, saleUsd: existingPay.saleUsd }
-        : {}),
-    });
+    const payArgs = existingPay
+      ? { payment: { recipient: existingPay.recipient, lamports: existingPay.lamports }, saleUsd: existingPay.saleUsd }
+      : {};
+
+    const useCnft = isGiftBundle(collection) || isStandaloneGiftRecord(collection);
+    const txResult = useCnft
+      ? await buildCnftGiftTransaction({
+          name: nftName,
+          metadataUri: token.metadataUri,
+          recipient,
+          payer,
+          network,
+          ...payArgs,
+        })
+      : await buildGiftTransaction({
+          name: nftName,
+          metadataUri: token.metadataUri,
+          recipient,
+          payer,
+          network,
+          coreCollectionAddress: collection.coreCollectionAddress ?? null,
+          ...payArgs,
+        });
 
     if (!txResult) {
       return NextResponse.json(
@@ -136,7 +148,11 @@ export async function POST(req: NextRequest) {
 
     await updateCollection(collectionId, (c) => {
       const t = findGiftToken(c, tokenId);
-      if (t) t.assetAddress = txResult.assetAddress;
+      if (t) {
+        t.assetAddress = txResult.assetAddress;
+        if (txResult.pendingMint.standard) t.standard = txResult.pendingMint.standard;
+        if (txResult.pendingMint.merkleTree) t.merkleTree = txResult.pendingMint.merkleTree;
+      }
       c.pendingMint = { ...txResult.pendingMint, tokenId };
       if (!isGiftBundle(c) && c.supply <= 1) {
         c.status = "draft";
@@ -188,6 +204,11 @@ export async function PATCH(req: NextRequest) {
       txSignature,
       network,
       collection.pendingMint?.assetAddress || token.assetAddress,
+      collection.pendingMint?.merkleTree
+        ? { merkleTree: collection.pendingMint.merkleTree }
+        : token.merkleTree
+          ? { merkleTree: token.merkleTree }
+          : undefined,
     );
     if (!verified.ok) {
       return NextResponse.json({ error: verified.reason }, { status: 400 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCoreCollectionAddress } from "@/lib/core-collection";
+import { getBubblegumCollectionAddress, getBubblegumTreeAddress } from "@/lib/bubblegum-config";
 import { getGiftBundleId } from "@/lib/gift-bundle";
 import {
   GIFT_COLLECTION_DISPLAY_NAME,
@@ -12,7 +13,7 @@ import { getSolanaNetwork } from "@/lib/solana-config";
 
 export const runtime = "nodejs";
 
-/** Public gift-mint config (platform creator, Core collection, metadata defaults). */
+/** Public gift-mint config (platform creator, Bubblegum tree, metadata defaults). */
 export async function GET() {
   const network = getSolanaNetwork();
   const platformCreatorAddress = getPlatformPublicKey();
@@ -22,6 +23,9 @@ export async function GET() {
     network,
     platformCreatorAddress,
     coreCollectionAddress,
+    bubblegumTreeAddress: getBubblegumTreeAddress(network),
+    bubblegumCollectionAddress: getBubblegumCollectionAddress(network),
+    compressedGifts: Boolean(getBubblegumTreeAddress(network)),
     giftBundleCollectionId: getGiftBundleId(),
     giftCollectionName: GIFT_COLLECTION_DISPLAY_NAME,
     giftSymbol: GIFT_SYMBOL,

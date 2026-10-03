@@ -9,7 +9,7 @@ import { SearchTrigger } from "@/components/GlobalSearch";
 import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
 
 const TRUST = [
-  { icon: Sparkles, label: "Metaplex Core" },
+  { icon: Sparkles, label: "Solana + Avalanche" },
   { icon: Database, label: "Permanent storage" },
   { icon: Wallet, label: "You keep custody" },
   { icon: ShieldCheck, label: "Security reviewed", href: "/security" },
@@ -28,12 +28,12 @@ export function MarketHero({ live }: { live: MarketCard[] }) {
       <div className="container relative mx-auto grid max-w-6xl items-center gap-10 px-4 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div>
           <p className="eyebrow !text-gold">NFT marketplace</p>
-          <h1 className="mt-4 max-w-[13ch] font-[family-name:var(--font-display)] text-[2.6rem] font-extrabold leading-[1.02] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:text-[4rem]">
-            Launch, mint and trade collections in one place.
+          <h1 className="mt-4 max-w-[14ch] font-[family-name:var(--font-display)] text-[2.6rem] font-extrabold leading-[1.02] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:text-[4rem]">
+            Launch once. Mint onto the chain you choose.
           </h1>
           <p className="mt-5 max-w-lg text-[15px] leading-7 text-ink-body sm:text-base">
-            Creators upload finished art and go live from their wallet. Collectors mint with SOL
-            or card, then resell right here on Ginger.
+            Creators go live on Solana or Avalanche. Collectors mint onto Solana, Avalanche
+            C-Chain, or a Fuji L1 — and pay that chain’s gas. Resale stays here on Ginger.
           </p>
 
           <div className="mt-7 max-w-xl">
@@ -43,7 +43,7 @@ export function MarketHero({ live }: { live: MarketCard[] }) {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Link
               href="#trending"
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-[#b42318]"
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-[#6d4ed4]"
             >
               Explore drops
               <ArrowRight className="h-4 w-4" aria-hidden />
@@ -113,7 +113,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
           </p>
           <Link
             href="/launch"
-            className="mt-6 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white hover:bg-[#b42318]"
+            className="mt-6 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white hover:bg-[#6d4ed4]"
           >
             Launch a collection
           </Link>
@@ -159,7 +159,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
         <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 p-4">
           <Stat label="Floor" value={formatUsd(active.stats.floorUsd)} />
           <Stat label="Minted" value={`${pct}%`} bar={pct} />
-          <span className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition group-hover:bg-[#b42318]">
+          <span className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition group-hover:bg-[#6d4ed4]">
             {active.hasListings ? "View listings" : "Mint now"}
           </span>
         </div>

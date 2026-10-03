@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MILESTONE_EVENTS,
+  type ChainKey,
   type Collection,
   type GeneratedToken,
   type LayerCatalog,
   type MetadataCreator,
   type MilestoneEventId,
+  type MintDestination,
   type RoyaltySplit,
   type TraitPricing,
   type TraitRarity,
@@ -53,6 +55,10 @@ import {
   uploadCollectionWithPhantom,
 } from "@/lib/irys-client";
 import { explorerClusterQuery, getClientNetwork } from "@/lib/solana-config";
+import { snowtraceTxUrl } from "@/lib/avalanche-config";
+import { CHAIN_DESCRIPTORS, collectionHomeChain, homeChainToDestination, parseHomeChain } from "@/lib/chain-registry";
+import { useEvmWallet } from "./EvmWalletProvider";
+import { useWallet } from "./WalletProvider";
 import {
   CollectionUploadProgressOverlay,
   type CollectionUploadProgressState,
@@ -91,7 +97,6 @@ import {
   usdToSol,
   type PriceDisplayUnit,
 } from "@/lib/price-display";
-import { useWallet } from "./WalletProvider";
 
 /* ─── steps ─── */
 const WIZARD_VERSION = 2;
@@ -249,6 +254,15 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   const router = useRouter();
   const { publicKey, connect, signCoreCollectionTx, signAndSendTx, connection: walletConnection } =
     useWallet();
+  const {
+    address: evmAddress,
+    connectEvm,
+    ensureAvalancheChain,
+    sendContractTx,
+  } = useEvmWallet();
+
+  const [homeChain, setHomeChain] = useState<ChainKey>("solana");
+  const [mintDestinations, setMintDestinations] = useState<MintDestination[]>(["solana"]);
 
   const [mode, setMode] = useState<Mode>(null);
   const [step, setStep] = useState(0);
@@ -293,6 +307,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   const [launchCostsError, setLaunchCostsError] = useState<string | null>(null);
   const [featureOnMarket, setFeatureOnMarket] = useState(false);
   const [featuredPayTo, setFeaturedPayTo] = useState<string | null>(null);
+  const [avalancheFactory, setAvalancheFactory] = useState<string | null>(null);
+  const [avalancheL1Enabled, setAvalancheL1Enabled] = useState(false);
+  const [avalancheReady, setAvalancheReady] = useState(true);
 
   const uploadInProgressRef = useRef(false);
   const rezipInputRef = useRef<HTMLInputElement>(null);
@@ -318,6 +335,31 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     : 0;
 
   const onGoLiveStep = Boolean(mode && STEPS[step] === "Go live");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/network", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: {
+        avalancheFactory?: string | null;
+        avalancheL1Enabled?: boolean;
+        avalancheReady?: boolean;
+      }) => {
+        if (cancelled) return;
+        setAvalancheFactory(data.avalancheFactory ?? null);
+        setAvalancheL1Enabled(Boolean(data.avalancheL1Enabled));
+        setAvalancheReady(data.avalancheReady !== false);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (avalancheL1Enabled) return;
+    setMintDestinations((prev) => prev.filter((d) => d !== "avalanche_l1"));
+  }, [avalancheL1Enabled]);
 
   useEffect(() => {
     if (!onGoLiveStep || !collection || !publicKey) {
@@ -514,6 +556,15 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     };
     setCollection(withPricing);
     setAllowlistText(col.allowlist?.join("\n") ?? "");
+    if (col.homeChain || col.chain) {
+      const chain = parseHomeChain(col.homeChain ?? col.chain);
+      setHomeChain(chain);
+      setMintDestinations(
+        col.mintDestinations?.length
+          ? col.mintDestinations
+          : [homeChainToDestination(chain)],
+      );
+    }
     void checkLocalAssets(withPricing);
     void restoreLogoPreview(col.id, col.logoUrl);
   }
@@ -798,11 +849,22 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   }, [resumeId, mode, publicKey]);
 
   async function authHeadersForUpload(): Promise<Record<string, string>> {
-    if (!publicKey) {
-      await connect();
+    const wallet = homeChain === "avalanche" ? evmAddress : publicKey;
+    if (!wallet) {
+      if (homeChain === "avalanche") await connectEvm();
+      else await connect();
       throw new Error("Connect a wallet to save this launch to your wallet");
     }
-    return buildAuthHeaders(publicKey);
+    return buildAuthHeaders(wallet);
+  }
+
+  function creatorWalletAddress(): string {
+    if (homeChain === "avalanche") {
+      if (!evmAddress) throw new Error("Connect MetaMask or Core on Avalanche");
+      return evmAddress;
+    }
+    if (!publicKey) throw new Error("Connect a Solana wallet");
+    return publicKey;
   }
 
   /* ── client-side finished-images ZIP ── */
@@ -819,7 +881,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     });
     try {
       const authHeaders = await authHeadersForUpload();
-      const wallet = publicKey!;
+      const wallet = creatorWalletAddress();
 
       const collectionId = newClientCollectionId();
       const { tokens, sidecarJsonCount } = await parseReadyArtZip(
@@ -857,6 +919,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           name: "My collection",
           tokens,
           sidecarJsonCount,
+          homeChain,
+          mintDestinations,
           onBatchProgress: (done, total) => {
             setUploadProgress({
               fileName: file.name,
@@ -902,7 +966,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     });
     try {
       const authHeaders = await authHeadersForUpload();
-      const wallet = publicKey!;
+      const wallet = creatorWalletAddress();
 
       const collectionId = newClientCollectionId();
       const { layers, stackOrder } = await parseLayerZipClient(
@@ -947,6 +1011,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           layers,
           stackOrder,
           supply: Math.min(supply, 10_000),
+          homeChain,
+          mintDestinations,
         },
         authHeaders,
       );
@@ -995,9 +1061,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     const src = base ?? collectionRef.current;
     if (!src) return src;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (publicKey) {
+    const authWallet = homeChain === "avalanche" ? evmAddress : publicKey;
+    if (authWallet) {
       try {
-        Object.assign(headers, await buildAuthHeaders(publicKey));
+        Object.assign(headers, await buildAuthHeaders(authWallet));
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : "Sign in with your wallet to save");
       }
@@ -1171,7 +1238,13 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   /* ── go live ── */
   async function goLive() {
     if (!collection) return;
-    if (!publicKey) {
+    const launchHome = collectionHomeChain({ ...collection, homeChain, chain: homeChain });
+    if (launchHome === "avalanche") {
+      if (!evmAddress) {
+        await connectEvm();
+        return;
+      }
+    } else if (!publicKey) {
       await connect();
       return;
     }
@@ -1180,7 +1253,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     setGoLivePhase(null);
     setArweaveUploadDetail(null);
     try {
-      const payout = publicKey || collection.payments.creatorWallet;
+      const payout =
+        launchHome === "avalanche"
+          ? evmAddress || collection.payments.creatorWallet
+          : publicKey || collection.payments.creatorWallet;
       const royaltySplitData: RoyaltySplit = {
         ownerPercent: royaltyOwner ? royaltySplit.ownerPercent : 0,
         holdersPercent: royaltyHolders ? royaltySplit.holdersPercent : 0,
@@ -1189,7 +1265,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       if (buybackEnabled && !collection.buybackTokenCa?.trim()) {
         throw new Error("Enter the buyback token contract address (CA) before launch.");
       }
-      if (buybackEnabled && !(collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet || publicKey)) {
+      if (buybackEnabled && !(collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet || payout)) {
         throw new Error("Enter the treasury wallet that should receive bought tokens.");
       }
       const applied = collectionForGoLive(collection);
@@ -1199,7 +1275,12 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       }
       current =
         (await save({
-          payments: { ...applied.payments, creatorWallet: payout },
+          payments: {
+            ...applied.payments,
+            creatorWallet: payout,
+            acceptAvax: launchHome === "avalanche" ? applied.payments.acceptAvax !== false : Boolean(applied.payments.acceptAvax),
+            acceptSol: launchHome === "solana" ? applied.payments.acceptSol !== false : Boolean(applied.payments.acceptSol),
+          },
           royaltyBps,
           royaltySplit: royaltySplitData,
           royaltyCreators: applied.royaltyCreators,
@@ -1246,82 +1327,90 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         throw new Error("No tokens to publish");
       }
 
-      const totalBytes = await estimateArweaveBytes(current.id, tokenList.length);
-      const existingProgress = await loadUploadProgress(current.id);
-      const estimate = await fetchStorageEstimate(publicKey, current.id, totalBytes);
-      const serverNetwork = estimate.network ?? (await getClientNetwork());
-      const clientNetwork = await getClientNetwork();
-      if (serverNetwork !== clientNetwork) {
-        throw new Error(
-          `Phantom is on ${clientNetwork} but this site uses ${serverNetwork}. ` +
-            `Switch your wallet to ${serverNetwork} in Phantom settings, then retry Go Live.`,
-        );
-      }
-      const network = serverNetwork;
-
-      const useServerBulk =
-        estimate.serverBulkUpload &&
-        estimate.uploadDelegateAddress &&
-        tokenList.length > 1;
-
-      const uploadTokens = [];
-      for (const token of tokenList) {
-        const asset = await getImage(current.id, token.tokenId);
-        if (!asset) {
-          throw new Error(
-            `Missing local image for token #${token.tokenId}. Re-select your ZIP file to restore assets.`,
-          );
-        }
-        uploadTokens.push({
-          tokenId: token.tokenId,
-          imageBytes: new Uint8Array(asset.data),
-          contentType: asset.contentType,
-          buildMetadata: (imageUri: string) =>
-            buildTokenMetadataForUpload(
-              current!,
-              token,
-              imageUri,
-              royaltyBps,
-              royaltySplitData,
-              current!.royaltyCreators,
-            ),
-        });
-      }
-
-      let logoBytes: Uint8Array | undefined;
-      const logoAsset = await getLogo(current.id);
-      if (logoAsset) {
-        logoBytes = new Uint8Array(logoAsset.data);
-      }
-
-      try {
-        const headers = await buildAuthHeaders(publicKey);
-        const res = await fetch(`/api/collections/${current.id}`, { headers });
-        if (res.ok) {
-          const data = await readJsonResponse<{ collection: Collection }>(res);
-          current = data.collection;
-        }
-      } catch {
-        // keep local draft if refresh fails
-      }
-
       const alreadyOnArweave =
         current.irysPublished &&
-        tokenList.every(
-          (t) => {
-            const row = current!.tokens.find((x) => x.tokenId === t.tokenId);
-            return (
-              row?.imageUri?.startsWith("http") && row?.metadataUri?.startsWith("http")
-            );
-          },
+        tokenList.every((t) => {
+          const row = current!.tokens.find((x) => x.tokenId === t.tokenId);
+          return row?.imageUri?.startsWith("http") && row?.metadataUri?.startsWith("http");
+        });
+
+      if (!alreadyOnArweave && !publicKey) {
+        throw new Error(
+          launchHome === "avalanche"
+            ? "Connect a Solana wallet to pay Arweave storage, then use MetaMask or Core for the C-Chain collection."
+            : "Connect a Solana wallet to pay Arweave storage.",
         );
+      }
+
+      const network = await getClientNetwork();
+      let estimate: Awaited<ReturnType<typeof fetchStorageEstimate>> | null = null;
+      let useServerBulk = false;
+      const uploadTokens: {
+        tokenId: number;
+        imageBytes: Uint8Array;
+        contentType: string;
+        buildMetadata: (imageUri: string) => string;
+      }[] = [];
+      let logoBytes: Uint8Array | undefined;
+      let logoAsset: Awaited<ReturnType<typeof getLogo>> | undefined;
+      let existingProgress: Awaited<ReturnType<typeof loadUploadProgress>> | undefined;
+      let totalBytes = 0;
+
+      if (!alreadyOnArweave) {
+        totalBytes = await estimateArweaveBytes(current.id, tokenList.length);
+        existingProgress = await loadUploadProgress(current.id);
+        estimate = await fetchStorageEstimate(publicKey!, current.id, totalBytes);
+        const serverNetwork = estimate.network ?? network;
+        if (serverNetwork !== network) {
+          throw new Error(
+            `Phantom is on ${network} but this site uses ${serverNetwork}. ` +
+              `Switch your wallet to ${serverNetwork} in Phantom settings, then retry Go Live.`,
+          );
+        }
+        useServerBulk =
+          Boolean(estimate.serverBulkUpload && estimate.uploadDelegateAddress && tokenList.length > 1);
+        for (const token of tokenList) {
+          const asset = await getImage(current.id, token.tokenId);
+          if (!asset) {
+            throw new Error(
+              `Missing local image for token #${token.tokenId}. Re-select your ZIP file to restore assets.`,
+            );
+          }
+          uploadTokens.push({
+            tokenId: token.tokenId,
+            imageBytes: new Uint8Array(asset.data),
+            contentType: asset.contentType,
+            buildMetadata: (imageUri: string) =>
+              buildTokenMetadataForUpload(
+                current!,
+                token,
+                imageUri,
+                royaltyBps,
+                royaltySplitData,
+                current!.royaltyCreators,
+              ),
+          });
+        }
+        logoAsset = await getLogo(current.id);
+        if (logoAsset) logoBytes = new Uint8Array(logoAsset.data);
+        try {
+          const headers = await buildAuthHeaders(publicKey!);
+          const res = await fetch(`/api/collections/${current.id}`, { headers });
+          if (res.ok) {
+            const data = await readJsonResponse<{ collection: Collection }>(res);
+            current = data.collection;
+          }
+        } catch {
+          // keep local draft if refresh fails
+        }
+      }
 
       let uploaded: {
         tokens: Record<number, { imageUri: string; metadataUri: string }>;
         logoUri?: string;
       };
 
-      if (alreadyOnArweave) {
+      if (alreadyOnArweave || !estimate) {
         setGoLivePhase("Upload already complete. Finishing launch…");
         const tokens: Record<number, { imageUri: string; metadataUri: string }> = {};
         for (const t of tokenList) {
@@ -1366,11 +1455,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         uploaded = useServerBulk
           ? await uploadCollectionViaServer({
               collectionId: current.id,
-              wallet: publicKey,
+              wallet: publicKey!,
               tokens: uploadTokens,
               logoBytes,
               logoContentType: logoAsset?.contentType,
-              getAuthHeaders: () => buildAuthHeaders(publicKey),
+              getAuthHeaders: () => buildAuthHeaders(publicKey!),
               existingProgress: existingProgress?.completed,
               existingLogoUri: existingProgress?.logoUri,
               onProgress: (p) => {
@@ -1423,16 +1512,95 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         });
 
         setGoLivePhase("Saving your collection files…");
-        current = await patchCollectionUris(publicKey, current.id, {
+        current = await patchCollectionUris(publicKey!, current.id, {
           tokens: uriRows,
           logoUrl: uploaded.logoUri,
           irysPublished: true,
         });
       }
 
-      let coreCollectionAddress = current.coreCollectionAddress;
+      let coreCollectionAddress =
+        launchHome === "avalanche"
+          ? current.coreCollectionAddress ?? current.onChainCollectionAddress
+          : current.coreCollectionAddress;
+      let onChainCollectionAddress = current.onChainCollectionAddress;
       let coreCollectionTxUrl = current.coreCollectionTxUrl;
-      if (!coreCollectionAddress) {
+      const wantsAvaxDest =
+        launchHome === "avalanche" ||
+        mintDestinations.includes("avalanche") ||
+        mintDestinations.includes("avalanche_l1");
+      let avalancheL1Remote: string | null = null;
+      if (wantsAvaxDest) {
+        const net = (await fetch("/api/network", { cache: "no-store" }).then((r) => r.json())) as {
+          avalancheFactory?: string | null;
+          avalancheReady?: boolean;
+          avalancheL1Enabled?: boolean;
+          avalancheL1Remote?: string | null;
+        };
+        if (!net.avalancheFactory || net.avalancheReady === false) {
+          throw new Error(
+            "Avalanche is not production-ready on this server. Deploy the factory (`npm run deploy:avalanche-factory`) and set AVALANCHE_FACTORY_ADDRESS_MAINNET or FUJI plus AVALANCHE_MINTER_KEY.",
+          );
+        }
+        if (mintDestinations.includes("avalanche_l1") && !net.avalancheL1Enabled) {
+          throw new Error(
+            "Avalanche L1 minting is not enabled. On mainnet set AVALANCHE_L1_RPC_URL to a dedicated L1 RPC (not C-Chain).",
+          );
+        }
+        avalancheL1Remote = net.avalancheL1Remote ?? null;
+        setAvalancheFactory(net.avalancheFactory);
+        setAvalancheL1Enabled(Boolean(net.avalancheL1Enabled));
+      }
+
+      const deployAvaxClone = async () => {
+        if (!evmAddress) await connectEvm();
+        if (!evmAddress) throw new Error("Connect MetaMask or Core to create the Avalanche collection.");
+        await ensureAvalancheChain();
+        const evmHeaders = {
+          "Content-Type": "application/json",
+          ...(await buildAuthHeaders(evmAddress)),
+        };
+        const prepRes = await fetch(`/api/collections/${current.id}/evm-collection/prepare`, {
+          method: "POST",
+          headers: evmHeaders,
+        });
+        const prep = await readJsonResponse<{
+          to?: `0x${string}`;
+          data?: `0x${string}`;
+          collectionAddress?: string;
+          error?: string;
+        }>(prepRes);
+        if (prepRes.status === 409 && prep.collectionAddress) {
+          return { address: prep.collectionAddress, txHash: "" as `0x${string}` };
+        }
+        if (!prepRes.ok) throw new Error(prep.error || "Could not prepare Avalanche collection");
+        if (!prep.to || !prep.data) throw new Error("Avalanche collection transaction missing.");
+        const txHash = await sendContractTx(prep.to, prep.data);
+        const confirmWallet = launchHome === "avalanche" ? evmAddress : publicKey;
+        if (!confirmWallet) throw new Error("Connect the creator wallet to confirm the Avalanche collection.");
+        const confRes = await fetch(`/api/collections/${current.id}/evm-collection/confirm`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await buildAuthHeaders(confirmWallet)),
+          },
+          body: JSON.stringify({ txHash }),
+        });
+        const conf = await readJsonResponse<{ collectionAddress?: string; error?: string }>(confRes);
+        if (!confRes.ok) throw new Error(conf.error || "Could not confirm Avalanche collection");
+        if (!conf.collectionAddress) throw new Error("Avalanche collection address missing from confirm.");
+        return { address: conf.collectionAddress, txHash };
+      };
+
+      if (launchHome === "avalanche") {
+        if (!coreCollectionAddress) {
+          setGoLivePhase("Creating Avalanche collection. Approve in MetaMask or Core…");
+          const deployed = await deployAvaxClone();
+          coreCollectionAddress = deployed.address;
+          onChainCollectionAddress = deployed.address;
+          if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+        }
+      } else if (!coreCollectionAddress) {
         setGoLivePhase("Creating on-chain collection. Approve in your wallet…");
         const core = await signCoreCollectionTx(current.id, network);
         coreCollectionAddress = core.collectionAddress;
@@ -1441,9 +1609,22 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         }
       }
 
+      if (wantsAvaxDest && !onChainCollectionAddress) {
+        setGoLivePhase("Creating C-Chain destination collection. Approve in MetaMask or Core…");
+        const deployed = await deployAvaxClone();
+        onChainCollectionAddress = deployed.address;
+        if (launchHome === "avalanche") {
+          coreCollectionAddress = deployed.address;
+          if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+        }
+      }
+
       setGoLivePhase("Finalizing launch…");
       let featuredTxSignature: string | undefined;
       if (featureOnMarket) {
+        if (!publicKey) {
+          throw new Error("Featured Market listing is paid in SOL. Connect a Solana wallet or turn featured off.");
+        }
         const payTo = featuredPayTo;
         const quoteRes = await fetch(`/api/quotes?usd=${FEATURE_ON_MARKET_USD}`);
         const quoteData = (await quoteRes.json()) as { quote?: { sol?: number } };
@@ -1475,7 +1656,17 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           {
             fees: { ...current.fees, locked: true },
             coreCollectionAddress,
+            onChainCollectionAddress:
+              onChainCollectionAddress ||
+              (launchHome === "avalanche" ? coreCollectionAddress : current.onChainCollectionAddress),
             coreCollectionTxUrl,
+            homeChain: launchHome,
+            mintDestinations,
+            chain: launchHome,
+            l1RemoteAddress:
+              mintDestinations.includes("avalanche_l1")
+                ? current.l1RemoteAddress || avalancheL1Remote || undefined
+                : current.l1RemoteAddress,
             featureOnMarket,
             featuredTxSignature,
             network,
@@ -1605,8 +1796,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             <p className="font-medium text-white">Wallet signature (not a payment)</p>
             <p className="mt-2 leading-relaxed">
               When you upload a ZIP or load saved drafts, your wallet will ask you to{" "}
-              <strong className="text-white/90">sign a short message</strong> (starts with{" "}
-              &quot;Dough Boi Auth&quot;). This proves you own the wallet. It does{" "}
+              <strong className="text-white/90">sign a short message</strong>
+              {homeChain === "avalanche"
+                ? " (Sign-In with Ethereum)."
+                : ' (starts with "Dough Boi Auth").'}{" "}
+              This proves you own the wallet. It does{" "}
               <strong className="text-white/90">not</strong> move SOL or charge fees. One signature
               is cached for about {Math.round(AUTH_TTL_MS / 60000)} minutes. Storage is only
               paid when you click Go live.
@@ -1700,6 +1894,86 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           </div>
         )}
 
+        <div className="mt-10 rounded-2xl border border-white/15 bg-white/5 p-6">
+          <h2 className="text-lg font-semibold text-white">Home chain</h2>
+          <p className="mt-1 text-sm text-white/60">
+            Collectors mint onto a chain they choose. Home is the supply ledger created at go-live.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["solana", "avalanche"] as const).map((chain) => (
+              <button
+                key={chain}
+                type="button"
+                onClick={() => {
+                  setHomeChain(chain);
+                  setMintDestinations((prev) => {
+                    const home = homeChainToDestination(chain);
+                    return Array.from(new Set([home, ...prev.filter((d) => d !== "solana" && d !== "avalanche"), home]));
+                  });
+                }}
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  homeChain === chain ? "bg-primary text-white" : "border border-white/15 text-white/70"
+                }`}
+              >
+                {chain === "solana" ? "Solana" : "Avalanche C-Chain"}
+              </button>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-white/50">Also allow minting onto</p>
+          <div className="mt-2 flex flex-wrap gap-3 text-sm text-white/80">
+            {(["solana", "avalanche", "avalanche_l1"] as const)
+              .filter((dest) => dest !== "avalanche_l1" || avalancheL1Enabled)
+              .map((dest) => (
+              <label key={dest} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={mintDestinations.includes(dest) || dest === homeChainToDestination(homeChain)}
+                  disabled={dest === homeChainToDestination(homeChain)}
+                  onChange={(e) => {
+                    setMintDestinations((prev) => {
+                      const home = homeChainToDestination(homeChain);
+                      const next = e.target.checked
+                        ? Array.from(new Set([...prev, dest, home]))
+                        : prev.filter((d) => d !== dest || d === home);
+                      return next.length ? next : [home];
+                    });
+                  }}
+                />
+                {CHAIN_DESCRIPTORS[dest].label}
+              </label>
+            ))}
+          </div>
+          {(homeChain === "avalanche" ||
+            mintDestinations.includes("avalanche") ||
+            mintDestinations.includes("avalanche_l1")) &&
+            (!avalancheFactory || !avalancheReady) && (
+            <p className="mt-3 text-xs text-amber-200/80">
+              Avalanche factory is not configured on this server. Deploy with{" "}
+              <code className="text-white/80">npm run deploy:avalanche-factory</code> before go-live.
+            </p>
+          )}
+          {(homeChain === "solana" &&
+            (mintDestinations.includes("avalanche") || mintDestinations.includes("avalanche_l1"))) && (
+            <p className="mt-3 text-xs text-white/50">
+              A Solana-only wallet cannot pay C-Chain gas. At go-live you will also connect MetaMask or Core
+              with a little AVAX to deploy the empty destination collection. Ginger does not deploy it for you.
+              Collectors who mint onto Avalanche pay their own AVAX after that.
+            </p>
+          )}
+          {(homeChain === "avalanche" ||
+            mintDestinations.includes("avalanche") ||
+            mintDestinations.includes("avalanche_l1")) &&
+            !evmAddress && (
+            <button
+              type="button"
+              onClick={() => void connectEvm()}
+              className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white"
+            >
+              Connect MetaMask or Core
+            </button>
+          )}
+        </div>
+
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           {/* Finished art */}
           <div className="flex flex-col rounded-2xl border border-white/15 bg-white/5 p-6">
@@ -1723,9 +1997,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               <li>✓ Optional price modifier per trait value</li>
             </ul>
             <label
-              className={`mt-6 flex cursor-pointer items-center justify-center rounded-xl border border-primary/60 bg-primary/10 py-3 text-sm font-medium text-white transition hover:bg-primary/20 ${busy || !publicKey ? "pointer-events-none opacity-50" : ""}`}
+              className={`mt-6 flex cursor-pointer items-center justify-center rounded-xl border border-primary/60 bg-primary/10 py-3 text-sm font-medium text-white transition hover:bg-primary/20 ${busy || (homeChain === "avalanche" ? !evmAddress : !publicKey) ? "pointer-events-none opacity-50" : ""}`}
             >
-              {busy ? "Uploading…" : publicKey ? "Upload images ZIP" : "Connect wallet first"}
+              {busy ? "Uploading…" : (homeChain === "avalanche" ? evmAddress : publicKey) ? "Upload images ZIP" : "Connect wallet first"}
               <input type="file" accept=".zip" className="hidden" disabled={busy || !publicKey}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadReadyCollection(f); }}
               />
@@ -2295,7 +2569,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                           setRoyaltyBuyback(e.target.checked);
                           if (!e.target.checked) setRoyaltySplit({ ...royaltySplit, buybackPercent: 0 });
                         }} />
-                      <span className="text-sm font-medium text-white">SPL token buyback</span>
+                      <span className="text-sm font-medium text-white">
+                        {homeChain === "avalanche" ? "ERC-20 token buyback" : "SPL token buyback"}
+                      </span>
                     </label>
                     {royaltyBuyback && (
                       <div className="mt-2 space-y-2 pl-6">
@@ -2310,10 +2586,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                   </div>
                   {buybackEnabled && (
                     <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3 space-y-3">
-                      <Field label="Buyback token CA (SPL mint)">
+                      <Field label={homeChain === "avalanche" ? "Buyback token CA (ERC-20)" : "Buyback token CA (SPL mint)"}>
                         <input
                           className="input font-mono text-sm"
-                          placeholder="Solana SPL mint address"
+                          placeholder={homeChain === "avalanche" ? "C-Chain ERC-20 contract" : "Solana SPL mint address"}
                           value={collection.buybackTokenCa ?? ""}
                           onChange={(e) =>
                             setCollection({ ...collection, buybackTokenCa: e.target.value.trim() })
@@ -2585,10 +2861,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             <p className="text-xs text-white/50">Accepted payment methods</p>
             {([
               ["acceptSol",      "SOL (billed at spot price in SOL)"],
-              ["acceptUsdc",     "USDC (1:1 with USD price)"],
+              ["acceptAvax",     "AVAX (billed at spot price in AVAX)"],
+              ["acceptUsdc",     homeChain === "avalanche" ? "USDC on C-Chain (1:1 with USD price)" : "USDC (1:1 with USD price)"],
               ["acceptPizza",    "SPL or meme coin (same USD value, no discount)"],
               ["acceptSlicePay", "SlicePay hosted checkout (credit card / crypto)"],
-              ["giftMintEnabled","Allow gift mint (buyer can specify a recipient wallet)"],
+              ["giftMintEnabled","Allow gift mint (Solana destination only)"],
             ] as const).map(([key, label]) => (
               <label key={key} className="flex items-center gap-2 text-white/80">
                 <input type="checkbox" checked={Boolean(collection.payments[key])}
@@ -2597,7 +2874,13 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 {label}
               </label>
             ))}
-            {!publicKey ? (
+            {homeChain === "avalanche" ? (
+              evmAddress ? (
+                <p className="text-xs text-white/50">Payout wallet: {evmAddress.slice(0, 8)}…{evmAddress.slice(-6)}</p>
+              ) : (
+                <button onClick={() => void connectEvm()} className="text-primary underline text-xs">Connect MetaMask or Core to set payout address</button>
+              )
+            ) : !publicKey ? (
               <button onClick={() => void connect()} className="text-primary underline text-xs">Connect wallet to set payout address</button>
             ) : (
               <p className="text-xs text-white/50">Payout wallet: {publicKey.slice(0, 8)}…{publicKey.slice(-6)}</p>
@@ -2659,10 +2942,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
 
             {collection.fees.buybackPercent > 0 && !royaltyBuyback && (
               <div className="rounded-lg border border-[#f5c542]/30 bg-[#f5c542]/5 p-3 space-y-3">
-                <Field label="Buyback token CA (SPL mint)">
+                <Field label={homeChain === "avalanche" ? "Buyback token CA (ERC-20)" : "Buyback token CA (SPL mint)"}>
                   <input
                     className="input font-mono text-sm"
-                    placeholder="Solana SPL mint address"
+                    placeholder={homeChain === "avalanche" ? "C-Chain ERC-20 contract" : "Solana SPL mint address"}
                     value={collection.buybackTokenCa ?? ""}
                     onChange={(e) =>
                       setCollection({ ...collection, buybackTokenCa: e.target.value.trim() })
