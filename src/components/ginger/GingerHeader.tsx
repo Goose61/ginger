@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchTrigger } from "@/components/GlobalSearch";
 import { WalletMenu } from "@/components/WalletMenu";
+import { RoutePending } from "@/components/ginger/RoutePending";
 
 const LINKS = [
   { label: "Explore", href: "/explore" },
@@ -51,12 +52,14 @@ export function GingerHeader() {
       <Link className="brand" href="/" aria-label="Ginger — home">
         {/* Logo sizing is owned by the Ginger shell CSS. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="ginger-logo" src="/images/ginger.png" alt="Ginger" />
+        <img className="ginger-logo" src="/images/ginger-mark.webp" alt="Ginger" decoding="async" />
+        <RoutePending />
       </Link>
       <nav className="links" aria-label="Primary">
         {LINKS.map((item) => (
-          <Link key={item.href} href={item.href} aria-current={isCurrent(path, item.href) ? "page" : undefined}>
+          <Link key={item.href} href={item.href} prefetch aria-current={isCurrent(path, item.href) ? "page" : undefined}>
             {item.label}
+            <RoutePending />
           </Link>
         ))}
       </nav>
@@ -65,11 +68,13 @@ export function GingerHeader() {
           <WalletMenu compact />
         </div>
         <SearchTrigger variant="icon" className="ginger-search" />
-        <Link className="btn ghost" href="/explore">
+        <Link className="btn ghost" href="/explore" prefetch>
           Explore
+          <RoutePending />
         </Link>
-        <Link className="btn solid" href="/launch">
+        <Link className="btn solid" href="/launch" prefetch>
           Launch
+          <RoutePending />
         </Link>
         <button
           className="menu"
@@ -88,15 +93,17 @@ export function GingerHeader() {
         </button>
         <nav className="sheet" id="menu-sheet" aria-label="Menu">
           {LINKS.map((item) => (
-            <Link key={item.href} href={item.href} aria-current={isCurrent(path, item.href) ? "page" : undefined}>
+            <Link key={item.href} href={item.href} prefetch aria-current={isCurrent(path, item.href) ? "page" : undefined}>
               {item.label}
+              <RoutePending />
             </Link>
           ))}
           <div className="ginger-sheet-tools">
             <WalletMenu fullWidth />
           </div>
-          <Link className="btn solid" href="/launch">
+          <Link className="btn solid" href="/launch" prefetch>
             Launch
+            <RoutePending />
           </Link>
         </nav>
       </div>

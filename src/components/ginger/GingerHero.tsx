@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GingerHeader } from "@/components/ginger/GingerHeader";
 import { GingerHeroMotion } from "@/components/ginger/GingerHeroMotion";
 import { GingerHomeLock } from "@/components/ginger/GingerHomeLock";
+import { RoutePending } from "@/components/ginger/RoutePending";
 
 const CRUMBS = [
   { cx: "20%", cy: "61%", size: "6px", duration: "12s", delay: "-2s", angle: "18deg", alpha: "0.55" },
@@ -21,13 +22,11 @@ export function GingerHero() {
       <video
         className="sky"
         aria-hidden="true"
-        autoPlay
         muted
         loop
         playsInline
-        preload="auto"
+        preload="none"
         poster="/assets/images/ginger-amber-petrol.webp"
-        src="/assets/video/ginger-amber-petrol.mp4"
       />
       <div className="veil" />
       <div className="pizza-space">
@@ -46,23 +45,24 @@ export function GingerHero() {
             }}
           />
         ))}
-        <Link className="pizza-object pizza-box" href="/explore" aria-label="Explore NFTs">
+        <Link className="pizza-object pizza-box" href="/explore" prefetch aria-label="Explore NFTs">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/images/ginger-pizza.png" alt="" draggable={false} />
+          <img src="/assets/images/ginger-pizza.webp" alt="" draggable={false} decoding="async" fetchPriority="low" />
+          <RoutePending />
         </Link>
         <div className="pizza-object pizza-slice">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/images/ginger-pizza.png" alt="" />
+          <img src="/assets/images/ginger-pizza.webp" alt="" decoding="async" fetchPriority="low" />
         </div>
         <div className="pizza-object pizza-distant">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/images/ginger-pizza.png" alt="" />
+          <img src="/assets/images/ginger-pizza.webp" alt="" decoding="async" fetchPriority="low" />
         </div>
       </div>
       <GingerHeader />
       <div className="screen">
         <main className="hero">
-          <Link className="pill" href="/explore">
+          <Link className="pill" href="/explore" prefetch>
             <span className="chip">✦</span>
             <span className="pill-label">Welcome to Ginger</span>
             <svg viewBox="0 0 9.5 8" fill="none" aria-hidden="true">
@@ -74,6 +74,7 @@ export function GingerHero() {
                 strokeLinejoin="round"
               />
             </svg>
+            <RoutePending />
           </Link>
           <h1>
             <span className="ln">
@@ -85,11 +86,13 @@ export function GingerHero() {
           </h1>
           <p>Collect weird. Trade rare. Stay Ginger.</p>
           <div className="cta">
-            <Link className="btn ghost" href="/launch">
+            <Link className="btn ghost" href="/launch" prefetch>
               Explore NFTs
+              <RoutePending />
             </Link>
-            <Link className="btn solid" href="/explore">
+            <Link className="btn solid" href="/explore" prefetch>
               Enter Marketplace
+              <RoutePending />
             </Link>
           </div>
         </main>

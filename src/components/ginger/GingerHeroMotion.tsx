@@ -21,23 +21,37 @@ export function GingerHeroMotion() {
   useEffect(() => {
     const video = document.querySelector<HTMLVideoElement>("#ginger-hero video.sky");
     if (!video) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (connection?.saveData) return;
+
     video.muted = true;
+    let started = false;
     const play = () => {
-      if (video.paused) {
-        const promise = video.play();
-        if (promise) promise.catch(() => {});
-      }
+      if (video.paused) video.play()?.catch(() => {});
     };
-    play();
-    video.addEventListener("canplay", play);
+    const start = () => {
+      if (started) return;
+      started = true;
+      if (!video.src) {
+        video.preload = "metadata";
+        video.src = "/assets/video/ginger-amber-petrol.mp4";
+      }
+      video.addEventListener("canplay", play);
+      play();
+    };
+    const idle =
+      "requestIdleCallback" in window
+        ? window.requestIdleCallback(start, { timeout: 1800 })
+        : 0;
+    const timer = window.setTimeout(start, 1200);
     const onVisible = () => {
-      if (document.visibilityState === "visible") play();
+      if (document.visibilityState === "visible") start();
     };
     document.addEventListener("visibilitychange", onVisible);
-    for (const event of ["pointerdown", "touchstart", "scroll"] as const) {
-      window.addEventListener(event, play, { once: true, passive: true });
-    }
     return () => {
+      if (idle) window.cancelIdleCallback(idle);
+      window.clearTimeout(timer);
       video.removeEventListener("canplay", play);
       document.removeEventListener("visibilitychange", onVisible);
     };

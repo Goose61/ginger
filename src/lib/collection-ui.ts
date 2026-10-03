@@ -68,15 +68,15 @@ export function tokenThumbSrc(collection: Collection, token: GeneratedToken, wid
 
 export function coverImageSrc(collection: Collection) {
   const logo = logoImageSrc(collection);
-  if (logo) return logo;
+  if (logo) return thumbSrc(logo, 640);
   const tokens = collection.tokens ?? [];
   if (isGiftBundle(collection)) {
     const latest = [...tokens].reverse().find((t) => t.imageUri);
-    if (latest) return tokenImageSrc(collection, latest);
+    if (latest) return thumbSrc(tokenImageSrc(collection, latest), 640);
   }
   const token = tokens[0];
   if (!token) return "/images/dough/pixel-slice.webp";
-  return tokenImageSrc(collection, token);
+  return thumbSrc(tokenImageSrc(collection, token), 640);
 }
 
 /** Sold = minted or held in an active checkout — never inferred from mintedCount order alone. */

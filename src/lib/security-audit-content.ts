@@ -11,7 +11,7 @@ export const SECURITY_AUDIT_META = {
   remediatedCount: 9,
 } as const;
 
-export const GINGER_LOGO_SRC = "/images/ginger.png";
+export const GINGER_LOGO_SRC = "/images/ginger-mark.webp";
 
 export const SECURITY_EXECUTIVE_SUMMARY = [
   "Ginger is an NFT marketplace on Solana and Avalanche where you always custody assets in your own wallet. We never hold your private keys.",

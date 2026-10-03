@@ -9,10 +9,10 @@ const Logo: React.FC = () => {
       aria-label="Ginger — NFT marketplace"
     >
       <Image
-        src="/images/ginger.png"
+        src="/images/ginger-mark.webp"
         alt="Ginger"
-        width={956}
-        height={950}
+        width={256}
+        height={254}
         priority
         className="h-11 w-auto object-contain sm:h-12"
       />
