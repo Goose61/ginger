@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken, MintDestination } from "@/lib/types";
@@ -12,7 +13,7 @@ import { isGiftBundle } from "@/lib/gift-bundle";
 import { isExpirableReservation, isTokenReservationActive, TOKEN_RESERVATION_TTL_MS } from "@/lib/public-collection";
 import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
 import { MintProgress } from "@/components/market/MintProgress";
-import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityRankByTokenId, tokenOverallRarity, tokenRarityRank } from "@/lib/rarity";
+import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityProfileByTokenId, tokenRarityRank } from "@/lib/rarity";
 import { collectionMarketStats } from "@/lib/collection-stats";
 import { CollectionSocialLinks } from "@/components/CollectionSocialLinks";
 import { readJsonResponse } from "@/lib/fetch-json";
@@ -94,9 +95,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const pendingTokenRef = useRef<GeneratedToken | null>(null);
   const returnHandledRef = useRef(false);
 
+  const rarityProfile = useMemo(
+    () => rarityProfileByTokenId(collection.tokens, collection.traitPricing),
+    [collection.tokens, collection.traitPricing],
+  );
   const rarityRanks = useMemo(
-    () => rarityRankByTokenId(collection.tokens),
-    [collection.tokens],
+    () => new Map(Array.from(rarityProfile, ([tokenId, profile]) => [tokenId, profile.rank])),
+    [rarityProfile],
   );
   const tokens = useMemo(() => {
     const searched = filterTokensBySearch(collection.tokens, collection, search);
@@ -307,6 +312,11 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [invoiceId, selected, checkoutKind, completeSlicePayFlow]);
+
+  useEffect(() => {
+    if (!selected) return;
+    preload(tokenImageSrc(collection, selected), { as: "image", fetchPriority: "high" });
+  }, [selected, collection]);
 
   useEffect(() => {
     const raw = searchParams.get("token");
@@ -1030,16 +1040,16 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             const sold = isTokenSold(token, collection);
             const listed = Boolean(token.listing);
             const priceUsd = tokenAskPrice(collection, token);
-            const rarity = tokenOverallRarity(
-              token,
-              collection.supply || collection.tokens.length,
-              rarityRanks,
-            );
+            const rarity = rarityProfile.get(token.tokenId)?.overall ?? "common";
             return (
               <button
                 key={token.tokenId}
                 type="button"
+                onPointerDown={() => {
+                  preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
+                }}
                 onClick={() => {
+                  preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
                   setSelected(token);
                   setCheckoutPending(false);
                   setInvoiceId(null);
@@ -1053,6 +1063,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                     src={tokenThumbSrc(collection, token, 480)}
                     alt={tokenName(collection, token)}
                     loading={index < 4 ? "eager" : "lazy"}
+                    fetchPriority={index < 4 ? "auto" : "low"}
                     decoding="async"
                     width={480}
                     height={480}
@@ -1111,10 +1122,21 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           >
             <div className="grid md:grid-cols-2">
               <div className={`nft-tile-media ${isTokenSold(selected, collection) ? "is-sold" : ""}`}>
+                {/* Cached grid thumb paints immediately. The full image is requested at high priority and covers it. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={tokenThumbSrc(collection, selected, 480)}
+                  alt=""
+                  fetchPriority="low"
+                  decoding="async"
+                />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={tokenImageSrc(collection, selected)}
                   alt={tokenName(collection, selected)}
+                  fetchPriority="high"
+                  loading="eager"
+                  decoding="async"
                 />
               </div>
               <div className="bg-[#161311] p-5">
@@ -1128,12 +1150,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                       <TokenLocationBadge location={selected.location} />
                     </div>
                     {(() => {
-                      const rarity = tokenOverallRarity(
-                        selected,
-                        collection.supply || collection.tokens.length,
-                        rarityRanks,
-                      );
-                      const rank = rarityRanks.get(selected.tokenId) ?? tokenRarityRank(selected);
+                      const profile = rarityProfile.get(selected.tokenId);
+                      const rarity = profile?.overall ?? "common";
+                      const rank = profile?.rank ?? tokenRarityRank(selected);
                       return (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${OVERALL_RARITY_CLASS[rarity]}`}>

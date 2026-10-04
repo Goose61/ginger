@@ -164,7 +164,12 @@ export function filterTokensBySearch(
   return tokens.filter((token) => {
     const name = tokenName(collection, token).toLowerCase();
     const id = String(token.tokenId);
-    const rarity = OVERALL_RARITY_LABEL[tokenOverallRarity(token, supply)].toLowerCase();
+    const rarity = OVERALL_RARITY_LABEL[
+      tokenOverallRarity(token, supply, undefined, {
+        tokens: collection.tokens,
+        traitPricing: collection.traitPricing,
+      })
+    ].toLowerCase();
     return name.includes(q) || id.includes(q) || `#${id}`.includes(q) || rarity.includes(q);
   });
 }
@@ -182,8 +187,14 @@ export function filterTokensByRarity(
 ): GeneratedToken[] {
   if (rarity === "all") return tokens;
   const supply = collection.supply || collection.tokens.length;
-  const rankMap = ranks ?? rarityRankByTokenId(collection.tokens);
-  return tokens.filter((token) => tokenOverallRarity(token, supply, rankMap) === rarity);
+  const rankMap = ranks ?? rarityRankByTokenId(collection.tokens, collection.traitPricing);
+  return tokens.filter(
+    (token) =>
+      tokenOverallRarity(token, supply, rankMap, {
+        tokens: collection.tokens,
+        traitPricing: collection.traitPricing,
+      }) === rarity,
+  );
 }
 
 export function sortTokens(
@@ -198,7 +209,7 @@ export function sortTokens(
   } else if (sort === "price_desc") {
     copy.sort((a, b) => tokenAskPrice(collection, b) - tokenAskPrice(collection, a) || a.tokenId - b.tokenId);
   } else if (sort === "rarity_asc" || sort === "rarity_desc") {
-    const rankMap = ranks ?? rarityRankByTokenId(collection.tokens);
+    const rankMap = ranks ?? rarityRankByTokenId(collection.tokens, collection.traitPricing);
     const dir = sort === "rarity_asc" ? 1 : -1;
     copy.sort((a, b) => {
       const ra = rankMap.get(a.tokenId) ?? Number.POSITIVE_INFINITY;
