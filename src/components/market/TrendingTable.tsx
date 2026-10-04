@@ -6,9 +6,10 @@ import { Star } from "lucide-react";
 import type { MarketCard } from "@/lib/market-card";
 import { marketStatus } from "@/lib/market-view";
 import { formatUsd, formatUsdAmount } from "@/lib/collection-ui";
-import { StatusPill } from "@/components/GlobalSearch";
+import { StatusPill } from "@/components/StatusPill";
 import { Shelf } from "./Shelf";
-import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
+import { MintProgress } from "./MintProgress";
+import { collectionHref, isLiveFeatured, mintedBarPct, mintedPct, sortCards } from "./utils";
 import { chainLabel } from "@/lib/chain-registry";
 import type { ChainKey } from "@/lib/types";
 
@@ -129,6 +130,13 @@ export function TrendingTable({
                     <MobileStat label="Volume" value={formatUsdAmount(c.stats.volumeUsd)} />
                     <MobileStat label="Minted" value={`${mintedPct(c)}%`} />
                   </dl>
+                  <MintProgress
+                    minted={c.mintedCount}
+                    supply={c.supply}
+                    showLabel={false}
+                    className="mt-3"
+                    trackClassName="bg-surface-3"
+                  />
                 </Link>
               </li>
             ))}
@@ -183,7 +191,7 @@ export function TrendingTable({
                       <Td>
                         <div className="flex items-center gap-2.5">
                           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
-                            <div className="h-full rounded-full bg-gold" style={{ width: `${pct}%` }} />
+                            <div className="h-full rounded-full bg-gold" style={{ width: `${mintedBarPct(c)}%` }} />
                           </div>
                           <span className="num w-10 text-right font-[family-name:var(--font-mono)] text-xs text-ink-body">
                             {pct}%

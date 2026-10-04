@@ -16,7 +16,7 @@ import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@
 import { getQuote } from "@/lib/quotes";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { isValidSolanaAddress } from "@/lib/mint-nft";
-import { isEvmAddress } from "@/lib/chain-registry";
+import { collectionHomeChain, isEvmAddress } from "@/lib/chain-registry";
 import { consumeDryRun, requireSimulatedDryRun, withClearedMintQuote } from "@/lib/mint-dry-run-store";
 import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { nftPrice } from "@/lib/collection-ui";
@@ -37,6 +37,7 @@ import {
 } from "@/lib/platform-disbursement";
 import { getPlatformPublicKey } from "@/lib/platform-key";
 import { executeSplTokenBuyback } from "@/lib/spl-buyback";
+import { splMintRejectionReason } from "@/lib/spl-mint";
 import { toPublicCollection, tokenIsCommitted } from "@/lib/public-collection";
 import { getClientIp } from "@/lib/request-ip";
 import type { BuildTxResult } from "@/lib/mint-nft";
@@ -381,7 +382,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
         // Defer treasury milestones + reveal for SOL until payment confirms.
-        const next = solAtomic ? current : applyRevealTriggers(applySaleTreasury(current));
+        const next = solAtomic
+          ? current
+          : applyRevealTriggers(applySaleTreasury(current, { excludeTokenIds: mintedTokenIds }));
         return withClearedMintQuote(next, dryRunId);
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -600,7 +603,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           seller: sellerWallet,
         });
         secondaryCtx.breakdown = accrued.breakdown;
-        return applySaleTreasury(current);
+        return applySaleTreasury(current, { excludeTokenIds: [tokenId] });
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
       const network = serverNetwork(body.network);
@@ -681,6 +684,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
       if (!isValidSolanaAddress(treasury)) {
         return NextResponse.json({ error: "Invalid treasury wallet" }, { status: 400 });
+      }
+      if (collectionHomeChain(existing) === "solana") {
+        const reason = await splMintRejectionReason(tokenCa, serverNetwork());
+        if (reason) return NextResponse.json({ error: reason }, { status: 400 });
       }
       const collection = await updateCollection(id, (current) => {
         current.buybackTokenCa = tokenCa;
@@ -844,7 +851,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
         current.mintedCount = committedCount(current);
         if (current.mintedCount >= current.supply) current.status = "sold_out";
-        return applyRevealTriggers(applySaleTreasury(current));
+        return applyRevealTriggers(applySaleTreasury(current, { excludeTokenIds: [tokenId] }));
       });
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
 

@@ -29,6 +29,7 @@ import { getPlatformSecretKey } from "./platform-key";
 import { platformSpendableLamports } from "./platform-treasury-reserve";
 import { getQuote } from "./quotes";
 import { explorerClusterQuery, getDirectRpcUrl, type SolanaNetwork } from "./solana-config";
+import { splMintRejectionReason } from "./spl-mint";
 import { getCollection, updateCollection } from "./store";
 import type { Collection } from "./types";
 
@@ -205,6 +206,10 @@ export async function executeSplTokenBuyback(
   const treasury = existing.buybackTreasuryWallet?.trim() || existing.payments.creatorWallet;
   if (!tokenCa) {
     return { collection: existing, purchased: false, reason: "No buyback token CA set" };
+  }
+  const mintReason = await splMintRejectionReason(tokenCa, network);
+  if (mintReason) {
+    return { collection: existing, purchased: false, reason: mintReason };
   }
   if (!treasury) {
     return { collection: existing, purchased: false, reason: "No buyback treasury wallet set" };

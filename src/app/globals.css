@@ -329,13 +329,45 @@ select option {
 }
 
 .nft-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
   overflow: hidden;
   border-radius: var(--radius-card);
   border: 1px solid var(--line);
   background: var(--surface-1);
   color: var(--ink);
+  text-align: left;
+  appearance: none;
   transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease,
     background-color 180ms ease;
+}
+
+/* Fill the square. Grayscale stays on the frame: filtering the img itself
+   makes mobile Safari paint the picture at the bottom and leave a black band. */
+.nft-tile-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  flex: none;
+  overflow: hidden;
+  background: #111114;
+}
+
+.nft-tile-media > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
+}
+
+.nft-tile-media.is-sold {
+  filter: grayscale(1);
 }
 
 .nft-card:hover {
@@ -346,7 +378,7 @@ select option {
   box-shadow: 0 16px 32px -12px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(141 107 255 / 0.22);
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media (hover: none), (prefers-reduced-motion: reduce) {
   .nft-card:hover {
     transform: none;
   }

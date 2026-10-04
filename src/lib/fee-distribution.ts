@@ -155,9 +155,14 @@ export function accrueSaleFees(
   return { collection, breakdown };
 }
 
-export function holderCounts(collection: Collection): Map<string, number> {
+export function holderCounts(
+  collection: Collection,
+  options?: { excludeTokenIds?: Iterable<number> },
+): Map<string, number> {
+  const exclude = options?.excludeTokenIds ? new Set(options.excludeTokenIds) : null;
   const counts = new Map<string, number>();
   for (const t of collection.tokens) {
+    if (exclude?.has(t.tokenId)) continue;
     const wallet =
       t.owner && t.owner !== TREASURY_OWNER_MARKER
         ? t.owner
@@ -170,13 +175,21 @@ export function holderCounts(collection: Collection): Map<string, number> {
   return counts;
 }
 
-/** Open a holder distribution round when fee_distribution milestone fires. */
-export function openFeeDistributionRound(collection: Collection, milestoneAt?: number): Collection {
+/**
+ * Open a holder distribution round when fee_distribution milestone fires.
+ * Tokens acquired in this sale are excluded so the buyer is not paid from their own purchase.
+ * If nobody already held, the pool stays in holderTreasuryUsd for the next sale.
+ */
+export function openFeeDistributionRound(
+  collection: Collection,
+  milestoneAt?: number,
+  options?: { excludeTokenIds?: Iterable<number> },
+): Collection {
   const ledger = ensureLedger(collection);
   const poolUsd = ledger.holderTreasuryUsd;
   if (poolUsd <= 0) return collection;
 
-  const snapshot = Array.from(holderCounts(collection).entries()).map(([wallet, count]) => ({
+  const snapshot = Array.from(holderCounts(collection, options).entries()).map(([wallet, count]) => ({
     wallet,
     count,
   }));

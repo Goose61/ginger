@@ -2607,7 +2607,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                         />
                       </Field>
                       <p className="text-xs text-white/50">
-                        Mint SOL pays the platform wallet first; the buyback share is swapped into this token in the treasury wallet.
+                        Mint SOL pays the platform wallet first; the buyback share is swapped into this token in the treasury wallet. The CA must be the SPL mint, not a wallet.
                       </p>
                     </div>
                   )}
@@ -2963,7 +2963,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                   />
                 </Field>
                 <p className="mt-1 text-xs text-white/50">
-                  Required when mint fees include a buyback share. Platform swaps this token into the treasury after each sale.
+                  Required when mint fees include a buyback share. Platform swaps this token into the treasury after each sale. Paste the SPL mint, not the treasury wallet.
                 </p>
               </div>
             )}

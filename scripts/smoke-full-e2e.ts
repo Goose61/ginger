@@ -442,8 +442,10 @@ async function main() {
     fail("Treasury token account missing after buybacks");
   }
 
-  if ((ledger?.distributionRounds.length ?? 0) < MINT_COUNT) {
-    fail(`Expected ${MINT_COUNT} holder rounds, got ${ledger?.distributionRounds.length ?? 0}`);
+  if ((ledger?.distributionRounds.length ?? 0) < MINT_COUNT - 1) {
+    fail(
+      `Expected at least ${MINT_COUNT - 1} holder rounds (the first buyer is not an existing holder), got ${ledger?.distributionRounds.length ?? 0}`,
+    );
   }
   if (buybacksOk < MINT_COUNT) {
     fail(`Expected ${MINT_COUNT} buybacks, got ${buybacksOk}`);

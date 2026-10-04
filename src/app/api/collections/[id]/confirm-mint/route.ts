@@ -109,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       delete c.pendingMint;
       c.mintedCount = committedCount(c);
       c.updatedAt = new Date().toISOString();
-      let next = applySaleTreasury(c);
+      let next = applySaleTreasury(c, { excludeTokenIds: [resolvedTokenId] });
       if (solPaid) next = applyRevealTriggers(next);
       return next;
     });

@@ -925,13 +925,38 @@
 }
 
 @media (max-width: 640px) {
-  .ginger-page .bar { width: calc(100% - 40px); height: 76px; }
-  .ginger-page .page-shell { margin: 0 20px; padding-top: 48px; }
-  .ginger-page .page-heading { margin-bottom: 26px; }
-  .ginger-page .page-heading h1 { letter-spacing: -1.6px; }
-  .ginger-page .content-surface { border-radius: 20px; padding: 20px; min-height: 58vh; }
-  .ginger-page .ginger-logo { height: 44px; }
-  .ginger-page .learn-tabs button { padding: 10px 18px; }
+  .ginger-page .bar { width: calc(100% - 32px); height: 64px; }
+  .ginger-page .page-shell {
+    margin: 0 16px;
+    padding-top: 28px;
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
+  }
+  .ginger-page .page-heading { margin-bottom: 20px; align-items: flex-start; }
+  .ginger-page .page-heading h1 {
+    font-size: clamp(32px, 10vw, 42px);
+    letter-spacing: -1.2px;
+  }
+  .ginger-page .content-surface { border-radius: 20px; padding: 16px; min-height: 58vh; }
+  .ginger-page .ginger-logo { height: 40px; }
+  .ginger-page .menu,
+  .ginger-page .ginger-search {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .ginger-page .sheet {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: min(100%, 360px);
+    margin-left: auto;
+  }
+  .ginger-page .sheet a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .ginger-page .learn-tabs button { min-height: 44px; padding: 10px 16px; }
+  .ginger-loading-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 html.ginger-home,

@@ -6,9 +6,23 @@ export function collectionHref(collection: Pick<MarketCard, "slug" | "id">) {
   return `/collection/${collection.slug || collection.id}`;
 }
 
+/** Display percent. Small mints stay visible (0.3) instead of rounding down to 0. */
 export function mintedPct(collection: Pick<MarketCard, "supply" | "mintedCount">) {
-  if (!collection.supply) return 0;
-  return Math.min(100, Math.floor((collection.mintedCount / collection.supply) * 100));
+  const supply = collection.supply;
+  const minted = collection.mintedCount;
+  if (!supply || minted <= 0) return 0;
+  const raw = (minted / supply) * 100;
+  if (raw >= 100) return 100;
+  if (raw >= 10) return Math.round(raw);
+  const tenth = Math.round(raw * 10) / 10;
+  return tenth > 0 ? tenth : 0.1;
+}
+
+/** Bar width. Any real mint is at least 2% wide so the track is not an empty line. */
+export function mintedBarPct(collection: Pick<MarketCard, "supply" | "mintedCount">) {
+  const pct = mintedPct(collection);
+  if (pct <= 0) return 0;
+  return Math.min(100, Math.max(pct, 2));
 }
 
 export function isLiveFeatured(collection: Pick<MarketCard, "featuredUntil">) {

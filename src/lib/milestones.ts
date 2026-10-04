@@ -5,9 +5,14 @@ import { openFeeDistributionRound } from "./fee-distribution";
 
 export { mintedPercent } from "./collection-stats";
 
-function holderCounts(collection: Collection): Map<string, number> {
+function holderCounts(
+  collection: Collection,
+  options?: { excludeTokenIds?: Iterable<number> },
+): Map<string, number> {
+  const exclude = options?.excludeTokenIds ? new Set(options.excludeTokenIds) : null;
   const counts = new Map<string, number>();
   for (const t of collection.tokens) {
+    if (exclude?.has(t.tokenId)) continue;
     if (!t.owner) continue;
     if (t.location === "in_flight") continue;
     counts.set(t.owner, (counts.get(t.owner) ?? 0) + 1);
@@ -15,10 +20,13 @@ function holderCounts(collection: Collection): Map<string, number> {
   return counts;
 }
 
+type ExistingHolderOptions = { excludeTokenIds?: number[] };
+
 export function applyMilestoneEvents(
   collection: Collection,
   events: MilestoneEventId[],
   milestoneAt?: number,
+  options?: ExistingHolderOptions,
 ): Collection {
   const next = {
     ...collection,
@@ -75,10 +83,10 @@ export function applyMilestoneEvents(
         break;
       case "fee_distribution":
         next.feeClaimsOpen = true;
-        Object.assign(next, openFeeDistributionRound(next, milestoneAt));
+        Object.assign(next, openFeeDistributionRound(next, milestoneAt, options));
         break;
       case "snapshot_holders": {
-        const counts = holderCounts(next);
+        const counts = holderCounts(next, options);
         const holders = Array.from(counts.entries()).map(([wallet, count]) => ({
           wallet,
           count,
@@ -112,14 +120,17 @@ export function applyMilestoneEvents(
   return next;
 }
 
-export function fireDueMilestones(collection: Collection): Collection {
+export function fireDueMilestones(
+  collection: Collection,
+  options?: ExistingHolderOptions,
+): Collection {
   const pct = mintedPercent(collection);
   let next = { ...collection, milestones: collection.milestones.map((m) => ({ ...m })) };
   for (const milestone of next.milestones) {
     if (milestone.firedAt) continue;
     if (pct >= milestone.at) {
       milestone.firedAt = new Date().toISOString();
-      next = applyMilestoneEvents(next, milestone.events, milestone.at);
+      next = applyMilestoneEvents(next, milestone.events, milestone.at, options);
     }
   }
   if (next.mintedCount >= next.supply && next.status === "live") {
@@ -139,8 +150,11 @@ export function treasuryEventsAreScheduled(collection: Collection): boolean {
  * Fire % minted milestones, then immediately open holder claims and arm
  * treasury buyback unless those treasury events were explicitly scheduled.
  */
-export function applySaleTreasury(collection: Collection): Collection {
-  let next = fireDueMilestones(collection);
+export function applySaleTreasury(
+  collection: Collection,
+  options?: ExistingHolderOptions,
+): Collection {
+  let next = fireDueMilestones(collection, options);
   if (treasuryEventsAreScheduled(collection)) return next;
 
   next = {
@@ -152,6 +166,6 @@ export function applySaleTreasury(collection: Collection): Collection {
       ? next.secondaryEnabled
       : true,
   };
-  next = openFeeDistributionRound(next);
+  next = openFeeDistributionRound(next, undefined, options);
   return next;
 }

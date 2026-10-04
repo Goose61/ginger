@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { preload } from "react-dom";
 import { GingerHeader } from "@/components/ginger/GingerHeader";
 import { GingerHeroMotion } from "@/components/ginger/GingerHeroMotion";
 import { GingerHomeLock } from "@/components/ginger/GingerHomeLock";
@@ -15,6 +16,7 @@ const CRUMBS = [
 ];
 
 export function GingerHero() {
+  preload("/assets/images/ginger-pizza.webp", { as: "image", fetchPriority: "high" });
   return (
     <div className="ginger-hero frame" id="ginger-hero">
       <GingerHomeLock />
@@ -47,7 +49,7 @@ export function GingerHero() {
         ))}
         <Link className="pizza-object pizza-box" href="/explore" prefetch aria-label="Explore NFTs">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/images/ginger-pizza.webp" alt="" draggable={false} decoding="async" fetchPriority="low" />
+          <img src="/assets/images/ginger-pizza.webp" alt="" draggable={false} decoding="async" fetchPriority="high" />
           <RoutePending />
         </Link>
         <div className="pizza-object pizza-slice">

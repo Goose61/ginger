@@ -15,7 +15,8 @@ import { useRouter } from "next/navigation";
 import { Search, ArrowRight, Rocket, Gift, CircleHelp, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { formatUsd } from "@/lib/collection-ui";
-import type { SearchItem, MarketStatus } from "@/lib/market-view";
+import type { SearchItem } from "@/lib/market-view";
+import { StatusPill } from "@/components/StatusPill";
 
 /* ───────────────────────── context ───────────────────────── */
 
@@ -428,18 +429,4 @@ function GroupLabel({ children }: { children: ReactNode }) {
   return <p className="eyebrow px-3 pb-1 pt-3 first:pt-1">{children}</p>;
 }
 
-export function StatusPill({ status, className = "" }: { status: MarketStatus; className?: string }) {
-  const map: Record<MarketStatus, { label: string; cls: string }> = {
-    minting: { label: "Minting", cls: "bg-up/15 text-up" },
-    listed: { label: "Listed", cls: "bg-gold/15 text-gold" },
-    sold_out: { label: "Sold out", cls: "bg-surface-3 text-ink-muted" },
-  };
-  const { label, cls } = map[status];
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.02em] ${cls} ${className}`}
-    >
-      {label}
-    </span>
-  );
-}
+export { StatusPill } from "@/components/StatusPill";

@@ -6,7 +6,7 @@ import { ArrowRight, ShieldCheck, Wallet, Database, Sparkles } from "lucide-reac
 import type { MarketCard } from "@/lib/market-card";
 import { formatUsd } from "@/lib/collection-ui";
 import { SearchTrigger } from "@/components/GlobalSearch";
-import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
+import { collectionHref, isLiveFeatured, mintedBarPct, mintedPct, sortCards } from "./utils";
 
 const TRUST = [
   { icon: Sparkles, label: "Solana + Avalanche" },
@@ -136,7 +136,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
         className="nft-card group block shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)]"
         aria-label={`${active.name}: ${active.hasListings ? "view listings" : "mint now"}`}
       >
-        <div className="relative aspect-square overflow-hidden bg-surface-2">
+        <div className="nft-tile-media">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             key={active.id}
@@ -144,7 +144,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
             alt={`${active.name} NFT artwork`}
             fetchPriority="high"
             decoding="async"
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            className="transition duration-500 group-hover:scale-[1.03]"
           />
           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
           <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.12em] text-black">
@@ -158,7 +158,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
         </div>
         <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 p-4">
           <Stat label="Floor" value={formatUsd(active.stats.floorUsd)} />
-          <Stat label="Minted" value={`${pct}%`} bar={pct} />
+          <Stat label="Minted" value={`${pct}%`} bar={mintedBarPct(active)} />
           <span className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition group-hover:bg-[#6d4ed4]">
             {active.hasListings ? "View listings" : "Mint now"}
           </span>

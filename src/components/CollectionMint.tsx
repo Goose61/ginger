@@ -10,7 +10,8 @@ import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
 import { isExpirableReservation, isTokenReservationActive, TOKEN_RESERVATION_TTL_MS } from "@/lib/public-collection";
-import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
+import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
+import { MintProgress } from "@/components/market/MintProgress";
 import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityRankByTokenId, tokenOverallRarity, tokenRarityRank } from "@/lib/rarity";
 import { collectionMarketStats } from "@/lib/collection-stats";
 import { CollectionSocialLinks } from "@/components/CollectionSocialLinks";
@@ -868,7 +869,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             </p>
           )}
 
-          <dl className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <MintProgress
+            minted={soldCount}
+            supply={collection.supply || collection.tokens.length}
+            className="mt-8"
+          />
+
+          <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat label="Floor" value={formatUsdAndSol(stats.floorUsd, solUsd)} tip="Lowest listing, or cheapest remaining mint price" />
             <Stat label="Volume" value={formatUsdAmount(stats.volumeUsd)} tip="All-time primary + secondary sales" />
             <Stat label="Market cap" value={formatUsdAmount(stats.marketCapUsd)} tip="Floor × total supply" />
@@ -928,21 +935,22 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           </p>
         </div>
 
-        <div className="sticky top-[calc(var(--nav-h)+10px)] z-20 mb-5 rounded-2xl border border-white/10 bg-background/85 p-3 backdrop-blur-md">
+        <div className="sticky top-2 z-20 mb-5 rounded-2xl border border-white/10 bg-background/90 p-3 backdrop-blur-md">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <input
-              className="input lg:max-w-xs"
+              className="input min-h-11 lg:max-w-xs"
               placeholder="Search # or name"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              enterKeyHint="search"
             />
-            <div className="flex flex-wrap gap-1.5">
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
               {(["all", "for_sale", "sold", "listed"] as const).map((value) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => setStatusFilter(value)}
-                  className={`rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                  className={`min-h-11 shrink-0 rounded-full px-3.5 text-xs capitalize transition ${
                     statusFilter === value
                       ? "bg-primary text-white"
                       : "border border-white/12 bg-white/5 text-white/60 hover:text-white"
@@ -955,7 +963,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             <label className="flex w-full items-center gap-2 text-xs text-white/50 sm:w-auto">
               Rarity
               <select
-                className="min-w-0 flex-1 rounded-lg border border-white/12 bg-white/5 px-2 py-1.5 text-white sm:flex-none"
+                className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/12 bg-white/5 px-2 text-white sm:min-h-0 sm:flex-none"
                 value={rarityFilter}
                 onChange={(e) => setRarityFilter(e.target.value as OverallRarityFilter)}
               >
@@ -970,7 +978,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             <label className="flex w-full items-center gap-2 text-xs text-white/50 sm:ml-auto sm:w-auto">
               Sort
               <select
-                className="min-w-0 flex-1 rounded-lg border border-white/12 bg-white/5 px-2 py-1.5 text-white sm:flex-none"
+                className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/12 bg-white/5 px-2 text-white sm:min-h-0 sm:flex-none"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as TokenSort)}
               >
@@ -1016,7 +1024,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           </p>
         ) : (
           <>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
           {visibleTokens.map((token, index) => {
             const sold = isTokenSold(token, collection);
             const listed = Boolean(token.listing);
@@ -1038,31 +1046,33 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 }}
                 className={`nft-card group text-left ${OVERALL_RARITY_FRAME[rarity]}`}
               >
-                <div className="relative aspect-square overflow-hidden">
+                <div className={`nft-tile-media ${sold ? "is-sold" : ""}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={tokenImageSrc(collection, token)}
+                    src={tokenThumbSrc(collection, token, 480)}
                     alt={tokenName(collection, token)}
-                    loading={index < 8 ? "eager" : "lazy"}
+                    loading={index < 4 ? "eager" : "lazy"}
                     decoding="async"
-                    className={`h-full w-full object-cover transition duration-500 ${sold ? "grayscale" : "group-hover:scale-[1.04]"}`}
+                    width={480}
+                    height={480}
+                    className={sold ? undefined : "transition duration-500 group-hover:scale-[1.04]"}
                   />
                 </div>
-                <div className="border-t border-white/10 px-3 py-2.5">
-                  <div className="truncate text-sm font-medium text-white">
+                <div className="border-t border-white/10 px-2.5 py-2 sm:px-3 sm:py-2.5">
+                  <div className="truncate text-[13px] font-medium text-white sm:text-sm">
                     {tokenName(collection, token)}
                   </div>
                   <div className="mt-0.5 font-[family-name:var(--font-mono)] text-[10px] tracking-[0.12em] text-white/40">
                     #{token.tokenId}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <div className="mt-2 flex min-w-0 items-center gap-1">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${OVERALL_RARITY_CLASS[rarity]}`}
+                      className={`min-w-0 truncate rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${OVERALL_RARITY_CLASS[rarity]}`}
                     >
                       {OVERALL_RARITY_LABEL[rarity]}
                     </span>
                     <span
-                      className={`rounded-full px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px] ${
+                      className={`min-w-0 truncate rounded-full px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px] ${
                         sold && !listed ? "bg-white text-black" : "bg-primary/90 text-white"
                       }`}
                     >
@@ -1095,16 +1105,17 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           onClick={() => setSelected(null)}
         >
           <div
-            className="tile max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl border border-white/15 bg-[#161311] shadow-2xl sm:rounded-3xl"
+            className="tile max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-t-3xl border border-white/15 bg-[#161311] pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="grid md:grid-cols-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={tokenImageSrc(collection, selected)}
-                alt={tokenName(collection, selected)}
-                className="aspect-square w-full object-cover"
-              />
+              <div className={`nft-tile-media ${isTokenSold(selected, collection) ? "is-sold" : ""}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={tokenImageSrc(collection, selected)}
+                  alt={tokenName(collection, selected)}
+                />
+              </div>
               <div className="bg-[#161311] p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1136,7 +1147,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                       );
                     })()}
                   </div>
-                  <button onClick={() => setSelected(null)} className="text-sm text-white/50">
+                  <button onClick={() => setSelected(null)} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-sm text-white/70">
                     Close
                   </button>
                 </div>

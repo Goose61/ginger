@@ -7,7 +7,7 @@ import type { Collection } from "@/lib/types";
 import { getQuote } from "@/lib/quotes";
 import { verifySolPayment, consumeSolSignature } from "@/lib/verify-payment";
 import { getPlatformPublicKey } from "@/lib/platform-key";
-import { parseNetwork } from "@/lib/solana-config";
+import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { FEATURE_ON_MARKET_DAYS, FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
 import { getClientIp } from "@/lib/request-ip";
 import { getMarketCards, getMarketCardsFresh, toSearchItem } from "@/lib/market-data";
@@ -21,6 +21,7 @@ import {
   collectionMintDestinations,
   isEvmAddress,
 } from "@/lib/chain-registry";
+import { splMintRejectionReason } from "@/lib/spl-mint";
 
 export async function GET(req: NextRequest) {
   try {
@@ -327,6 +328,26 @@ export async function POST(req: NextRequest) {
     }
 
     merged.status = "live";
+  }
+
+  if (collectionHomeChain(merged) === "solana") {
+    const settingCa = body.buybackTokenCa !== undefined;
+    const goingLive = body.action === "go-live" && merged.fees.buybackPercent > 0;
+    if (settingCa || goingLive) {
+      const ca = (
+        settingCa ? String(body.buybackTokenCa ?? "").trim() : merged.buybackTokenCa?.trim()
+      ) || "";
+      if (!ca && (goingLive || merged.fees.buybackPercent > 0)) {
+        return NextResponse.json(
+          { error: "Enter the SPL token mint for buyback. A wallet address cannot be purchased." },
+          { status: 400 },
+        );
+      }
+      if (ca) {
+        const reason = await splMintRejectionReason(ca, serverNetwork());
+        if (reason) return NextResponse.json({ error: reason }, { status: 400 });
+      }
+    }
   }
 
   await saveCollection(merged);

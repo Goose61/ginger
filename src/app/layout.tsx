@@ -4,7 +4,6 @@ import "./globals.css";
 import "@/components/ginger/ginger.css";
 import ScrollToTop from "@/components/ScrollToTop";
 import { FeedbackPill } from "@/components/FeedbackPill";
-import Aoscompo from "@/utils/aos";
 import { SolanaAdapterProvider } from "@/components/SolanaAdapterProvider";
 import { WalletProvider } from "@/components/WalletProvider";
 import { EvmWalletRoot } from "@/components/EvmWalletRoot";
@@ -98,7 +97,7 @@ export default function RootLayout({
               <WalletProvider>
                 <GlobalSearchProvider>
                   <div className="relative z-[2] pb-[var(--page-bottom-gutter)]">
-                    <Aoscompo>{children}</Aoscompo>
+                    {children}
                   </div>
                   <ScrollToTop />
                   <FeedbackPill />

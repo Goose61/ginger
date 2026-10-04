@@ -5,9 +5,10 @@ import Link from "next/link";
 import type { MarketCard } from "@/lib/market-card";
 import { marketStatus } from "@/lib/market-view";
 import { formatUsd } from "@/lib/collection-ui";
-import { StatusPill } from "@/components/GlobalSearch";
+import { StatusPill } from "@/components/StatusPill";
 import { Shelf } from "./Shelf";
-import { collectionHref, isLiveFeatured, mintedPct, sortCards } from "./utils";
+import { MintProgress } from "./MintProgress";
+import { collectionHref, isLiveFeatured, sortCards } from "./utils";
 import { chainLabel } from "@/lib/chain-registry";
 import type { ChainKey } from "@/lib/types";
 
@@ -85,20 +86,19 @@ export function MintGrid({ live }: { live: MarketCard[] }) {
 }
 
 function MintCard({ collection }: { collection: MarketCard }) {
-  const pct = mintedPct(collection);
   return (
     <Link
       href={collectionHref(collection)}
       className="nft-card group block"
     >
-      <div className="relative aspect-square overflow-hidden bg-surface-2">
+      <div className="nft-tile-media">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={collection.coverSrc}
           alt={`${collection.name} NFT artwork`}
           loading="lazy"
           decoding="async"
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          className="transition duration-500 group-hover:scale-[1.04]"
         />
         {isLiveFeatured(collection) && (
           <span className="absolute left-3 top-3 rounded-full bg-gold px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black">
@@ -122,13 +122,17 @@ function MintCard({ collection }: { collection: MarketCard }) {
             </p>
           </div>
           <p className="num text-right text-xs text-ink-muted">
-            <span className="font-[family-name:var(--font-mono)] text-ink">{pct}%</span> minted ·{" "}
             {collection.stats.available} left
           </p>
         </div>
-        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
-          <div className="h-full rounded-full bg-gold" style={{ width: `${pct}%` }} />
-        </div>
+        <MintProgress
+          minted={collection.mintedCount}
+          supply={collection.supply}
+          className="mt-2.5"
+          trackClassName="bg-surface-3"
+          labelClassName="text-ink-subtle"
+          valueClassName="text-ink"
+        />
       </div>
     </Link>
   );

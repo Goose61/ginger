@@ -111,7 +111,7 @@ function mintTo(collection: Collection, tokenId: number, owner: string) {
     payer: owner,
   });
   collection.mintedCount = collection.tokens.filter((t) => t.owner).length;
-  const next = applySaleTreasury(collection);
+  const next = applySaleTreasury(collection, { excludeTokenIds: [tokenId] });
   Object.assign(collection, next);
   return breakdown;
 }
@@ -211,14 +211,14 @@ function runSimulation() {
   const round = c.feeLedger!.distributionRounds[0];
   assert(round.poolUsd === 4, "distribution round locked $4.00 (8 × $0.50)");
   assert(c.feeLedger!.holderTreasuryUsd === 0, "holder pool emptied into the round");
-  assert(round.snapshot.find((h) => h.wallet === ALICE)?.count === 6, "Alice held 6 at snapshot");
+  assert(round.snapshot.find((h) => h.wallet === ALICE)?.count === 5, "Alice held 5 before the mint that opened the round");
   assert(round.snapshot.find((h) => h.wallet === BOB)?.count === 2, "Bob held 2 at snapshot");
 
   console.log("\n4. Alice and Bob claim holder rewards");
   const aliceClaim = claimHolderFees(c, ALICE);
   const bobClaim = claimHolderFees(c, BOB);
-  assert(aliceClaim.claimedUsd === 3, "Alice claims 6/8 of $4.00 = $3.00");
-  assert(bobClaim.claimedUsd === 1, "Bob claims 2/8 of $4.00 = $1.00");
+  assert(aliceClaim.claimedUsd === 2.86, "Alice claims 5/7 of $4.00 = $2.86");
+  assert(bobClaim.claimedUsd === 1.14, "Bob claims the remainder, 2/7 of $4.00 = $1.14");
   const alicePreview = previewHolderClaim(c, ALICE);
   assert(alicePreview?.claimableUsd === 0, "Alice has nothing left to claim");
 
@@ -265,24 +265,23 @@ function runInstantSimulation() {
   c.feeClaimsOpen = false;
   c.treasuryBuybackActive = false;
 
-  console.log("1. Alice mints #1 — only holder, gets 100% of that sale's holder pool");
+  console.log("1. Alice mints #1 — she is not an existing holder, so the pool waits");
   mintTo(c, 1, ALICE);
   assert(c.feeClaimsOpen, "claims open after the first sale");
   assert(c.treasuryBuybackActive, "buyback armed after the first sale");
   assert(c.secondaryEnabled, "secondary listings enabled (no enable_secondary milestone)");
-  assert(c.feeLedger!.distributionRounds.length === 1, "round 1 opened immediately");
-  assert(c.feeLedger!.holderTreasuryUsd === 0, "holder pool emptied into round 1");
-  const r1 = c.feeLedger!.distributionRounds[0];
-  assert(r1.snapshot.length === 1 && r1.snapshot[0].wallet === ALICE, "Alice is the only holder in round 1");
-  assert(r1.poolUsd === 0.5, "round 1 locked $0.50");
+  assert(c.feeLedger!.distributionRounds.length === 0, "first buyer does not open a holder round");
+  assert(c.feeLedger!.holderTreasuryUsd === 0.5, "holder pool stays until an existing holder can receive it");
 
-  console.log("2. Bob mints #2 — Alice and Bob split that sale 50/50");
+  console.log("2. Bob mints #2 — only Alice, who already held #1, receives that pool");
   mintTo(c, 2, BOB);
-  const r2 = c.feeLedger!.distributionRounds[1];
-  assert(c.feeLedger!.distributionRounds.length === 2, "round 2 opened on Bob's mint");
-  assert(r2.snapshot.find((h) => h.wallet === ALICE)?.count === 1, "Alice still holds #1");
-  assert(r2.snapshot.find((h) => h.wallet === BOB)?.count === 1, "Bob holds #2");
-  assert(r2.poolUsd === 0.5, "round 2 locked $0.50");
+  const r1 = c.feeLedger!.distributionRounds[0];
+  assert(c.feeLedger!.distributionRounds.length === 1, "round opened on Bob's mint");
+  assert(r1.snapshot.length === 1 && r1.snapshot[0].wallet === ALICE, "Bob is not paid from his own mint");
+  assert(r1.snapshot[0].count === 1, "Alice still holds #1");
+  assert(!r1.snapshot.some((h) => h.wallet === BOB), "new buyer is absent from the snapshot");
+  assert(r1.poolUsd === 1, "round locked both sales' holder pools ($1.00)");
+  assert(c.feeLedger!.holderTreasuryUsd === 0, "holder pool emptied into the round");
 
   console.log("3. Carol mints #3, Alice mints #4 — SPL buyback spends the accrued pool");
   mintTo(c, 3, CAROL);
