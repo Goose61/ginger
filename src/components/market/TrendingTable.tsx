@@ -126,7 +126,7 @@ export function TrendingTable({
                     </div>
                   </div>
                   <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <MobileStat label="Floor" value={formatUsd(c.stats.floorUsd)} />
+                    <MobileStat label="Minimum" value={formatUsd(c.stats.floorUsd)} />
                     <MobileStat label="Volume" value={formatUsdAmount(c.stats.volumeUsd)} />
                     <MobileStat label="Minted" value={`${mintedPct(c)}%`} />
                   </dl>
@@ -149,7 +149,7 @@ export function TrendingTable({
                 <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-ink-subtle">
                   <Th className="w-12 pl-5">#</Th>
                   <Th>Collection</Th>
-                  <Th className="text-right">Floor</Th>
+                  <Th className="text-right">Minimum</Th>
                   <Th className="text-right">Volume</Th>
                   <Th className="w-44">Minted</Th>
                   <Th className="text-right">Listed</Th>

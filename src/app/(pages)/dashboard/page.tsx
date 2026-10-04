@@ -333,6 +333,7 @@ function GiftNftPanel({
   const { publicKey, connect, signMintTx } = useWallet();
   const [detail, setDetail] = useState(collection);
   const unsold = useMemo(() => giftableTokens(detail), [detail]);
+  const [tokenQuery, setTokenQuery] = useState("");
   const [tokenId, setTokenId] = useState("");
   const [recipient, setRecipient] = useState("");
   const [busy, setBusy] = useState(false);
@@ -357,11 +358,14 @@ function GiftNftPanel({
     };
   }, [collection.id]);
 
-  useEffect(() => {
-    if (!unsold.some((t) => String(t.tokenId) === tokenId)) {
-      setTokenId(String(unsold[0]?.tokenId ?? ""));
-    }
-  }, [unsold, tokenId]);
+  const tokenNumber = tokenQuery.replace(/\D/g, "");
+  const tokenMatches = useMemo(() => {
+    if (!tokenNumber) return [];
+    const exact = unsold.find((t) => String(t.tokenId) === tokenNumber);
+    if (exact) return [exact];
+    return unsold.filter((t) => String(t.tokenId).startsWith(tokenNumber)).slice(0, 8);
+  }, [unsold, tokenNumber]);
+  const selectedToken = unsold.find((t) => String(t.tokenId) === tokenId) ?? null;
 
   async function sendGift() {
     if (!publicKey) {
@@ -374,8 +378,8 @@ function GiftNftPanel({
       setMessage("Enter a valid Solana wallet address.");
       return;
     }
-    if (!Number.isFinite(id) || id <= 0) {
-      setMessage("Pick an NFT to gift.");
+    if (!Number.isFinite(id) || id <= 0 || !unsold.some((t) => t.tokenId === id)) {
+      setMessage(tokenNumber ? `No unminted NFT #${tokenNumber}.` : "Enter an NFT number.");
       return;
     }
     setBusy(true);
@@ -438,6 +442,8 @@ function GiftNftPanel({
         setMessage(`Gifted #${id} to ${recipientAddr.slice(0, 4)}…${recipientAddr.slice(-4)}`);
       }
       setRecipient("");
+      setTokenQuery("");
+      setTokenId("");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Gift failed");
     } finally {
@@ -464,17 +470,21 @@ function GiftNftPanel({
         approve the on-chain mint (rent) in your wallet.
       </p>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
-        <select
+        <input
           className="input"
-          value={tokenId}
-          onChange={(e) => setTokenId(e.target.value)}
-        >
-          {unsold.slice(0, 400).map((token) => (
-            <option key={token.tokenId} value={token.tokenId}>
-              #{token.tokenId} · {tokenName(detail, token)}
-            </option>
-          ))}
-        </select>
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="Search NFT number"
+          aria-label="Search NFT number"
+          value={tokenQuery}
+          onChange={(e) => {
+            const next = e.target.value.replace(/[^\d#]/g, "");
+            const digits = next.replace(/\D/g, "");
+            setTokenQuery(next);
+            const exact = unsold.find((t) => String(t.tokenId) === digits);
+            setTokenId(exact ? String(exact.tokenId) : "");
+          }}
+        />
         <input
           className="input"
           placeholder="Recipient wallet"
@@ -490,6 +500,32 @@ function GiftNftPanel({
           {busy ? "Sending…" : "Send gift"}
         </button>
       </div>
+      {selectedToken && (
+        <p className="text-xs text-white/70">
+          Gifting #{selectedToken.tokenId} · {tokenName(detail, selectedToken)}
+        </p>
+      )}
+      {!selectedToken && tokenNumber && tokenMatches.length > 0 && (
+        <ul className="overflow-hidden rounded-lg border border-white/10">
+          {tokenMatches.map((token) => (
+            <li key={token.tokenId} className="border-t border-white/10 first:border-t-0">
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                onClick={() => {
+                  setTokenQuery(String(token.tokenId));
+                  setTokenId(String(token.tokenId));
+                }}
+              >
+                #{token.tokenId} · {tokenName(detail, token)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!selectedToken && tokenNumber && tokenMatches.length === 0 && (
+        <p className="text-xs text-white/45">No unminted NFT #{tokenNumber}.</p>
+      )}
       {message && <p className="text-xs text-white/55">{message}</p>}
     </div>
   );

@@ -157,7 +157,7 @@ function FeaturedCard({ slides }: { slides: MarketCard[] }) {
           </div>
         </div>
         <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 p-4">
-          <Stat label="Floor" value={formatUsd(active.stats.floorUsd)} />
+          <Stat label="Minimum" value={formatUsd(active.stats.floorUsd)} />
           <Stat label="Minted" value={`${pct}%`} bar={mintedBarPct(active)} />
           <span className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition group-hover:bg-[#6d4ed4]">
             {active.hasListings ? "View listings" : "Mint now"}

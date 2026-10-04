@@ -381,7 +381,7 @@ function SearchDialog({
                           <StatusPill status={row.item.status} />
                         </span>
                         <span className="num mt-0.5 block font-[family-name:var(--font-mono)] text-[11px] text-ink-muted">
-                          Floor {formatUsd(row.item.floorUsd)} · {row.item.mintedPct}% minted
+                          Minimum {formatUsd(row.item.floorUsd)} · {row.item.mintedPct}% minted
                         </span>
                       </span>
                       {isRecent && <Clock className="h-3.5 w-3.5 text-ink-subtle" aria-hidden />}

@@ -116,7 +116,7 @@ function MintCard({ collection }: { collection: MarketCard }) {
         </div>
         <div className="mt-3 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[10.5px] uppercase tracking-[0.12em] text-ink-subtle">Floor</p>
+            <p className="text-[10.5px] uppercase tracking-[0.12em] text-ink-subtle">Minimum</p>
             <p className="num mt-0.5 font-[family-name:var(--font-mono)] text-lg font-medium text-ink">
               {formatUsd(collection.stats.floorUsd)}
             </p>
