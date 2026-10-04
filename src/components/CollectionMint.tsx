@@ -845,11 +845,6 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 {chainLabel(collectionHomeChain(collection)).toUpperCase()} · {collection.symbol}
               </p>
               <h1 className="mt-2 break-words text-3xl font-bold tracking-tight text-white sm:text-5xl">{collection.name}</h1>
-              <CollectionContractLinks
-                collection={collection}
-                solanaClusterQuery={explorerCluster}
-                avalancheNetwork={avalancheNetwork}
-              />
               <div className="mt-4">
                 <CollectionSocialLinks socials={socials} />
               </div>
@@ -918,6 +913,12 @@ export function CollectionMint({ initial }: { initial: Collection }) {
               </a>
             </div>
           )}
+          <CollectionContractLinks
+            variant="tile"
+            collection={collection}
+            solanaClusterQuery={explorerCluster}
+            avalancheNetwork={avalancheNetwork}
+          />
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50">
             <p className="font-medium text-white/70">Ginger marketplace (fixed)</p>
             <p className="mt-1">Primary: {PRIMARY_PLATFORM_FEE_PERCENT}% + {PRIMARY_TRADE_TAX_PERCENT}% trade tax ({PRIMARY_PLATFORM_TOTAL_PERCENT}% total)</p>
