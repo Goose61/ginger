@@ -19,13 +19,15 @@ import { isValidSolanaAddress } from "@/lib/mint-nft";
 import { collectionHomeChain, isEvmAddress } from "@/lib/chain-registry";
 import { consumeDryRun, requireSimulatedDryRun, withClearedMintQuote } from "@/lib/mint-dry-run-store";
 import { parseNetwork, serverNetwork } from "@/lib/solana-config";
-import { nftPrice } from "@/lib/collection-ui";
+import { collectionAllowsResale, nftPrice } from "@/lib/collection-ui";
 import { buildPendingMintForToken } from "@/lib/collection-mint-on-chain";
 import { getPlatformSecretKey } from "@/lib/platform-key";
 import {
   accrueSaleFees,
   claimHolderFees,
   previewHolderClaim,
+  treasurySummary,
+  walletRewardSummary,
   type SaleFeeBreakdown,
 } from "@/lib/fee-distribution";
 import {
@@ -478,7 +480,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "tokenId and priceUsd required" }, { status: 400 });
       }
       const collection = await updateCollection(id, (current) => {
-        if (!current.secondaryEnabled) throw new Error("Secondary market not enabled");
+        if (!collectionAllowsResale(current)) throw new Error("This collection is not open for resale");
         const token = current.tokens.find((t) => t.tokenId === tokenId);
         if (!token?.owner) throw new Error("Token not owned");
         const owner = token.owner.startsWith("0x") ? token.owner.toLowerCase() : token.owner;
@@ -588,7 +590,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const sellerWallet = token.owner ?? undefined;
 
       let collection = await updateCollection(id, (current) => {
-        if (!current.secondaryEnabled) throw new Error("Secondary market not enabled");
+        if (!collectionAllowsResale(current)) throw new Error("This collection is not open for resale");
         const t = current.tokens.find((x) => x.tokenId === tokenId);
         if (!t?.listing) throw new Error("Not listed for sale");
         if (t.owner === payerAddr) throw new Error("Already yours");
@@ -756,11 +758,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       const wallet = String(body.wallet || "");
       const collection = await getCollection(id);
       if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
-      const preview =
-        wallet && isValidSolanaAddress(wallet)
-          ? previewHolderClaim(collection, wallet)
-          : null;
+      const knownWallet =
+        wallet && (isValidSolanaAddress(wallet) || isEvmAddress(wallet)) ? wallet : "";
+      const preview = knownWallet ? previewHolderClaim(collection, knownWallet) : null;
       return NextResponse.json({
+        summary: treasurySummary(collection),
+        walletRewards: knownWallet ? walletRewardSummary(collection, knownWallet) : null,
         feeLedger: collection.feeLedger ?? null,
         feeClaimsOpen: collection.feeClaimsOpen ?? false,
         treasuryBuybackActive: collection.treasuryBuybackActive ?? false,
@@ -805,63 +808,110 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "That NFT is already minted or reserved" }, { status: 400 });
       }
 
-      const useOnChain = Boolean(getPlatformSecretKey());
-      if (useOnChain) {
-        const reserved = await tryReserveToken(id, token.tokenId, recipientAddr);
-        if (!reserved) {
-          return NextResponse.json({ error: "That NFT is already minted or reserved" }, { status: 400 });
-        }
-      } else {
-        const assigned = await tryAssignTokenOwner(id, token.tokenId, recipientAddr);
-        if (!assigned) {
-          return NextResponse.json({ error: "That NFT is already minted or reserved" }, { status: 400 });
-        }
+      if (!getPlatformSecretKey()) {
+        return NextResponse.json(
+          { error: "Gift mint needs a wallet confirmation, and the mint signer is not configured." },
+          { status: 503 },
+        );
+      }
+
+      const reserved = await tryReserveToken(id, token.tokenId, recipientAddr);
+      if (!reserved) {
+        return NextResponse.json({ error: "That NFT is already minted or reserved" }, { status: 400 });
       }
 
       let txResult: BuildTxResult | null = null;
-      if (useOnChain) {
-        const network = serverNetwork(body.network);
-        try {
-          const built = await buildPendingMintForToken({
-            collection: existing,
-            tokenId: token.tokenId,
-            payer: payerAddr,
-            recipient: recipientAddr,
-            network,
-          });
-          txResult = built.txResult;
-        } catch (e) {
-          await rollbackMint({
-            id,
-            tokenIds: [token.tokenId],
-            recipient: recipientAddr,
-            onChain: true,
-          });
-          const message = e instanceof Error ? e.message : "On-chain mint could not be built";
-          console.error("[creator_gift] On-chain tx build failed:", e);
-          return NextResponse.json({ error: message }, { status: 500 });
-        }
+      const network = serverNetwork(body.network);
+      try {
+        const built = await buildPendingMintForToken({
+          collection: existing,
+          tokenId: token.tokenId,
+          payer: payerAddr,
+          recipient: recipientAddr,
+          network,
+        });
+        txResult = built.txResult;
+      } catch (e) {
+        await rollbackMint({
+          id,
+          tokenIds: [token.tokenId],
+          recipient: recipientAddr,
+          onChain: true,
+        });
+        const message = e instanceof Error ? e.message : "On-chain mint could not be built";
+        console.error("[creator_gift] On-chain tx build failed:", e);
+        return NextResponse.json({ error: message }, { status: 500 });
       }
 
-      const collection = await updateCollection(id, (current) => {
-        const gifted = current.tokens.find((t) => t.tokenId === tokenId);
-        if (gifted && txResult) gifted.assetAddress = txResult.assetAddress;
-        if (txResult) {
-          current.pendingMint = { ...txResult.pendingMint, tokenId };
-        }
-        current.mintedCount = committedCount(current);
-        if (current.mintedCount >= current.supply) current.status = "sold_out";
-        return applyRevealTriggers(applySaleTreasury(current, { excludeTokenIds: [tokenId] }));
-      });
-      if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
+      let collection: Awaited<ReturnType<typeof updateCollection>> = null;
+      try {
+        collection = await updateCollection(id, (current) => {
+          const gifted = current.tokens.find((t) => t.tokenId === tokenId);
+          if (gifted && txResult) gifted.assetAddress = txResult.assetAddress;
+          if (txResult) {
+            current.pendingMint = { ...txResult.pendingMint, tokenId };
+          }
+          return current;
+        });
+      } catch (e) {
+        await rollbackMint({
+          id,
+          tokenIds: [token.tokenId],
+          recipient: recipientAddr,
+          onChain: true,
+        });
+        throw e;
+      }
+      if (!collection || !txResult) {
+        await rollbackMint({
+          id,
+          tokenIds: [token.tokenId],
+          recipient: recipientAddr,
+          onChain: true,
+        });
+        return NextResponse.json({ error: "Gift mint could not be prepared" }, { status: 500 });
+      }
 
       return NextResponse.json({
-        collection: toPublicCollection(collection),
-        mintedTokenIds: [tokenId],
+        tokenId,
         recipient: recipientAddr,
-        requiresOnChainMint: Boolean(txResult),
-        gifted: true,
+        requiresOnChainMint: true,
       });
+    }
+
+    if (body.action === "creator_gift_cancel") {
+      const auth = readAuthHeaders(req);
+      const existing = await getCollection(id);
+      if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+      try {
+        assertCreatorAuth(auth, existing.payments.creatorWallet);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unauthorized";
+        return NextResponse.json({ error: message }, { status: 401 });
+      }
+      const tokenId = Number(body.tokenId);
+      const token = existing.tokens.find((t) => t.tokenId === tokenId);
+      if (!token || token.owner) {
+        return NextResponse.json({ ok: true, released: false });
+      }
+      await clearTokenReservation(id, tokenId);
+      await updateCollection(id, (current) => {
+        if (current.pendingMint?.tokenId === tokenId && !(current.pendingMint.paymentLamports && current.pendingMint.paymentLamports > 0)) {
+          delete current.pendingMint;
+        }
+        const held = current.tokens.find((t) => t.tokenId === tokenId);
+        if (held && !held.owner) {
+          delete held.assetAddress;
+          delete held.reservedBy;
+          delete held.reservedAt;
+        }
+        current.mintedCount = current.tokens.filter((t) => Boolean(t.owner)).length;
+        if (current.status === "sold_out" && current.mintedCount < current.supply) {
+          current.status = "live";
+        }
+        return current;
+      });
+      return NextResponse.json({ ok: true, released: true });
     }
 
     if (body.action === "reveal") {

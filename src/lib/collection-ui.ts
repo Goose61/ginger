@@ -174,6 +174,24 @@ export function filterTokensBySearch(
   });
 }
 
+/** Owners can list a minted NFT on a live collection. The sell-out milestone is not required. */
+export function collectionAllowsResale(collection: Pick<Collection, "status" | "kind">): boolean {
+  if (collection.kind === "gift_bundle") return false;
+  return collection.status === "live" || collection.status === "sold_out";
+}
+
+export function walletOwnsToken(
+  owner: string | null | undefined,
+  solanaWallet?: string | null,
+  evmWallet?: string | null,
+): boolean {
+  if (!owner) return false;
+  if (owner.startsWith("0x")) {
+    return Boolean(evmWallet && owner.toLowerCase() === evmWallet.toLowerCase());
+  }
+  return Boolean(solanaWallet && owner === solanaWallet);
+}
+
 export function tokenAskPrice(collection: Collection, token: GeneratedToken): number {
   if (token.listing) return token.listing.priceUsd;
   return nftPrice(collection, token);

@@ -35,8 +35,7 @@ export function toMarketCard(collection: Collection): MarketCard {
     supply: collection.supply,
     coverSrc: coverImageSrc(collection),
     stats,
-    hasListings:
-      Boolean(collection.secondaryEnabled) && tokens.some((t) => Boolean(t.listing)),
+    hasListings: tokens.some((t) => Boolean(t.listing)),
     featuredUntil: collection.featuredUntil ?? null,
     createdAt: collection.createdAt ?? "",
   };

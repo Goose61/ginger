@@ -11,7 +11,7 @@ import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
 import { isExpirableReservation, isTokenReservationActive, TOKEN_RESERVATION_TTL_MS } from "@/lib/public-collection";
-import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
+import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, collectionAllowsResale, walletOwnsToken, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
 import { MintProgress } from "@/components/market/MintProgress";
 import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityProfileByTokenId, tokenRarityRank } from "@/lib/rarity";
 import { collectionMarketStats } from "@/lib/collection-stats";
@@ -79,6 +79,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   );
   const [checkoutKind, setCheckoutKind] = useState<"primary_mint" | "secondary_buy">("primary_mint");
   const [listPrice, setListPrice] = useState("");
+  const [ownedPrices, setOwnedPrices] = useState<Record<number, string>>({});
   const [traitFilters, setTraitFilters] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<TokenStatusFilter>("all");
   const [sort, setSort] = useState<TokenSort>("id_asc");
@@ -707,7 +708,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     setSelected(null);
   }
 
-  async function listForSale(token: GeneratedToken) {
+  async function listForSale(token: GeneratedToken, priceInput?: string) {
     const wallet =
       token.owner?.startsWith("0x") ? evmAddress : publicKey;
     if (!wallet) {
@@ -715,7 +716,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       else await connect();
       return;
     }
-    const priceUsd = Number(listPrice);
+    const priceUsd = Number(priceInput ?? listPrice);
     if (!priceUsd || priceUsd <= 0) {
       setMessage("Enter a valid list price.");
       return;
@@ -938,6 +939,26 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         </div>
       </div>
 
+      {(publicKey || evmAddress) && collectionAllowsResale(collection) && (
+        <OwnedListings
+          collection={collection}
+          publicKey={publicKey}
+          evmAddress={evmAddress}
+          prices={ownedPrices}
+          busy={busy}
+          onPrice={(tokenId, value) => setOwnedPrices((prev) => ({ ...prev, [tokenId]: value }))}
+          onOpen={(token) => {
+            preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
+            setSelected(token);
+            setCheckoutPending(false);
+            setInvoiceId(null);
+            setMessage(null);
+          }}
+          onList={(token) => void listForSale(token, ownedPrices[token.tokenId] ?? (token.listing ? String(token.listing.priceUsd) : ""))}
+          onUnlist={(token) => void unlist(token)}
+        />
+      )}
+
       <section className="mt-12">
         <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <h2 className="text-3xl sm:text-4xl">The collection</h2>
@@ -1037,7 +1058,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           <>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
           {visibleTokens.map((token, index) => {
-            const sold = isTokenSold(token, collection);
+            const sold = Boolean(token.owner);
             const listed = Boolean(token.listing);
             const priceUsd = tokenAskPrice(collection, token);
             const rarity = rarityProfile.get(token.tokenId)?.overall ?? "common";
@@ -1121,7 +1142,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="grid md:grid-cols-2">
-              <div className={`nft-tile-media ${isTokenSold(selected, collection) ? "is-sold" : ""}`}>
+              <div className={`nft-tile-media ${selected.owner ? "is-sold" : ""}`}>
                 {/* Cached grid thumb paints immediately. The full image is requested at high priority and covers it. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -1143,7 +1164,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-[family-name:var(--font-mono)] text-[11px] text-white/40">
-                      {isTokenSold(selected, collection) ? "SOLD" : "AVAILABLE"}
+                      {selected.owner ? "SOLD" : "AVAILABLE"}
                     </p>
                     <h3 className="mt-1 break-words text-2xl font-bold text-white sm:text-3xl">{tokenName(collection, selected)}</h3>
                     <div className="mt-2">
@@ -1201,7 +1222,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                     })}
                 </dl>
 
-                {isTokenSold(selected, collection) && (
+                {selected.owner && (
                   <div className="mt-4 space-y-2 rounded border border-white/10 bg-white/5 px-3 py-3 text-xs">
                     {selected.owner && (
                       <div>
@@ -1252,7 +1273,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 </p>
 
                 {/* Secondary: buy listed token */}
-                {collection.secondaryEnabled && selected.listing && selected.owner !== publicKey && (
+                {collectionAllowsResale(collection) && selected.listing && !walletOwnsToken(selected.owner, publicKey, evmAddress) && (
                   <div className="mt-5 space-y-3">
                     <p className="text-xs text-white/50">Secondary listing</p>
                     <p className="text-xs leading-5 text-amber-200/80">
@@ -1286,10 +1307,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 )}
 
                 {/* Secondary: owner list / unlist */}
-                {collection.secondaryEnabled &&
+                {collectionAllowsResale(collection) &&
                   isTokenSold(selected, collection) &&
-                  (selected.owner === publicKey ||
-                    (Boolean(evmAddress) && selected.owner?.toLowerCase() === evmAddress?.toLowerCase())) && (
+                  walletOwnsToken(selected.owner, publicKey, evmAddress) && (
                   <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
                     <p className="text-xs text-white/50">Your NFT on the secondary market</p>
                     {selected.listing ? (
@@ -1500,5 +1520,94 @@ function FeeRow({
         <span className="block text-xs text-white/50">{note}</span>
       </span>
     </li>
+  );
+}
+
+function OwnedListings({
+  collection,
+  publicKey,
+  evmAddress,
+  prices,
+  busy,
+  onPrice,
+  onOpen,
+  onList,
+  onUnlist,
+}: {
+  collection: Collection;
+  publicKey: string | null;
+  evmAddress: string | null;
+  prices: Record<number, string>;
+  busy: boolean;
+  onPrice: (tokenId: number, value: string) => void;
+  onOpen: (token: GeneratedToken) => void;
+  onList: (token: GeneratedToken) => void;
+  onUnlist: (token: GeneratedToken) => void;
+}) {
+  const owned = collection.tokens.filter(
+    (token) => isTokenSold(token, collection) && walletOwnsToken(token.owner, publicKey, evmAddress),
+  );
+  return (
+    <section className="mt-12">
+      <h2 className="text-3xl text-white sm:text-4xl">Your NFTs</h2>
+      <p className="mt-2 text-sm text-white/50">
+        List a piece you hold, or set a new price to relist it. It stays in your wallet until it sells.
+      </p>
+      {owned.length === 0 ? (
+        <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/50">
+          This wallet does not hold any NFTs from {collection.name}.
+        </p>
+      ) : (
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {owned.map((token) => (
+            <article key={token.tokenId} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+              <button type="button" className="block w-full text-left" onClick={() => onOpen(token)}>
+                <div className="nft-tile-media">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={tokenThumbSrc(collection, token, 480)}
+                    alt={tokenName(collection, token)}
+                    decoding="async"
+                  />
+                </div>
+              </button>
+              <div className="space-y-2 p-3">
+                <p className="truncate text-sm text-white">{tokenName(collection, token)}</p>
+                <p className="text-xs text-white/45">
+                  {token.listing ? `Listed at ${formatUsd(token.listing.priceUsd)}` : "Not listed"}
+                </p>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Price (USD)"
+                  value={prices[token.tokenId] ?? (token.listing ? String(token.listing.priceUsd) : "")}
+                  onChange={(e) => onPrice(token.tokenId, e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onList(token)}
+                  className="min-h-11 w-full rounded-full bg-primary text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {token.listing ? "Relist" : "List for sale"}
+                </button>
+                {token.listing && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onUnlist(token)}
+                    className="min-h-11 w-full rounded-full border border-white/15 text-sm text-white/70 disabled:opacity-50"
+                  >
+                    Remove listing
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

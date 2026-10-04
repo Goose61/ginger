@@ -288,6 +288,104 @@ export function applyRoundPayouts(
   return collection;
 }
 
+export type TreasurySummary = {
+  salesUsd: number;
+  holderWaitingUsd: number;
+  holderPaidUsd: number;
+  buybackWaitingUsd: number;
+  buybackSpentUsd: number;
+  platformUsd: number;
+  creatorShareUsd: number;
+};
+
+/**
+ * Figures for the holder lounge.
+ * Running balances hide money that already moved: holderTreasuryUsd is cleared
+ * when a round opens (even if that round was never paid), and ownerAccruedUsd
+ * is never reduced after the creator is paid. This reads the sale entries,
+ * distribution rounds, and buyback records instead.
+ */
+export function treasurySummary(collection: Collection): TreasurySummary {
+  const ledger = collection.feeLedger;
+  const entries = ledger?.entries ?? [];
+  const rounds = ledger?.distributionRounds ?? [];
+  const buybacks = ledger?.buybacks ?? [];
+  const holderPaidUsd = roundUsd(
+    rounds.reduce(
+      (sum, round) => sum + (round.payouts ?? []).reduce((paid, payout) => paid + payout.amountUsd, 0),
+      0,
+    ),
+  );
+  const holderWaitingUsd = roundUsd(
+    (ledger?.holderTreasuryUsd ?? 0) +
+      rounds
+        .filter((round) => !round.distributedAt)
+        .reduce((sum, round) => sum + round.poolUsd, 0),
+  );
+  const buybackSpentUsd = roundUsd(
+    buybacks.reduce((sum, buyback) => sum + (buyback.usdSpent ?? 0), 0),
+  );
+  return {
+    salesUsd: roundUsd(entries.reduce((sum, entry) => sum + entry.saleUsd, 0)),
+    holderWaitingUsd,
+    holderPaidUsd,
+    buybackWaitingUsd: roundUsd(ledger?.buybackTreasuryUsd ?? 0),
+    buybackSpentUsd,
+    platformUsd: roundUsd(entries.reduce((sum, entry) => sum + entry.platformUsd, 0)),
+    creatorShareUsd: roundUsd(entries.reduce((sum, entry) => sum + entry.ownerUsd, 0)),
+  };
+}
+
+export type WalletRewardPayout = {
+  roundId: string;
+  amountUsd: number;
+  txUrl?: string;
+  paidAt?: string;
+};
+
+export type WalletRewardSummary = {
+  wallet: string;
+  heldCount: number;
+  paidUsd: number;
+  waitingUsd: number;
+  payouts: WalletRewardPayout[];
+};
+
+/** Rewards follow the snapshot from each sale, not the wallet's current balance. */
+export function walletRewardSummary(collection: Collection, wallet: string): WalletRewardSummary {
+  const rounds = collection.feeLedger?.distributionRounds ?? [];
+  let paidUsd = 0;
+  let waitingUsd = 0;
+  const payouts: WalletRewardPayout[] = [];
+  for (const round of rounds) {
+    const snap = round.snapshot.find((holder) => holder.wallet === wallet);
+    const entitled = snap ? roundUsdShare(round.poolUsd, snap.count, round.totalShares) : 0;
+    const paid = roundUsd(
+      (round.payouts ?? [])
+        .filter((payout) => payout.wallet === wallet)
+        .reduce((sum, payout) => sum + payout.amountUsd, 0),
+    );
+    paidUsd = roundUsd(paidUsd + paid);
+    if (!round.distributedAt) waitingUsd = roundUsd(waitingUsd + Math.max(0, entitled - paid));
+    for (const payout of round.payouts ?? []) {
+      if (payout.wallet !== wallet) continue;
+      payouts.push({
+        roundId: round.id,
+        amountUsd: payout.amountUsd,
+        txUrl: payout.txUrl,
+        paidAt: payout.paidAt,
+      });
+    }
+  }
+  return {
+    wallet,
+    heldCount: holderCounts(collection).get(wallet) ?? 0,
+    paidUsd,
+    waitingUsd,
+    payouts,
+  };
+}
+
 export function previewHolderClaim(collection: Collection, wallet: string): HolderClaimPreview | null {
   if (!collection.feeClaimsOpen) return null;
 

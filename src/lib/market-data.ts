@@ -5,10 +5,20 @@ import { partitionMarketCards } from "./market-card";
 export * from "./market-view";
 
 /** Bump when cache shape or fetch semantics change (invalidates stale entries). */
-const MARKET_CARDS_CACHE_KEY = "market-cards-v4";
+const MARKET_CARDS_CACHE_KEY = "market-cards-v5";
+
+function isMongoTimeout(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes("timed out") || msg.includes("Server selection") || msg.includes("MongoNetwork");
+}
 
 async function loadMarketCards() {
-  return partitionMarketCards(await listCollectionsForMarket());
+  try {
+    return partitionMarketCards(await listCollectionsForMarket());
+  } catch (err) {
+    if (!isMongoTimeout(err)) throw err;
+    return partitionMarketCards(await listCollectionsForMarket());
+  }
 }
 
 /**

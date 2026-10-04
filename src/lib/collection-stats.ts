@@ -45,12 +45,14 @@ export function collectionListedCount(collection: Collection): number {
   return (collection.tokens ?? []).filter((t) => Boolean(t.listing)).length;
 }
 
+/** Confirmed mints only. An unconfirmed gift reservation is not a sale. */
 export function collectionSoldCount(collection: Collection): number {
-  return (collection.tokens ?? []).filter((t) => isTokenSold(t, collection)).length;
+  return (collection.tokens ?? []).filter((t) => Boolean(t.owner)).length;
 }
 
 export function collectionMarketStats(collection: Collection): CollectionMarketStats {
   const sold = collectionSoldCount(collection);
+  const held = (collection.tokens ?? []).filter((t) => isTokenSold(t, collection)).length;
   const floorUsd = collectionFloorUsd(collection);
   return {
     volumeUsd: collectionVolumeUsd(collection),
@@ -58,6 +60,6 @@ export function collectionMarketStats(collection: Collection): CollectionMarketS
     marketCapUsd: floorUsd * collection.supply,
     listedCount: collectionListedCount(collection),
     sold,
-    available: Math.max(0, collection.supply - sold),
+    available: Math.max(0, collection.supply - held),
   };
 }

@@ -16,16 +16,17 @@ type ReservationToken = {
   reservedAt?: string | null;
 };
 
-/** SlicePay/gift holds have pendingMint without a SOL payment — keep them until minted. */
+/**
+ * Paid SOL mints stay reserved until confirm. A gift that never gets a wallet
+ * signature expires with the normal hold, so the NFT is not left looking sold.
+ */
 export function isExpirableReservation(
   token: ReservationToken,
   collection?: Pick<Collection, "pendingMint"> | null,
 ): boolean {
   if (token.owner || !token.reservedBy) return false;
   const pm = collection?.pendingMint;
-  if (pm && pm.tokenId === token.tokenId && !(pm.paymentLamports && pm.paymentLamports > 0)) {
-    return false;
-  }
+  if (pm && pm.tokenId === token.tokenId && (pm.paymentLamports ?? 0) > 0) return false;
   return true;
 }
 

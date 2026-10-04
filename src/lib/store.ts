@@ -90,6 +90,46 @@ export async function listCollectionsForMarket(): Promise<Collection[]> {
     .map((c) => reconcileCollectionMintState(c).collection);
 }
 
+/** Live collections that include at least one token owned by this wallet. Tokens are filtered to that owner. */
+export async function findCollectionsHoldingWallet(wallet: string): Promise<Collection[]> {
+  const col = await getCollectionsCol();
+  const owners = wallet.startsWith("0x") ? [wallet, wallet.toLowerCase()] : [wallet];
+  const docs = await col
+    .aggregate<Collection>([
+      {
+        $match: {
+          status: { $in: ["live", "sold_out"] },
+          "tokens.owner": { $in: owners },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          id: 1,
+          slug: 1,
+          name: 1,
+          nameTemplate: 1,
+          symbol: 1,
+          kind: 1,
+          status: 1,
+          blindMint: 1,
+          revealed: 1,
+          revealedTokenIds: 1,
+          placeholderUri: 1,
+          tokens: {
+            $filter: {
+              input: "$tokens",
+              as: "t",
+              cond: { $in: ["$$t.owner", owners] },
+            },
+          },
+        },
+      },
+    ])
+    .toArray();
+  return docs.map(asCollection).filter((c) => !isHiddenFromMarket(c));
+}
+
 /** Public collection URLs for sitemap.xml. Skips drafts and hidden test launches. */
 export async function listSitemapCollections(): Promise<
   { slug: string; updatedAt: string; holderPageUnlocked: boolean }[]

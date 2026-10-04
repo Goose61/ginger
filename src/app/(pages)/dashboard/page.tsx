@@ -384,6 +384,7 @@ function GiftNftPanel({
     }
     setBusy(true);
     setMessage(null);
+    let signed = false;
     try {
       const headers = {
         "Content-Type": "application/json",
@@ -400,51 +401,52 @@ function GiftNftPanel({
         }),
       });
       const data = await readJsonResponse<{
-        collection?: Collection;
         requiresOnChainMint?: boolean;
         error?: string;
       }>(res);
       if (!res.ok) throw new Error(data.error ?? "Could not gift NFT");
-      if (data.collection) {
-        setDetail(data.collection);
-        onCollectionUpdate({
-          ...collection,
-          mintedCount: data.collection.mintedCount,
-          status: data.collection.status,
-        });
+      if (!data.requiresOnChainMint) {
+        throw new Error("The mint never reached your wallet, so nothing was sent.");
       }
 
-      if (data.requiresOnChainMint) {
-        setMessage("Approve the free mint in your wallet (recipient pays nothing)…");
-        const txSignature = await signMintTx(collection.id, networkName());
-        const confirm = await fetch(`/api/collections/${collection.id}/confirm-mint`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            collectionId: collection.id,
-            tokenId: id,
-            txSignature,
-            network: networkName(),
-          }),
+      setMessage("Approve the free mint in your wallet. The recipient pays nothing.");
+      const txSignature = await signMintTx(collection.id, networkName());
+      signed = true;
+      const confirm = await fetch(`/api/collections/${collection.id}/confirm-mint`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collectionId: collection.id,
+          tokenId: id,
+          txSignature,
+          network: networkName(),
+        }),
+      });
+      const confirmed = await readJsonResponse<{ collection?: Collection; error?: string }>(confirm);
+      if (!confirm.ok) throw new Error(confirmed.error ?? "Could not confirm gift mint");
+      if (confirmed.collection) {
+        setDetail(confirmed.collection);
+        onCollectionUpdate({
+          ...collection,
+          mintedCount: confirmed.collection.mintedCount,
+          status: confirmed.collection.status,
         });
-        const confirmed = await readJsonResponse<{ collection?: Collection; error?: string }>(confirm);
-        if (!confirm.ok) throw new Error(confirmed.error ?? "Could not confirm gift mint");
-        if (confirmed.collection) {
-          setDetail(confirmed.collection);
-          onCollectionUpdate({
-            ...collection,
-            mintedCount: confirmed.collection.mintedCount,
-            status: confirmed.collection.status,
-          });
-        }
-        setMessage(`Gifted #${id} to ${recipientAddr.slice(0, 4)}…${recipientAddr.slice(-4)}`);
-      } else {
-        setMessage(`Gifted #${id} to ${recipientAddr.slice(0, 4)}…${recipientAddr.slice(-4)}`);
       }
+      setMessage(`Gifted #${id} to ${recipientAddr.slice(0, 4)}…${recipientAddr.slice(-4)}`);
       setRecipient("");
       setTokenQuery("");
       setTokenId("");
     } catch (e) {
+      if (!signed) {
+        await fetch(`/api/collections/${collection.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(publicKey ? await buildAuthHeaders(publicKey).catch(() => ({})) : {}),
+          },
+          body: JSON.stringify({ action: "creator_gift_cancel", tokenId: id }),
+        }).catch(() => {});
+      }
       setMessage(e instanceof Error ? e.message : "Gift failed");
     } finally {
       setBusy(false);

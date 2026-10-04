@@ -7,6 +7,7 @@ import { MintGrid } from "@/components/market/MintGrid";
 import { LaunchPromo } from "@/components/market/LaunchPromo";
 import { TrustStrip } from "@/components/market/TrustStrip";
 import { GiftStrip } from "@/components/market/GiftStrip";
+import { WalletHoldings } from "@/components/market/WalletHoldings";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, absoluteUrl } from "@/lib/seo";
 import { collectionHref } from "@/components/market/utils";
@@ -49,6 +50,7 @@ export async function MarketHome() {
       {/* vertical padding lives on this wrapper: the global .container utility forces py-0 */}
       <div className="relative z-[1] pb-20 pt-12 sm:pb-28 sm:pt-16">
         <div className="container relative mx-auto max-w-6xl space-y-14 px-4 sm:space-y-16">
+          <WalletHoldings />
           <div className="space-y-10 sm:space-y-12">
             <MarketStats stats={stats} />
             <TrendingTable live={live} secondary={secondary} />
