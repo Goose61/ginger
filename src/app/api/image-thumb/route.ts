@@ -6,6 +6,40 @@ export const runtime = "nodejs";
 const MAX_WIDTH = 800;
 const MIN_WIDTH = 64;
 const MAX_UPSTREAM_BYTES = 12 * 1024 * 1024;
+const MAX_CONCURRENT_THUMBS = 2;
+let activeThumbs = 0;
+const thumbWaiters: Array<() => void> = [];
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
+}
+
+function acquireThumb(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+  if (activeThumbs < MAX_CONCURRENT_THUMBS) {
+    activeThumbs += 1;
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const start = () => {
+      signal.removeEventListener("abort", onAbort);
+      activeThumbs += 1;
+      resolve();
+    };
+    const onAbort = () => {
+      const index = thumbWaiters.indexOf(start);
+      if (index >= 0) thumbWaiters.splice(index, 1);
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    thumbWaiters.push(start);
+  });
+}
+
+function releaseThumb() {
+  activeThumbs = Math.max(0, activeThumbs - 1);
+  thumbWaiters.shift()?.();
+}
 
 function allowedRelativePath(pathname: string): boolean {
   return (
@@ -26,8 +60,11 @@ function isAllowedAbsoluteUrl(url: URL): boolean {
   );
 }
 
+/** Grid thumbs must not call back into this server. That queue is what delays the full image. */
 function resolveUpstream(raw: string, origin: string): URL | null {
   if (!raw || raw.length > 1024) return null;
+  const irysId = raw.match(/^\/api\/irys-gateway\/([A-Za-z0-9_-]{20,64})$/);
+  if (irysId) return new URL(`https://gateway.irys.xyz/${irysId[1]}`);
   if (raw.startsWith("/")) {
     if (!allowedRelativePath(raw)) return null;
     try {
@@ -58,10 +95,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid image" }, { status: 400 });
   }
 
+  const signal = AbortSignal.any([AbortSignal.timeout(15_000), req.signal]);
+  let acquired = false;
   try {
+    await acquireThumb(signal);
+    acquired = true;
+    if (signal.aborted) throw new DOMException("The operation was aborted.", "AbortError");
+
     const upstream = await fetch(upstreamUrl, {
       redirect: "follow",
-      signal: AbortSignal.timeout(15_000),
+      signal,
     });
     if (!upstream.ok) {
       return NextResponse.json({ error: "Upstream not found" }, { status: upstream.status });
@@ -75,6 +118,7 @@ export async function GET(req: NextRequest) {
     }
 
     const buf = Buffer.from(await upstream.arrayBuffer());
+    if (signal.aborted) throw new DOMException("The operation was aborted.", "AbortError");
     if (buf.length > MAX_UPSTREAM_BYTES) {
       return NextResponse.json({ error: "Image too large" }, { status: 413 });
     }
@@ -92,9 +136,14 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
+    if (isAbortError(err) || signal.aborted) {
+      return new NextResponse(null, { status: 499 });
+    }
     return NextResponse.json(
       { error: `Thumb failed: ${String(err)}` },
       { status: 502 },
     );
+  } finally {
+    if (acquired) releaseThumb();
   }
 }

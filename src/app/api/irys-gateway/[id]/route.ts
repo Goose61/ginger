@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -20,7 +20,7 @@ export async function GET(
   try {
     const upstream = await fetch(`https://gateway.irys.xyz/${id}`, {
       redirect: "follow",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.any([AbortSignal.timeout(20_000), req.signal]),
     });
     if (!upstream.ok) {
       return NextResponse.json({ error: "Upstream not found" }, { status: upstream.status });
@@ -39,6 +39,9 @@ export async function GET(
     const body = await upstream.arrayBuffer();
     return new NextResponse(body, { headers });
   } catch (err) {
+    if (req.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+      return new NextResponse(null, { status: 499 });
+    }
     return NextResponse.json(
       { error: `Gateway fetch failed: ${String(err)}` },
       { status: 502 },

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { preload } from "react-dom";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { promoteFullImage } from "@/lib/image-priority";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken, MintDestination } from "@/lib/types";
@@ -95,6 +95,16 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [reservationTick, setReservationTick] = useState(0);
   const pendingTokenRef = useRef<GeneratedToken | null>(null);
   const returnHandledRef = useRef(false);
+  const loadedThumbsRef = useRef(new Set<string>());
+  const priorityImageRef = useRef<HTMLImageElement | null>(null);
+
+  const openToken = useCallback((token: GeneratedToken) => {
+    priorityImageRef.current = promoteFullImage(tokenImageSrc(collection, token), loadedThumbsRef.current);
+    setSelected(token);
+    setCheckoutPending(false);
+    setInvoiceId(null);
+    setMessage(null);
+  }, [collection]);
 
   const rarityProfile = useMemo(
     () => rarityProfileByTokenId(collection.tokens, collection.traitPricing),
@@ -316,7 +326,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
   useEffect(() => {
     if (!selected) return;
-    preload(tokenImageSrc(collection, selected), { as: "image", fetchPriority: "high" });
+    priorityImageRef.current = promoteFullImage(tokenImageSrc(collection, selected), loadedThumbsRef.current);
   }, [selected, collection]);
 
   useEffect(() => {
@@ -947,13 +957,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           prices={ownedPrices}
           busy={busy}
           onPrice={(tokenId, value) => setOwnedPrices((prev) => ({ ...prev, [tokenId]: value }))}
-          onOpen={(token) => {
-            preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
-            setSelected(token);
-            setCheckoutPending(false);
-            setInvoiceId(null);
-            setMessage(null);
-          }}
+          onOpen={openToken}
+          holdGrid={selected != null}
+          loadedThumbs={loadedThumbsRef.current}
           onList={(token) => void listForSale(token, ownedPrices[token.tokenId] ?? (token.listing ? String(token.listing.priceUsd) : ""))}
           onUnlist={(token) => void unlist(token)}
         />
@@ -1066,28 +1072,16 @@ export function CollectionMint({ initial }: { initial: Collection }) {
               <button
                 key={token.tokenId}
                 type="button"
-                onPointerDown={() => {
-                  preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
-                }}
-                onClick={() => {
-                  preload(tokenImageSrc(collection, token), { as: "image", fetchPriority: "high" });
-                  setSelected(token);
-                  setCheckoutPending(false);
-                  setInvoiceId(null);
-                  setMessage(null);
-                }}
+                onClick={() => openToken(token)}
                 className={`nft-card group text-left ${OVERALL_RARITY_FRAME[rarity]}`}
               >
                 <div className={`nft-tile-media ${sold ? "is-sold" : ""}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <CollectionThumb
                     src={tokenThumbSrc(collection, token, 480)}
                     alt={tokenName(collection, token)}
-                    loading={index < 4 ? "eager" : "lazy"}
-                    fetchPriority={index < 4 ? "auto" : "low"}
-                    decoding="async"
-                    width={480}
-                    height={480}
+                    hold={selected != null}
+                    loaded={loadedThumbsRef.current}
+                    eager={index < 6}
                     className={sold ? undefined : "transition duration-500 group-hover:scale-[1.04]"}
                   />
                 </div>
@@ -1143,14 +1137,15 @@ export function CollectionMint({ initial }: { initial: Collection }) {
           >
             <div className="grid md:grid-cols-2">
               <div className={`nft-tile-media ${selected.owner ? "is-sold" : ""}`}>
-                {/* Cached grid thumb paints immediately. The full image is requested at high priority and covers it. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={tokenThumbSrc(collection, selected, 480)}
-                  alt=""
-                  fetchPriority="low"
-                  decoding="async"
-                />
+                {loadedThumbsRef.current.has(tokenThumbSrc(collection, selected, 480)) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tokenThumbSrc(collection, selected, 480)}
+                    alt=""
+                    fetchPriority="low"
+                    decoding="async"
+                  />
+                )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={tokenImageSrc(collection, selected)}
@@ -1488,6 +1483,67 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   );
 }
 
+function CollectionThumb({
+  src,
+  alt,
+  hold,
+  loaded,
+  eager = false,
+  className,
+}: {
+  src: string;
+  alt: string;
+  hold: boolean;
+  loaded: Set<string>;
+  eager?: boolean;
+  className?: string;
+}) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [near, setNear] = useState(eager);
+  const show = loaded.has(src) || (near && !hold);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || eager) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setNear(entries.some((entry) => entry.isIntersecting));
+      },
+      { rootMargin: "180px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [eager]);
+
+  useLayoutEffect(() => {
+    const img = ref.current;
+    if (!img) return;
+    if (!show) {
+      if (!(img.complete && img.naturalWidth > 0 && loaded.has(src))) img.removeAttribute("src");
+      return;
+    }
+    if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+  }, [show, src, loaded]);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={ref}
+      data-grid-thumb=""
+      alt={alt}
+      loading={eager ? "eager" : "lazy"}
+      fetchPriority="low"
+      decoding="async"
+      width={480}
+      height={480}
+      className={className}
+      onLoad={() => {
+        loaded.add(src);
+      }}
+    />
+  );
+}
+
 function Stat({ label, value, tip }: { label: string; value: string; tip?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-3" title={tip}>
@@ -1533,6 +1589,8 @@ function OwnedListings({
   onOpen,
   onList,
   onUnlist,
+  holdGrid,
+  loadedThumbs,
 }: {
   collection: Collection;
   publicKey: string | null;
@@ -1543,6 +1601,8 @@ function OwnedListings({
   onOpen: (token: GeneratedToken) => void;
   onList: (token: GeneratedToken) => void;
   onUnlist: (token: GeneratedToken) => void;
+  holdGrid: boolean;
+  loadedThumbs: Set<string>;
 }) {
   const owned = collection.tokens.filter(
     (token) => isTokenSold(token, collection) && walletOwnsToken(token.owner, publicKey, evmAddress),
@@ -1563,11 +1623,12 @@ function OwnedListings({
             <article key={token.tokenId} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               <button type="button" className="block w-full text-left" onClick={() => onOpen(token)}>
                 <div className="nft-tile-media">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <CollectionThumb
                     src={tokenThumbSrc(collection, token, 480)}
                     alt={tokenName(collection, token)}
-                    decoding="async"
+                    hold={holdGrid}
+                    loaded={loadedThumbs}
+                    eager
                   />
                 </div>
               </button>
