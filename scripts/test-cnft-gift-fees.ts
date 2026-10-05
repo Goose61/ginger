@@ -12,7 +12,8 @@ import { bubblegumGiftConfigured } from "../src/lib/bubblegum-config";
 
 assert.ok(getCnftMintStepMinLamports() < getMintStepMinLamports());
 assert.ok(lamportsToSol(getCnftMintStepMinLamports()) < 0.002);
-assert.ok(lamportsToSol(getMintStepMinLamports()) > 0.005);
+assert.ok(lamportsToSol(getMintStepMinLamports()) > 0.003);
+assert.ok(lamportsToSol(getMintStepMinLamports()) < 0.005);
 assert.equal(typeof bubblegumGiftConfigured(), "boolean");
 console.log(
   `✓ cNFT mint step ${lamportsToSol(getCnftMintStepMinLamports())} SOL vs Core ${lamportsToSol(getMintStepMinLamports())} SOL`,

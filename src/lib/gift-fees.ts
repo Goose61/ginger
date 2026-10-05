@@ -1,7 +1,13 @@
 import { fetchIrysPriceLamports } from "@/lib/irys-shared";
 
-/** Token Metadata NFT account rent (legacy TM gifts / Core collection mints). */
-export const GIFT_MINT_RENT_LAMPORTS = BigInt(6_500_000);
+/**
+ * Metaplex Core asset rent the payer funds on create.
+ * A live Core mint moved 3,095,120 lamports into the asset, then Core
+ * reclaimed the excess down to today's rent-exempt minimum (1,595,120
+ * for that 186-byte account). 3,100,000 covers the higher create amount.
+ * The old 6,500,000 figure was Token Metadata rent, not Core.
+ */
+export const GIFT_MINT_RENT_LAMPORTS = BigInt(3_100_000);
 
 /** Mint transaction fee buffer. */
 export const GIFT_TX_FEE_LAMPORTS = BigInt(10_000);
