@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { promoteFullImage } from "@/lib/image-priority";
+import { promoteFullImage, startFullImage } from "@/lib/image-priority";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Collection, GeneratedToken, MintDestination } from "@/lib/types";
@@ -11,7 +11,7 @@ import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
 import { useExplorerCluster } from "@/hooks/use-explorer-cluster";
 import { isGiftBundle } from "@/lib/gift-bundle";
 import { isExpirableReservation, isTokenReservationActive, TOKEN_RESERVATION_TTL_MS } from "@/lib/public-collection";
-import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, collectionAllowsResale, walletOwnsToken, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
+import { formatUsd, formatUsdAmount, formatUsdAndSol, formatSol, usdToSol, filterTokensByTrait, filterTokensByStatus, filterTokensBySearch, filterTokensByRarity, sortTokens, isTokenSold, nftPrice, tokenAskPrice, tokenFullViewSrc, tokenImageSrc, tokenThumbSrc, tokenName, uniqueTraitFilters, logoImageSrc, collectionAllowsResale, walletOwnsToken, COLLECTION_GRID_PAGE_SIZE, type TokenSort, type TokenStatusFilter, type OverallRarityFilter } from "@/lib/collection-ui";
 import { MintProgress } from "@/components/market/MintProgress";
 import { OVERALL_RARITY_CLASS, OVERALL_RARITY_FRAME, OVERALL_RARITY_LABEL, OVERALL_RARITY_ORDER, rarityProfileByTokenId, tokenRarityRank } from "@/lib/rarity";
 import { collectionMarketStats } from "@/lib/collection-stats";
@@ -91,6 +91,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [avalancheNetwork, setAvalancheNetwork] = useState<AvalancheNetwork | undefined>(undefined);
   const [visibleCount, setVisibleCount] = useState(COLLECTION_GRID_PAGE_SIZE);
   const [message, setMessage] = useState<string | null>(null);
+  const [fullViewFailed, setFullViewFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reservationTick, setReservationTick] = useState(0);
   const pendingTokenRef = useRef<GeneratedToken | null>(null);
@@ -99,7 +100,8 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const priorityImageRef = useRef<HTMLImageElement | null>(null);
 
   const openToken = useCallback((token: GeneratedToken) => {
-    priorityImageRef.current = promoteFullImage(tokenImageSrc(collection, token), loadedThumbsRef.current);
+    setFullViewFailed(false);
+    priorityImageRef.current = promoteFullImage(tokenFullViewSrc(collection, token), loadedThumbsRef.current);
     setSelected(token);
     setCheckoutPending(false);
     setInvoiceId(null);
@@ -326,7 +328,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
   useEffect(() => {
     if (!selected) return;
-    priorityImageRef.current = promoteFullImage(tokenImageSrc(collection, selected), loadedThumbsRef.current);
+    priorityImageRef.current = promoteFullImage(tokenFullViewSrc(collection, selected), loadedThumbsRef.current);
   }, [selected, collection]);
 
   useEffect(() => {
@@ -1072,6 +1074,9 @@ export function CollectionMint({ initial }: { initial: Collection }) {
               <button
                 key={token.tokenId}
                 type="button"
+                onPointerDown={() => {
+                  priorityImageRef.current = startFullImage(tokenFullViewSrc(collection, token));
+                }}
                 onClick={() => openToken(token)}
                 className={`nft-card group text-left ${OVERALL_RARITY_FRAME[rarity]}`}
               >
@@ -1148,11 +1153,17 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                 )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={tokenImageSrc(collection, selected)}
+                  key={selected.tokenId}
+                  src={
+                    fullViewFailed
+                      ? tokenImageSrc(collection, selected)
+                      : tokenFullViewSrc(collection, selected)
+                  }
                   alt={tokenName(collection, selected)}
                   fetchPriority="high"
                   loading="eager"
                   decoding="async"
+                  onError={() => setFullViewFailed(true)}
                 />
               </div>
               <div className="bg-[#161311] p-5">
@@ -1500,7 +1511,8 @@ function CollectionThumb({
 }) {
   const ref = useRef<HTMLImageElement>(null);
   const [near, setNear] = useState(eager);
-  const show = loaded.has(src) || (near && !hold);
+  const paused = hold && !loaded.has(src);
+  const show = !paused && (loaded.has(src) || near);
 
   useEffect(() => {
     const el = ref.current;
@@ -1513,17 +1525,19 @@ function CollectionThumb({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [eager]);
+  }, [eager, paused]);
 
   useLayoutEffect(() => {
     const img = ref.current;
     if (!img) return;
     if (!show) {
-      if (!(img.complete && img.naturalWidth > 0 && loaded.has(src))) img.removeAttribute("src");
+      if (img.getAttribute("src") && !img.getAttribute("src")!.startsWith("data:")) img.src = "data:,";
       return;
     }
     if (img.getAttribute("src") !== src) img.setAttribute("src", src);
-  }, [show, src, loaded]);
+  }, [show, src]);
+
+  if (paused) return null;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element

@@ -56,7 +56,7 @@ export function middleware(req: NextRequest) {
         .join(" "),
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       [
-        "img-src 'self' data: blob: https://gateway.irys.xyz https://arweave.net https://blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.datasprite-cdn.com",
+        "img-src 'self' data: blob: https://gateway.irys.xyz https://arweave.net https://blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.datasprite-cdn.com https://*.mainnet-1.datasprite-cdn.com https://*.devnet-1.datasprite-cdn.com",
         ga ? "https://www.google-analytics.com https://www.googletagmanager.com" : "",
       ]
         .filter(Boolean)

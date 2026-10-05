@@ -134,6 +134,7 @@ export default async function CollectionPage({
 
   return (
     <>
+      <link rel="preconnect" href="https://gateway.irys.xyz" />
       <div className="container mx-auto max-w-6xl px-4 pt-6">
         <Breadcrumbs items={crumbs} />
       </div>

@@ -42,6 +42,15 @@ export function tokenImageSrc(collection: Collection, token: GeneratedToken) {
   return `/api/assets/${collectionId}/${token.imageRelPath}`;
 }
 
+/** Full-view URL on the image host itself, so it does not wait behind grid thumbnails. */
+export function tokenFullViewSrc(collection: Collection, token: GeneratedToken): string {
+  if (!isTokenRevealed(collection, token.tokenId)) {
+    return placeholderImageSrc(collection);
+  }
+  if (token.imageUri && /^https?:\/\//.test(token.imageUri)) return token.imageUri;
+  return tokenImageSrc(collection, token);
+}
+
 /** @deprecated Use tokenImageSrc(collection, token) */
 export function tokenImageSrcLegacy(collectionId: string, token: GeneratedToken) {
   if (token.imageUri && !token.imageUri.startsWith("/api/")) {
