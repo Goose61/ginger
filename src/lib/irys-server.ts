@@ -21,7 +21,8 @@ type IrysSigner = {
 };
 
 type DataItemLike = {
-  sign: (signer: IrysSigner) => Promise<string>;
+  /** Returns the raw 32-byte transaction id, not a base58 string. */
+  sign: (signer: IrysSigner) => Promise<Uint8Array | string>;
   getRaw: () => Buffer;
 };
 
@@ -264,11 +265,27 @@ async function postSignedDataItem(
   try {
     const parsed = JSON.parse(bodyText) as { id?: string; tx?: { id?: string } };
     const id = parsed.id ?? parsed.tx?.id;
-    if (id) return id;
+    if (id && isIrysTxId(id)) return id;
   } catch {
-    // fall through — use signed item id
+    const trimmed = bodyText.trim().replace(/^"|"$/g, "");
+    if (isIrysTxId(trimmed)) return trimmed;
   }
   throw new Error("Upload succeeded but confirmation was missing");
+}
+
+function isIrysTxId(id: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(id);
+}
+
+/** Bundler ids are base58. `String(rawId)` is UTF-8 and corrupts bytes that are not text. */
+async function gatewayIdFromRaw(raw: Uint8Array | string): Promise<string> {
+  if (typeof raw === "string" && isIrysTxId(raw)) return raw;
+  const bytes = typeof raw === "string" ? null : Buffer.from(raw);
+  if (!bytes?.length) throw new Error("Upload id was not a storage address");
+  const bs58 = (await import("bs58")).default as { encode: (buf: Uint8Array) => string };
+  const id = bs58.encode(bytes);
+  if (!isIrysTxId(id)) throw new Error("Upload id was not a storage address");
+  return id;
 }
 
 async function buildSignedDataItem(
@@ -281,7 +298,7 @@ async function buildSignedDataItem(
     tags: [{ name: "Content-Type", value: contentType }],
     anchor: randomBytes(32).toString("base64").slice(0, 32),
   }) as unknown as DataItemLike;
-  const id = String(await item.sign(signer));
+  const id = await gatewayIdFromRaw(await item.sign(signer));
   return { item, id };
 }
 
@@ -293,7 +310,7 @@ export async function uploadToArweaveServer(
     skipFund?: boolean;
     collectionId?: string;
     paidBy?: string;
-    /** If true, a failed bundler POST throws instead of returning an unverified id. */
+    /** Failed posts are not saved as links. Set false only to keep an id when the post itself threw. */
     requirePosted?: boolean;
   },
 ): Promise<string> {
@@ -309,7 +326,7 @@ export async function uploadToArweaveServer(
     const postedId = await postSignedDataItem(item.getRaw(), network, opts?.paidBy);
     return `${IRYS_GATEWAY}/${postedId || id}`;
   } catch (err) {
-    if (!opts?.requirePosted && id) return `${IRYS_GATEWAY}/${id}`;
+    if (opts?.requirePosted === false && id) return `${IRYS_GATEWAY}/${id}`;
     throw err;
   }
 }

@@ -4,6 +4,28 @@ export const IRYS_NODE_MAINNET = "https://uploader.irys.xyz";
 export const IRYS_NODE_DEVNET = "https://devnet.irys.xyz";
 export const IRYS_GATEWAY = "https://gateway.irys.xyz";
 
+/** Irys transaction ids are base58, 32 bytes encoded (43 or 44 characters). */
+const IRYS_TX_ID = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+export function isIrysGatewayUri(uri: string | undefined | null): uri is string {
+  if (!uri) return false;
+  try {
+    const url = new URL(uri);
+    if (url.protocol !== "https:" || url.hostname !== "gateway.irys.xyz") return false;
+    const id = url.pathname.replace(/^\/+|\/+$/g, "");
+    return IRYS_TX_ID.test(id);
+  } catch {
+    return false;
+  }
+}
+
+/** A saved file URL that can actually be fetched. Broken gateway ids do not count. */
+export function isPublishedFileUri(uri: string | undefined | null): uri is string {
+  if (!uri || !/^https?:\/\//.test(uri)) return false;
+  if (/gateway\.irys\.xyz/i.test(uri)) return isIrysGatewayUri(uri);
+  return true;
+}
+
 export function irysNodeFromRpc(rpcUrl: string): string {
   return rpcUrl.includes("devnet") ? IRYS_NODE_DEVNET : IRYS_NODE_MAINNET;
 }

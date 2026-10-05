@@ -11,6 +11,7 @@ import {
   IRYS_GATEWAY,
   IRYS_NODE_DEVNET,
   IRYS_NODE_MAINNET,
+  isPublishedFileUri,
 } from "./irys-shared";
 import {
   getClientNetwork,
@@ -469,9 +470,7 @@ export async function uploadCollectionWithPhantom(params: {
   if (!phantom?.publicKey) throw new Error("Connect a wallet first.");
 
   const irys = await createPhantomIrysUploader(network);
-  const completed: Record<number, { imageUri: string; metadataUri: string }> = {
-    ...(params.existingProgress ?? {}),
-  };
+  const completed = keptUploadProgress(params.existingProgress);
   let logoUri = params.existingLogoUri;
 
   const pending = params.tokens.filter((t) => !completed[t.tokenId]);
@@ -597,6 +596,18 @@ export async function payPlatformForArweaveStorage(
   return sig;
 }
 
+function keptUploadProgress(
+  existing?: Record<number, { imageUri: string; metadataUri: string }>,
+): Record<number, { imageUri: string; metadataUri: string }> {
+  const completed: Record<number, { imageUri: string; metadataUri: string }> = {};
+  for (const [key, row] of Object.entries(existing ?? {})) {
+    if (isPublishedFileUri(row?.imageUri) && isPublishedFileUri(row?.metadataUri)) {
+      completed[Number(key)] = row;
+    }
+  }
+  return completed;
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
@@ -624,9 +635,7 @@ export async function uploadCollectionViaServer(params: {
   tokens: Record<number, { imageUri: string; metadataUri: string }>;
   logoUri?: string;
 }> {
-  const completed: Record<number, { imageUri: string; metadataUri: string }> = {
-    ...(params.existingProgress ?? {}),
-  };
+  const completed = keptUploadProgress(params.existingProgress);
   let logoUri = params.existingLogoUri;
   const pending = params.tokens.filter((t) => !completed[t.tokenId]);
   const totalSteps =

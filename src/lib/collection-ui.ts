@@ -1,3 +1,4 @@
+import { isIrysGatewayUri } from "./irys-shared";
 import type { Collection, GeneratedToken } from "./types";
 import { giftDisplayNameFromToken, isGiftBundle } from "./gift-bundle";
 import { isTokenRevealed, placeholderImageSrc } from "./reveal";
@@ -30,15 +31,23 @@ export function proxyIrysUrl(uri: string): string {
   return uri;
 }
 
+/** Ignore gateway links whose id is not a real Irys address. */
+function storedImageUri(uri: string | undefined): string | null {
+  if (!uri) return null;
+  if (uri.startsWith("/api/")) return uri;
+  if (/gateway\.irys\.xyz/i.test(uri)) return isIrysGatewayUri(uri) ? uri : null;
+  if (/^https?:\/\//.test(uri)) return uri;
+  return null;
+}
+
 export function tokenImageSrc(collection: Collection, token: GeneratedToken) {
   if (!isTokenRevealed(collection, token.tokenId)) {
     return placeholderImageSrc(collection);
   }
 
   const collectionId = collection.id;
-  if (token.imageUri && !token.imageUri.startsWith("/api/")) {
-    return proxyIrysUrl(token.imageUri);
-  }
+  const stored = storedImageUri(token.imageUri);
+  if (stored) return stored.startsWith("/api/") ? stored : proxyIrysUrl(stored);
   return `/api/assets/${collectionId}/${token.imageRelPath}`;
 }
 
@@ -47,15 +56,15 @@ export function tokenFullViewSrc(collection: Collection, token: GeneratedToken):
   if (!isTokenRevealed(collection, token.tokenId)) {
     return placeholderImageSrc(collection);
   }
-  if (token.imageUri && /^https?:\/\//.test(token.imageUri)) return token.imageUri;
+  const stored = storedImageUri(token.imageUri);
+  if (stored && /^https?:\/\//.test(stored)) return stored;
   return tokenImageSrc(collection, token);
 }
 
 /** @deprecated Use tokenImageSrc(collection, token) */
 export function tokenImageSrcLegacy(collectionId: string, token: GeneratedToken) {
-  if (token.imageUri && !token.imageUri.startsWith("/api/")) {
-    return proxyIrysUrl(token.imageUri);
-  }
+  const stored = storedImageUri(token.imageUri);
+  if (stored) return stored.startsWith("/api/") ? stored : proxyIrysUrl(stored);
   return `/api/assets/${collectionId}/${token.imageRelPath}`;
 }
 

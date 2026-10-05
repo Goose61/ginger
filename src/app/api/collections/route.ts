@@ -22,6 +22,7 @@ import {
   isEvmAddress,
 } from "@/lib/chain-registry";
 import { splMintRejectionReason } from "@/lib/spl-mint";
+import { isPublishedFileUri } from "@/lib/irys-shared";
 
 export async function GET(req: NextRequest) {
   try {
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
 
   if (body.action === "publish") {
     if (merged.clientImport) {
-      if (!merged.irysPublished || !merged.tokens.every((t) => t.metadataUri?.startsWith("http"))) {
+      if (!merged.irysPublished || !merged.tokens.every((t) => isPublishedFileUri(t.metadataUri))) {
         return NextResponse.json(
           { error: "Upload collection assets from your wallet before go-live" },
           { status: 400 },

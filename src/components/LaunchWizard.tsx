@@ -54,6 +54,7 @@ import {
   uploadCollectionViaServer,
   uploadCollectionWithPhantom,
 } from "@/lib/irys-client";
+import { isPublishedFileUri } from "@/lib/irys-shared";
 import { explorerClusterQuery, getClientNetwork } from "@/lib/solana-config";
 import { snowtraceTxUrl } from "@/lib/avalanche-config";
 import { CHAIN_DESCRIPTORS, collectionHomeChain, homeChainToDestination, parseHomeChain } from "@/lib/chain-registry";
@@ -1331,7 +1332,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         current.irysPublished &&
         tokenList.every((t) => {
           const row = current!.tokens.find((x) => x.tokenId === t.tokenId);
-          return row?.imageUri?.startsWith("http") && row?.metadataUri?.startsWith("http");
+          return isPublishedFileUri(row?.imageUri) && isPublishedFileUri(row?.metadataUri);
         });
 
       if (!alreadyOnArweave && !publicKey) {
@@ -1421,7 +1422,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         }
         uploaded = {
           tokens,
-          logoUri: current.logoUrl?.startsWith("http") ? current.logoUrl : undefined,
+          logoUri: isPublishedFileUri(current.logoUrl) ? current.logoUrl : undefined,
         };
       } else {
         if (useServerBulk) {
