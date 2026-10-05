@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Star } from "lucide-react";
-import type { MarketCard } from "@/lib/market-card";
+import type { MarketCard, MarketListing } from "@/lib/market-card";
 import { marketStatus } from "@/lib/market-view";
 import { formatUsd, formatUsdAmount } from "@/lib/collection-ui";
 import { StatusPill } from "@/components/StatusPill";
@@ -19,16 +19,16 @@ type ChainFilter = "all" | "solana" | "avalanche";
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: "trending", label: "Trending", hint: "Ranked by volume, then mint progress." },
   { id: "mints", label: "Open mints", hint: "Collections you can mint right now." },
-  { id: "listings", label: "Listings", hint: "Collections with NFTs for resale on Ginger." },
+  { id: "listings", label: "Listings", hint: "NFTs listed for resale on Ginger." },
   { id: "newest", label: "Newest", hint: "Most recently launched." },
 ];
 
 export function TrendingTable({
   live,
-  secondary,
+  listings,
 }: {
   live: MarketCard[];
-  secondary: MarketCard[];
+  listings: MarketListing[];
 }) {
   const [tab, setTab] = useState<Tab>("trending");
   const [chain, setChain] = useState<ChainFilter>("all");
@@ -37,22 +37,25 @@ export function TrendingTable({
     const cards = live.filter((c) => c.kind !== "gift_bundle");
     const byChain =
       chain === "all" ? cards : cards.filter((c) => c.chain === chain);
-    const listed =
-      chain === "all" ? secondary : secondary.filter((c) => c.chain === chain);
     switch (tab) {
       case "mints":
         return sortCards(
           byChain.filter((c) => c.supply > 0 && c.mintedCount < c.supply),
           "minted",
         );
-      case "listings":
-        return sortCards(listed, "volume");
       case "newest":
         return sortCards(byChain, "newest");
       default:
         return sortCards(byChain, "volume");
     }
-  }, [live, secondary, tab, chain]);
+  }, [live, tab, chain]);
+
+  const listingRows = useMemo(() => {
+    const rows = chain === "all" ? listings : listings.filter((item) => item.chain === chain);
+    return [...rows].sort(
+      (a, b) => (b.listedAt || "").localeCompare(a.listedAt || "") || a.priceUsd - b.priceUsd,
+    );
+  }, [listings, chain]);
 
   const active = TABS.find((t) => t.id === tab)!;
 
@@ -100,7 +103,43 @@ export function TrendingTable({
         ))}
       </div>
 
-      {rows.length === 0 ? (
+      {tab === "listings" ? (
+        listingRows.length === 0 ? (
+          <EmptyState tab={tab} />
+        ) : (
+          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
+            {listingRows.map((item) => (
+              <li key={item.id}>
+                <Link href={`/collection/${item.slug || item.collectionId}?token=${item.tokenId}`} className="nft-card group">
+                  <div className="nft-tile-media">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.imageSrc}
+                      alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      width={480}
+                      height={480}
+                    />
+                  </div>
+                  <div className="border-t border-line px-2.5 py-2 sm:px-3 sm:py-2.5">
+                    <div className="truncate text-[13px] font-medium text-ink sm:text-sm">{item.name}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-ink-subtle">{item.collectionName}</div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="truncate rounded-full bg-primary/90 px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px] text-white">
+                        {formatUsd(item.priceUsd)}
+                      </span>
+                      <span className="shrink-0 text-[10px] uppercase tracking-wider text-ink-subtle">
+                        {chainLabel(item.chain)}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : rows.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (
         <>
@@ -250,7 +289,7 @@ function EmptyState({ tab }: { tab: Tab }) {
   const copy: Record<Tab, string> = {
     trending: "No live collections yet.",
     mints: "No open mints right now.",
-    listings: "No NFTs listed for resale yet. Listings open once a collection hits its milestone.",
+    listings: "No NFTs are listed for resale right now.",
     newest: "No live collections yet.",
   };
   return (

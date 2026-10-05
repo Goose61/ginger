@@ -1,4 +1,5 @@
 import { getMarketCards, getMarketCardsFresh } from "@/lib/market-data";
+import type { MarketListing } from "@/lib/market-card";
 import { aggregateMarket } from "@/lib/market-view";
 import { MarketHero } from "@/components/market/MarketHero";
 import { MarketStats } from "@/components/market/MarketStats";
@@ -19,22 +20,22 @@ import { collectionHref } from "@/components/market/utils";
  */
 export async function MarketHome() {
   let live: Awaited<ReturnType<typeof getMarketCards>>["live"] = [];
-  let secondary: Awaited<ReturnType<typeof getMarketCards>>["secondary"] = [];
+  let listings: MarketListing[] = [];
   let giftBundle: Awaited<ReturnType<typeof getMarketCards>>["giftBundle"];
   try {
-    ({ live, secondary, giftBundle } = await getMarketCards());
+    ({ live, listings, giftBundle } = await getMarketCards());
     // If Mongo timed out during a background revalidate, Next may serve a poisoned
     // empty cache entry — refetch once uncached before rendering an empty market.
     if (live.length === 0) {
       const fresh = await getMarketCardsFresh();
       if (fresh.live.length > 0) {
-        ({ live, secondary, giftBundle } = fresh);
+        ({ live, listings, giftBundle } = fresh);
       }
     }
   } catch (err) {
     console.error("[market] database unavailable", err);
     try {
-      ({ live, secondary, giftBundle } = await getMarketCardsFresh());
+      ({ live, listings, giftBundle } = await getMarketCardsFresh());
     } catch (retryErr) {
       console.error("[market] database unavailable (retry)", retryErr);
     }
@@ -53,7 +54,7 @@ export async function MarketHome() {
           <WalletHoldings />
           <div className="space-y-10 sm:space-y-12">
             <MarketStats stats={stats} />
-            <TrendingTable live={live} secondary={secondary} />
+            <TrendingTable live={live} listings={listings} />
           </div>
           <MintGrid live={live} />
           <LaunchPromo />

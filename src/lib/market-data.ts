@@ -5,7 +5,7 @@ import { partitionMarketCards } from "./market-card";
 export * from "./market-view";
 
 /** Bump when cache shape or fetch semantics change (invalidates stale entries). */
-const MARKET_CARDS_CACHE_KEY = "market-cards-v5";
+const MARKET_CARDS_CACHE_KEY = "market-cards-v6";
 
 function isMongoTimeout(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
