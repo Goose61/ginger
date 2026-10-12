@@ -15,6 +15,7 @@ type EvmWalletCtx = {
   connectEvm: () => Promise<void>;
   disconnectEvm: () => void;
   ensureAvalancheChain: () => Promise<void>;
+  ensureEvmChain: (chainId: number) => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   sendContractTx: (to: `0x${string}`, data: `0x${string}`) => Promise<`0x${string}`>;
 };
@@ -26,6 +27,7 @@ const Ctx = createContext<EvmWalletCtx>({
   connectEvm: async () => {},
   disconnectEvm: () => {},
   ensureAvalancheChain: async () => {},
+  ensureEvmChain: async () => {},
   signMessage: async () => {
     throw new Error("EVM wallet not connected");
   },
@@ -92,12 +94,17 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [connectAsync, connectors]);
 
+  const ensureEvmChain = useCallback(
+    async (wantedChainId: number) => {
+      if (chainId === wantedChainId) return;
+      await switchChainAsync({ chainId: wantedChainId });
+    },
+    [chainId, switchChainAsync],
+  );
+
   const ensureAvalancheChain = useCallback(async () => {
-    const wanted = getAvalancheChainId();
-    if (chainId === wanted) return;
-    const chain = getAvalancheNetwork() === "mainnet" ? avalanche : avalancheFuji;
-    await switchChainAsync({ chainId: chain.id });
-  }, [chainId, switchChainAsync]);
+    await ensureEvmChain(getAvalancheChainId());
+  }, [ensureEvmChain]);
 
   const disconnectEvm = useCallback(() => {
     if (address) clearAuthCache(address);
@@ -113,10 +120,22 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
       connectEvm,
       disconnectEvm,
       ensureAvalancheChain,
+      ensureEvmChain,
       signMessage,
       sendContractTx,
     }),
-    [address, isConnecting, busy, chainId, connectEvm, disconnectEvm, ensureAvalancheChain, signMessage, sendContractTx],
+    [
+      address,
+      isConnecting,
+      busy,
+      chainId,
+      connectEvm,
+      disconnectEvm,
+      ensureAvalancheChain,
+      ensureEvmChain,
+      signMessage,
+      sendContractTx,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

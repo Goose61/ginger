@@ -262,6 +262,41 @@ export async function estimateArweaveBytes(
   return assetBytes + tokenCount * metaPerToken * 2;
 }
 
+/** Quote storage before composites exist: average layer file × traits in the stack, per NFT. */
+export async function estimatePendingLayerArweaveBytes(
+  collectionId: string,
+  supply: number,
+  traitCount: number,
+): Promise<number> {
+  const db = await openDb();
+  const prefix = `layer:${collectionId}:`;
+  const { bytes, files } = await new Promise<{ bytes: number; files: number }>((resolve, reject) => {
+    let total = 0;
+    let count = 0;
+    const tx = db.transaction(ASSET_STORE, "readonly");
+    const req = tx.objectStore(ASSET_STORE).openCursor();
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB cursor failed"));
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve({ bytes: total, files: count });
+        return;
+      }
+      if (String(cursor.key).startsWith(prefix)) {
+        const rec = cursor.value as StoredAsset;
+        total += rec.data.byteLength;
+        count += 1;
+      }
+      cursor.continue();
+    };
+    tx.oncomplete = () => db.close();
+  });
+  const traits = Math.max(1, traitCount);
+  const averageFile = files > 0 ? bytes / files : 64_000;
+  const perToken = Math.max(32_000, Math.round(averageFile * traits));
+  return Math.max(1, supply) * (perToken + 900);
+}
+
 export function assetToObjectUrl(asset: StoredAsset): string {
   return URL.createObjectURL(new Blob([asset.data], { type: asset.contentType }));
 }

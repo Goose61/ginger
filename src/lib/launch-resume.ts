@@ -1,6 +1,6 @@
 import type { Collection, LaunchDraftState } from "@/lib/types";
 
-export const LAUNCH_WIZARD_VERSION = 2;
+export const LAUNCH_WIZARD_VERSION = 3;
 
 export function launchResumeStorageKey(wallet: string): string {
   return `launchDraft:${wallet}`;
@@ -36,7 +36,9 @@ export function buildInitialLaunchDraft(
     step: 0,
     mode,
     wizardVersion: LAUNCH_WIZARD_VERSION,
+    launchAdvanced: false,
     royaltyBps,
+    spokeDeployAtLaunch: [],
     royaltySplit: { ownerPercent: 100, holdersPercent: 0, buybackPercent: 0 },
     royaltyOwner: true,
     royaltyHolders: false,

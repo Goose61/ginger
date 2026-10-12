@@ -6,12 +6,17 @@ import {
 } from "@/lib/platform-fees";
 import { getQuote } from "@/lib/quotes";
 import { fetchAvaxUsd } from "@/lib/avax-price";
+import { nativeUsdForDestination } from "@/lib/evm-native-usd";
 import {
   collectionHomeChain,
   collectionMintDestinations,
+  evmRpcForDestination,
   isDestinationWallet,
   parseMintDestination,
 } from "@/lib/chain-registry";
+import { collectionHomeLedger, homeLedgerToMintDestination } from "@/lib/home-ledger";
+import { mintIsOffHome } from "@/lib/omnichain";
+import { evmSpokeChainMeta, mintDestinationToSpokeChain } from "@/lib/evm-spoke-chains";
 import { tokenAlreadyIssued, simulateHomeDebit } from "@/lib/home-debit";
 import {
   collectionEvmAddress,
@@ -26,6 +31,12 @@ import type { Address } from "viem";
 import { avalancheL1MintEnabled, getAvalancheL1RpcUrl } from "@/lib/avalanche-config";
 import { randomUUID } from "crypto";
 import { rememberDryRun, type MintDryRunRecord } from "@/lib/mint-dry-run-store";
+import {
+  mintCheckoutUsd,
+  quoteRelayerLineItems,
+  relayerExecutionAvailable,
+} from "@/lib/omnichain";
+import type { MintExecutionMode } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -43,6 +54,7 @@ export async function POST(
       tokenId?: number;
       destination?: string;
       recipient?: string;
+      executionMode?: MintExecutionMode;
     };
     const tokenId = Number(body.tokenId);
     const dest = parseMintDestination(
@@ -80,10 +92,12 @@ export async function POST(
     const creatorUsd = saleUsd - platformUsd;
     const quote = await getQuote(saleUsd);
     const avaxUsd = await fetchAvaxUsd();
+    const homeLedger = collectionHomeLedger(collection);
     const home = collectionHomeChain(collection);
-    const offHome = dest !== (home === "avalanche" ? "avalanche" : "solana");
+    const offHome = mintIsOffHome(collection, dest);
 
-    const destGasSymbol = dest === "solana" ? "SOL" : "AVAX";
+    const nativeQuote = dest === "solana" ? { symbol: "SOL", usd: quote.solUsd || SOL_USD_FALLBACK } : await nativeUsdForDestination(dest);
+    const destGasSymbol = nativeQuote.symbol;
     const recipientKind = dest === "solana" ? "solana" : "evm";
     let destGasUsd = 0;
     let homeDebitUsd = 0;
@@ -95,8 +109,15 @@ export async function POST(
       destGasUsd = destGasNative * (quote.solUsd || SOL_USD_FALLBACK);
     } else {
       try {
+        const spoke = mintDestinationToSpokeChain(dest);
+        if (spoke && !evmSpokeChainMeta(spoke).mintReady && dest !== "avalanche" && dest !== "avalanche_l1") {
+          return NextResponse.json(
+            { error: `${evmSpokeChainMeta(spoke).label} minting is not enabled on this server yet.` },
+            { status: 400 },
+          );
+        }
         const contract =
-          dest === "avalanche_l1" ? l1RemoteOrThrow(collection) : collectionEvmAddress(collection);
+          dest === "avalanche_l1" ? l1RemoteOrThrow(collection) : collectionEvmAddress(collection, dest);
         if (contract && recipient.startsWith("0x") && token.metadataUri) {
           const data =
             dest === "avalanche_l1"
@@ -110,20 +131,21 @@ export async function POST(
                   tokenId,
                   uri: token.metadataUri,
                   destination: dest,
-                  home,
+                  home: homeLedger,
                 });
           const est = await estimateEvmGas({
             to: contract,
             data,
             account: recipient as Address,
-            rpcUrl: dest === "avalanche_l1" ? getAvalancheL1RpcUrl() || undefined : undefined,
+            rpcUrl: evmRpcForDestination(dest) ?? getAvalancheL1RpcUrl() ?? undefined,
+            destination: dest,
           });
           destGasNative = Number(est.feeWei) / 1e18;
-          destGasUsd = destGasNative * avaxUsd;
+          destGasUsd = destGasNative * nativeQuote.usd;
         }
       } catch {
         destGasNative = 0.002;
-        destGasUsd = destGasNative * avaxUsd;
+        destGasUsd = destGasNative * nativeQuote.usd;
       }
     }
 
@@ -138,7 +160,8 @@ export async function POST(
         if (sim.feeLamports) {
           homeDebitUsd = (sim.feeLamports / 1e9) * (quote.solUsd || SOL_USD_FALLBACK);
         } else if (sim.feeWei) {
-          homeDebitUsd = (Number(sim.feeWei) / 1e18) * avaxUsd;
+          const homeNative = await nativeUsdForDestination(homeLedgerToMintDestination(homeLedger));
+          homeDebitUsd = (Number(sim.feeWei) / 1e18) * homeNative.usd;
         }
       } catch (e) {
         return NextResponse.json(
@@ -148,8 +171,24 @@ export async function POST(
       }
     }
 
-    const bufferUsd = 0;
-    const totalUsd = saleUsd;
+    const executionMode: MintExecutionMode =
+      body.executionMode === "relayer" &&
+      relayerExecutionAvailable(collection, dest)
+        ? "relayer"
+        : "self";
+    const { relayerUsd, omnichainFeeUsd, bufferUsd } = quoteRelayerLineItems({
+      mintUsd: saleUsd,
+      destGasUsd,
+      homeDebitUsd,
+      executionMode,
+      relayerAvailable: relayerExecutionAvailable(collection, dest),
+    });
+    const totalUsd = mintCheckoutUsd({
+      mintUsd: saleUsd,
+      executionMode,
+      relayerUsd,
+      omnichainFeeUsd,
+    });
 
     const dryRunId = randomUUID();
     const rec: MintDryRunRecord = {
@@ -160,12 +199,15 @@ export async function POST(
       recipient,
       home,
       offHome,
+      executionMode,
       lineItems: {
         mintUsd: saleUsd,
         platformUsd,
         creatorUsd,
         destGasUsd,
         homeDebitUsd,
+        relayerUsd,
+        omnichainFeeUsd,
         bufferUsd,
         totalUsd,
       },

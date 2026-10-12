@@ -16,74 +16,72 @@ import { uploadBlob, uploadBlobText, downloadBlobToTmp } from "./blob-storage";
 import { buildTokenMetadataJson } from "./metadata-builders";
 import { parseSidecarJson } from "./metadata-review";
 import { assignRarityRanks } from "./rarity";
+import {
+  assertLayerSupply,
+  catalogFromLayerFiles,
+  createLayerRng,
+  layerDna,
+  parseLayerPath,
+  rollUniqueAttributeSets,
+} from "./layer-catalog";
 
 export { assignRarityRanks };
-
-const SKIP = /(^|\/)(__MACOSX|\.DS_Store)/;
 
 export type ParsedZip = {
   layers: LayerCatalog[];
   stackOrder: string[];
-  files: { traitType: string; value: string; buffer: Buffer }[];
+  files: {
+    traitType: string;
+    value: string;
+    weight: number;
+    fileName: string;
+    contentType: string;
+    buffer: Buffer;
+  }[];
 };
 
 export async function parseLayerZip(buffer: Buffer): Promise<ParsedZip> {
   const zip = await JSZip.loadAsync(buffer);
   const files: ParsedZip["files"] = [];
-  const byType = new Map<string, Map<string, Buffer>>();
 
   for (const [entryPath, entry] of Object.entries(zip.files)) {
-    if (entry.dir || SKIP.test(entryPath)) continue;
-    if (!/\.(png|webp|jpe?g)$/i.test(entryPath)) continue;
-    const parts = entryPath.split("/").filter(Boolean);
-    if (parts.length < 2) continue;
-    const fileName = parts[parts.length - 1];
-    const traitType = parts[parts.length - 2];
-    const value = fileName.replace(/\.(png|webp|jpe?g)$/i, "");
-    const buf = Buffer.from(await entry.async("uint8array"));
-    files.push({ traitType, value, buffer: buf });
-    if (!byType.has(traitType)) byType.set(traitType, new Map());
-    byType.get(traitType)!.set(value, buf);
+    if (entry.dir) continue;
+    const parsed = parseLayerPath(entryPath);
+    if (!parsed) continue;
+    files.push({
+      traitType: parsed.traitType,
+      value: parsed.value,
+      weight: parsed.weight,
+      fileName: parsed.fileName,
+      contentType: parsed.contentType,
+      buffer: Buffer.from(await entry.async("uint8array")),
+    });
   }
 
-  const stackOrder = Array.from(byType.keys());
-  const layers: LayerCatalog[] = stackOrder.map((traitType) => ({
-    traitType,
-    values: Array.from(byType.get(traitType)!.keys()).map((value) => ({
-      value,
-      fileName: `${value}.png`,
-      weight: 100,
-    })),
-  }));
-
+  const { layers, stackOrder } = catalogFromLayerFiles(files);
   return { layers, stackOrder, files };
 }
 
-/** Upload parsed layer files to Blob (or local staging in dev) and return updated layers with blobUrls. */
+/** Upload parsed layer files to Blob (or local staging in dev) and return layers with blobUrls. */
 export async function persistLayerFiles(
   collectionId: string,
-  files: ParsedZip["files"],
+  parsed: ParsedZip,
 ): Promise<LayerCatalog[]> {
-  const blobUrlMap = new Map<string, Map<string, string>>();
+  const urls = new Map<string, string>();
 
-  for (const file of files) {
+  for (const file of parsed.files) {
     const blobPath = blobLayerPath(collectionId, file.traitType, file.value);
-    const url = await uploadBlob(blobPath, file.buffer, "image/png");
-    if (!blobUrlMap.has(file.traitType)) blobUrlMap.set(file.traitType, new Map());
-    blobUrlMap.get(file.traitType)!.set(file.value, url);
+    const url = await uploadBlob(blobPath, file.buffer, file.contentType || "image/png");
+    urls.set(`${file.traitType}\0${file.value}`, url);
   }
 
-  // Return updated LayerCatalog entries with blobUrls
-  const result: LayerCatalog[] = Array.from(blobUrlMap.entries()).map(([traitType, vals]) => ({
-    traitType,
-    values: Array.from(vals.entries()).map(([value, blobUrl]) => ({
-      value,
-      fileName: `${value}.png`,
-      weight: 100,
-      blobUrl,
+  return parsed.layers.map((layer) => ({
+    ...layer,
+    values: layer.values.map((value) => ({
+      ...value,
+      blobUrl: urls.get(`${layer.traitType}\0${value.value}`) ?? value.blobUrl,
     })),
   }));
-  return result;
 }
 
 /** Ensure a layer file is present in /tmp; download from Blob if needed. */
@@ -102,25 +100,6 @@ async function ensureLayerFile(
   } catch {
     return null;
   }
-}
-
-function pickWeighted(values: LayerCatalog["values"], rng: () => number) {
-  const total = values.reduce((s, v) => s + Math.max(0, v.weight), 0) || 1;
-  let roll = rng() * total;
-  for (const v of values) {
-    roll -= Math.max(0, v.weight);
-    if (roll <= 0) return v;
-  }
-  return values[values.length - 1];
-}
-
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 export type GenerateOptions = {
@@ -142,8 +121,13 @@ export type GenerateOptions = {
 };
 
 export async function generateCollection(opts: GenerateOptions) {
-  const rng = mulberry32(opts.seed ?? Date.now() % 1_000_000);
-  const count = opts.previewCount ?? opts.supply;
+  const count = assertLayerSupply(opts.layers, opts.stackOrder, opts.previewCount ?? opts.supply);
+  const sets = rollUniqueAttributeSets({
+    stackOrder: opts.stackOrder,
+    layers: opts.layers,
+    count,
+    rng: createLayerRng(opts.seed),
+  });
   const imagesDir = tmpImagesDir(opts.collectionId);
   const metaDir = tmpMetadataDir(opts.collectionId);
   await mkdir(imagesDir, { recursive: true });
@@ -151,32 +135,11 @@ export async function generateCollection(opts: GenerateOptions) {
 
   const layersByType = new Map(opts.layers.map((l) => [l.traitType, l]));
   const tokens: GeneratedToken[] = [];
-  const seen = new Set<string>();
 
-  for (let i = 1; i <= count; i++) {
-    let attributes: { trait_type: string; value: string }[] = [];
-    let dna = "";
-    let attempts = 0;
-    do {
-      attributes = opts.stackOrder.map((traitType) => {
-        const layer = layersByType.get(traitType);
-        if (!layer || layer.values.length === 0) {
-          return { trait_type: traitType, value: "None" };
-        }
-        const picked = pickWeighted(layer.values, rng);
-        return { trait_type: traitType, value: picked.value };
-      });
-      dna = attributes.map((a) => a.value).join("|");
-      attempts += 1;
-    } while (opts.uniqueness && seen.has(dna) && attempts < 200);
-
-    if (opts.uniqueness && seen.has(dna)) {
-      throw new Error(
-        `Could not generate unique DNA for token #${i}. Reduce supply or add more trait values.`,
-      );
-    }
-
-    seen.add(dna);
+  for (let i = 0; i < sets.length; i++) {
+    const attributes = sets[i];
+    const tokenId = i + 1;
+    const dna = layerDna(attributes);
 
     const buffers: Buffer[] = [];
     for (const attr of attributes) {
@@ -188,44 +151,48 @@ export async function generateCollection(opts: GenerateOptions) {
         layerValue?.blobUrl,
         opts.collectionId,
       );
-      if (!filePath) continue;
+      if (!filePath) {
+        throw new Error(`Missing layer image for ${attr.trait_type} / ${attr.value}.`);
+      }
       try {
-        buffers.push(await sharp(filePath).png().toBuffer());
+        buffers.push(await sharp(filePath).ensureAlpha().png().toBuffer());
       } catch {
-        /* skip missing layer file */
+        throw new Error(`Could not read the image for ${attr.trait_type} / ${attr.value}. Use PNG, JPG, or WebP.`);
       }
     }
 
-    let imageBuffer: Buffer;
-    if (buffers.length === 0) {
-      imageBuffer = await sharp({
-        create: { width: 512, height: 512, channels: 4, background: { r: 28, g: 22, b: 18, alpha: 1 } },
-      })
-        .png()
-        .toBuffer();
-    } else {
-      const base = sharp(buffers[0]);
-      const rest = buffers.slice(1).map((input) => ({ input }));
-      imageBuffer = await base.composite(rest).png().toBuffer();
-    }
+    const metas = await Promise.all(buffers.map((input) => sharp(input).metadata()));
+    const width = Math.max(...metas.map((meta) => meta.width ?? 1));
+    const height = Math.max(...metas.map((meta) => meta.height ?? 1));
+    const imageBuffer = await sharp({
+      create: {
+        width,
+        height,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite(buffers.map((input) => ({ input, left: 0, top: 0 })))
+      .png()
+      .toBuffer();
 
-    const imageRelPath = `images/${i}.png`;
-    const localImagePath = path.join(imagesDir, `${i}.png`);
+    const imageRelPath = `images/${tokenId}.png`;
+    const localImagePath = path.join(imagesDir, `${tokenId}.png`);
     await writeFile(localImagePath, imageBuffer);
 
     // Upload generated image to Blob immediately
     const imageUri = await uploadBlob(
-      blobImagePath(opts.collectionId, i),
+      blobImagePath(opts.collectionId, tokenId),
       imageBuffer,
       "image/png",
     );
 
     const token: GeneratedToken = {
-      tokenId: i,
+      tokenId,
       dna,
       attributes,
       imageRelPath,
-      metadataRelPath: `metadata/${i}.json`,
+      metadataRelPath: `metadata/${tokenId}.json`,
       imageUri,
     };
     tokens.push(token);

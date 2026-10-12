@@ -1,16 +1,18 @@
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import type { Collection, MintDestination } from "./types";
-import { collectionHomeChain } from "./chain-registry";
+import { collectionHomeLedger, isEvmHomeLedger } from "./home-ledger";
+import { collectionHomeEvmAddress } from "./collection-spoke";
+import { mintDestinationToSpokeChain } from "./evm-spoke-chains";
 import { getDirectRpcUrl, getSolanaNetwork } from "./solana-config";
 import { getPlatformSecretKey } from "./platform-key";
 import {
-  collectionEvmAddress,
   estimateEvmGas,
   minterAccount,
   signUserDebitAuthorization,
   simulateEvmCall,
 } from "./evm-collection";
 import type { Address } from "viem";
+import type { EvmSpokeChainId } from "./evm-spoke-chains";
 
 const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
@@ -25,7 +27,7 @@ export async function simulateHomeDebit(params: {
   destination: MintDestination;
   uri: string;
 }): Promise<{ feeLamports?: number; feeWei?: string; ok: true }> {
-  const home = collectionHomeChain(params.collection);
+  const home = collectionHomeLedger(params.collection);
   if (home === "solana") {
     const key = getPlatformSecretKey();
     if (!key) throw new Error("Platform Solana key missing for home debit dry-run");
@@ -43,18 +45,19 @@ export async function simulateHomeDebit(params: {
     return { ok: true, feeLamports: fee.value ?? 5000 };
   }
 
-  const contract = collectionEvmAddress(params.collection);
-  if (!contract) throw new Error("Avalanche collection contract is not set");
+  const contract = collectionHomeEvmAddress(params.collection, home);
+  if (!contract) throw new Error("Home EVM collection contract is not set");
+  const spokeChain = mintDestinationToSpokeChain(home) as EvmSpokeChainId;
   const authz = await signUserDebitAuthorization({
-    contract,
+    contract: contract as Address,
     tokenId: params.tokenId,
     uri: params.uri,
     destination: params.destination,
     home,
   });
-  const account = minterAccount().address;
-  await simulateEvmCall({ to: contract, data: authz.data, account });
-  const est = await estimateEvmGas({ to: contract, data: authz.data, account });
+  const account = minterAccount(spokeChain).address;
+  await simulateEvmCall({ to: contract as Address, data: authz.data, account, spokeChain });
+  const est = await estimateEvmGas({ to: contract as Address, data: authz.data, account, spokeChain });
   return { ok: true, feeWei: est.feeWei.toString() };
 }
 
@@ -77,6 +80,7 @@ export async function buildCollectorSolanaDebitTx(params: {
   };
 }
 
+/** @deprecated Use prepareEvmHomeDebit */
 export async function prepareAvalancheHomeDebit(params: {
   collection: Collection;
   tokenId: number;
@@ -84,17 +88,40 @@ export async function prepareAvalancheHomeDebit(params: {
   uri: string;
   simulateFrom: Address;
 }): Promise<{ to: Address; data: `0x${string}`; deadline: string }> {
-  const contract = collectionEvmAddress(params.collection);
-  if (!contract) throw new Error("Avalanche collection contract is not set");
+  return prepareEvmHomeDebit(params);
+}
+
+export async function prepareEvmHomeDebit(params: {
+  collection: Collection;
+  tokenId: number;
+  destination: MintDestination;
+  uri: string;
+  simulateFrom: Address;
+}): Promise<{ to: Address; data: `0x${string}`; deadline: string; spokeChain: EvmSpokeChainId }> {
+  const home = collectionHomeLedger(params.collection);
+  if (!isEvmHomeLedger(home)) throw new Error("Home is not an EVM ledger");
+  const contract = collectionHomeEvmAddress(params.collection, home);
+  if (!contract) throw new Error("Home EVM collection contract is not set");
+  const spokeChain = mintDestinationToSpokeChain(home) as EvmSpokeChainId;
   const authz = await signUserDebitAuthorization({
-    contract,
+    contract: contract as Address,
     tokenId: params.tokenId,
     uri: params.uri,
     destination: params.destination,
-    home: collectionHomeChain(params.collection),
+    home,
   });
-  await simulateEvmCall({ to: contract, data: authz.data, account: params.simulateFrom });
-  return { to: contract, data: authz.data, deadline: authz.deadline.toString() };
+  await simulateEvmCall({
+    to: contract as Address,
+    data: authz.data,
+    account: params.simulateFrom,
+    spokeChain,
+  });
+  return {
+    to: contract as Address,
+    data: authz.data,
+    deadline: authz.deadline.toString(),
+    spokeChain,
+  };
 }
 
 function buildSolanaDebitMemo(

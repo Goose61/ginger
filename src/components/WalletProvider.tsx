@@ -29,6 +29,7 @@ type WalletCtx = {
   signCoreCollectionTx: (
     collectionId: string,
     network?: string,
+    role?: "home" | "spoke",
   ) => Promise<{ txSignature: string; collectionAddress: string }>;
   /** @deprecated Use signMintTx for gift mints (wallet-first signing order). */
   signAndSendTx: (txBase64: string) => Promise<string>;
@@ -182,6 +183,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     async (
       collectionId: string,
       network?: string,
+      role: "home" | "spoke" = "home",
     ): Promise<{ txSignature: string; collectionAddress: string }> => {
       if (!publicKey) throw new Error("Wallet not connected.");
       if (!signTransaction) {
@@ -190,7 +192,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       const net = network ?? getSolanaNetwork();
       const authHeaders = await buildAuthHeaders(publicKey);
-      const prep = await fetch(`/api/collections/${collectionId}/core-collection/prepare-sign`, {
+      const base =
+        role === "spoke"
+          ? `/api/collections/${collectionId}/solana-spoke`
+          : `/api/collections/${collectionId}/core-collection`;
+      const prep = await fetch(`${base}/prepare-sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ network: net }),
@@ -216,7 +222,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const signed = (await signTransaction(tx)) as InstanceType<typeof VersionedTransaction>;
       const signedB64 = Buffer.from(signed.serialize()).toString("base64");
 
-      const res = await fetch(`/api/collections/${collectionId}/core-collection/cosign`, {
+      const res = await fetch(`${base}/cosign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({

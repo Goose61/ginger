@@ -19,6 +19,12 @@ export const PRIMARY_PLATFORM_TOTAL_PERCENT =
 export const FEATURE_ON_MARKET_USD = 50;
 export const FEATURE_ON_MARKET_DAYS = 14;
 
+/** Extra platform fee when omnichain relayer checkout is used (% of mint price). */
+export const OMNICHAIN_PLATFORM_SURCHARGE_PERCENT = 0.35;
+
+/** Flat buffer included in relayer quotes (dest + home gas estimate padding). */
+export const OMNICHAIN_RELAYER_BUFFER_USD = 0.25;
+
 export function formatPlatformFeePercent(n: number): string {
   return n % 1 === 0 ? String(n) : n.toFixed(1).replace(/\.0$/, "");
 }

@@ -29,6 +29,7 @@ export function buildImportingCollectionStub(params: {
     chain: homeChain,
     homeChain,
     mintDestinations,
+    omnichainMintEnabled: mintDestinations.length > 1,
     payments: defaultPayments({
       giftMintEnabled: true,
       creatorWallet: params.creatorWallet,

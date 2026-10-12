@@ -10,6 +10,7 @@ export type MintQuotePayload = {
   recipient: string;
   home: string;
   offHome: boolean;
+  executionMode?: "self" | "relayer";
   recipientKind?: "solana" | "evm";
   destinations?: MintDestination[];
   lineItems: {
@@ -18,6 +19,8 @@ export type MintQuotePayload = {
     creatorUsd: number;
     destGasUsd: number;
     homeDebitUsd: number;
+    relayerUsd: number;
+    omnichainFeeUsd: number;
     bufferUsd: number;
     totalUsd: number;
   };
@@ -32,6 +35,7 @@ export async function requestMintQuote(params: {
   tokenId: number;
   destination: MintDestination;
   recipient: string;
+  executionMode?: "self" | "relayer";
 }): Promise<MintQuotePayload> {
   const res = await fetch(`/api/collections/${params.collectionId}/mint-quote`, {
     method: "POST",
@@ -40,6 +44,7 @@ export async function requestMintQuote(params: {
       tokenId: params.tokenId,
       destination: params.destination,
       recipient: params.recipient,
+      executionMode: params.executionMode,
     }),
   });
   const data = await readJsonResponse<{ quote?: MintQuotePayload; error?: string }>(res);

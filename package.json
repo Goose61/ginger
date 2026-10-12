@@ -36,7 +36,11 @@
     "smoke:full": "npx tsx scripts/smoke-full-e2e.ts",
     "smoke:full:mainnet": "npx tsx scripts/smoke-full-e2e.ts --i-understand-mainnet",
     "deploy:avalanche-factory": "npx tsx scripts/deploy-avalanche-factory.ts",
+    "deploy:evm-factory": "npx tsx scripts/deploy-evm-factory.ts",
+    "deploy:polygon-factory": "npx tsx scripts/deploy-evm-factory.ts polygon",
     "e2e:avalanche": "npx tsx scripts/e2e-avalanche-destinations.ts",
+    "e2e:omnichain-base": "npx tsx scripts/e2e-omnichain-home-base.ts",
+    "test:omnichain": "npx tsx scripts/test-omnichain-offline.ts",
     "postinstall": "node scripts/ensure-sharp.mjs"
   },
   "dependencies": {

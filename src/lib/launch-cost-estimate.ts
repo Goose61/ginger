@@ -1,4 +1,4 @@
-import { estimateArweaveBytes } from "@/lib/client-asset-store";
+import { estimateArweaveBytes, estimatePendingLayerArweaveBytes } from "@/lib/client-asset-store";
 import { fetchStorageEstimate } from "@/lib/client-launch-api";
 import { SOL_USD_FALLBACK } from "@/lib/price-display";
 import { FEATURE_ON_MARKET_USD } from "@/lib/platform-fees";
@@ -26,8 +26,11 @@ export async function fetchLaunchCostEstimate(
   wallet: string,
   collectionId: string,
   tokenCount: number,
+  options?: { pendingLayers?: boolean; traitCount?: number },
 ): Promise<LaunchCostEstimate> {
-  const totalBytes = await estimateArweaveBytes(collectionId, tokenCount);
+  const totalBytes = options?.pendingLayers
+    ? await estimatePendingLayerArweaveBytes(collectionId, tokenCount, options.traitCount ?? 1)
+    : await estimateArweaveBytes(collectionId, tokenCount);
   const est = await fetchStorageEstimate(wallet, collectionId, totalBytes);
   const solUsd = est.solPriceUsd ?? SOL_USD_FALLBACK;
   const totalSol = est.walletPaymentSol + est.gasSol;

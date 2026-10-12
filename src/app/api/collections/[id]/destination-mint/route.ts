@@ -3,13 +3,16 @@ import { getCollection, saveCollection } from "@/lib/store";
 import { consumeDryRun, requireSimulatedDryRun, withClearedMintQuote } from "@/lib/mint-dry-run-store";
 import {
   buildCollectorSolanaDebitTx,
-  prepareAvalancheHomeDebit,
+  prepareEvmHomeDebit,
   tokenAlreadyIssued,
 } from "@/lib/home-debit";
 import { avalancheL1MintEnabled, getAvalancheL1RpcUrl, snowtraceTxUrl } from "@/lib/avalanche-config";
 import { requireWalletAuthAsync, assertPayerAuth } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
-import { explorerNftUrl, collectionHomeChain, explorerTxUrl } from "@/lib/chain-registry";
+import { explorerNftUrl, collectionHomeChain, explorerTxUrl, evmRpcForDestination } from "@/lib/chain-registry";
+import { collectionHomeLedger, isEvmHomeLedger } from "@/lib/home-ledger";
+import { collectionSolanaSpokeAddress } from "@/lib/collection-spoke";
+import { mintDestinationToSpokeChain, viemChainForSpokeId } from "@/lib/evm-spoke-chains";
 import { isAllowedL1Remote } from "@/lib/l1-allowlist";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import { Connection } from "@solana/web3.js";
@@ -95,12 +98,13 @@ export async function POST(
 
     const homeDebitTx = token.homeDebitTx;
     if (rec.offHome && !homeDebitTx) {
-      const home = collectionHomeChain(collection);
-      if (home === "avalanche") {
+      const homeLedger = collectionHomeLedger(collection);
+      if (isEvmHomeLedger(homeLedger)) {
+        const spokeChain = mintDestinationToSpokeChain(homeLedger)!;
         const simulateFrom = rec.recipient.startsWith("0x")
           ? (rec.recipient as Address)
-          : minterAccount().address;
-        const debit = await prepareAvalancheHomeDebit({
+          : minterAccount(spokeChain).address;
+        const debit = await prepareEvmHomeDebit({
           collection,
           tokenId: rec.tokenId,
           destination: rec.destination,
@@ -114,6 +118,7 @@ export async function POST(
           to: debit.to,
           data: debit.data,
           deadline: debit.deadline,
+          chainId: viemChainForSpokeId(debit.spokeChain).id,
         });
       }
       const payer = rec.recipient.startsWith("0x")
@@ -123,7 +128,7 @@ export async function POST(
         return NextResponse.json(
           {
             error:
-              "Connect a Solana wallet to lock this token on home, then mint onto Avalanche. You pay that gas.",
+              "Connect a Solana wallet to lock this token on home, then mint on your chosen destination. You pay that gas.",
             next: "need_solana_for_debit",
           },
           { status: 400 },
@@ -144,18 +149,24 @@ export async function POST(
     }
 
     if (rec.destination === "solana") {
+      const homeLedger = collectionHomeLedger(collection);
+      const spokeCore = collectionSolanaSpokeAddress(collection);
+      if (homeLedger !== "solana" && !spokeCore) {
+        return NextResponse.json({ error: "Solana spoke Core is not deployed for this collection" }, { status: 400 });
+      }
       return NextResponse.json({
         ok: true,
         next: "solana_sign_mint",
         dryRunId: rec.dryRunId,
         homeDebitTx,
+        coreCollectionAddress: spokeCore ?? collection.coreCollectionAddress,
       });
     }
 
     const contract =
       rec.destination === "avalanche_l1"
         ? l1RemoteOrThrow(collection)
-        : collectionEvmAddress(collection);
+        : collectionEvmAddress(collection, rec.destination);
     if (!contract) throw new Error("Destination contract is not set");
     if (rec.destination === "avalanche_l1" && !isAllowedL1Remote(collection, contract)) {
       return NextResponse.json({ error: "L1 remote is not on the Ginger allowlist" }, { status: 400 });
@@ -167,13 +178,16 @@ export async function POST(
       tokenId: rec.tokenId,
       uri: token.metadataUri,
       destination: rec.destination,
-      home: collectionHomeChain(collection),
+      home: collectionHomeLedger(collection),
     });
+    const destSpoke = mintDestinationToSpokeChain(rec.destination);
     await simulateEvmCall({
       to: contract,
       data: authz.data,
       account: rec.recipient as Address,
       rpcUrl: rec.destination === "avalanche_l1" ? getAvalancheL1RpcUrl() || undefined : undefined,
+      spokeChain: destSpoke ?? undefined,
+      destination: rec.destination,
     });
 
     return NextResponse.json({
@@ -202,12 +216,16 @@ async function confirmHomeDebit(
   if (!txHash) {
     return NextResponse.json({ error: "Home debit transaction required" }, { status: 400 });
   }
-  const home = collectionHomeChain(collection);
-  if (home === "avalanche") {
+  const homeLedger = collectionHomeLedger(collection);
+  if (isEvmHomeLedger(homeLedger)) {
     if (!txHash.startsWith("0x")) {
-      return NextResponse.json({ error: "C-Chain debit transaction hash required" }, { status: 400 });
+      return NextResponse.json({ error: "EVM home debit transaction hash required" }, { status: 400 });
     }
-    const client = avalanchePublicClient();
+    const spoke = mintDestinationToSpokeChain(homeLedger)!;
+    const rpc = evmRpcForDestination(homeLedger) ?? undefined;
+    const client = rpc
+      ? createPublicClient({ chain: viemChainForSpokeId(spoke), transport: http(rpc) })
+      : avalanchePublicClient();
     const receipt = await client.waitForTransactionReceipt({ hash: txHash as Hex });
     if (receipt.status !== "success") {
       return NextResponse.json({ error: "Home debit transaction failed" }, { status: 400 });
@@ -230,7 +248,7 @@ async function confirmHomeDebit(
   return NextResponse.json({
     ok: true,
     homeDebitTx: txHash,
-    explorerUrl: explorerTxUrl(home === "avalanche" ? "avalanche" : "solana", txHash),
+    explorerUrl: explorerTxUrl(isEvmHomeLedger(homeLedger) ? homeLedger : "solana", txHash),
     collection: toPublicCollection(next),
   });
 }
@@ -258,7 +276,7 @@ async function confirmUserMint(
   const contract =
     destination === "avalanche_l1"
       ? l1RemoteOrThrow(collection)
-      : collectionEvmAddress(collection);
+      : collectionEvmAddress(collection, destination);
   if (!contract) throw new Error("Destination contract is not set");
   const location: TokenLocation = destination;
   const token = collection.tokens.find((t) => t.tokenId === tokenId);

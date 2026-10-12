@@ -17,6 +17,7 @@ import {
   avalancheL1MintEnabled,
   getEvmMinterPrivateKey,
 } from "@/lib/avalanche-config";
+import { listEvmSpokeChains } from "@/lib/evm-spoke-chains";
 
 export async function GET() {
   return NextResponse.json({
@@ -30,5 +31,6 @@ export async function GET() {
     platformWallet: getMintPaymentRecipient(),
     /** Minimum SOL kept on the platform wallet (rent + accrual float). */
     platformTreasuryFloorSol: formatTreasuryFloorSol(),
+    evmSpokeChains: listEvmSpokeChains(),
   });
 }

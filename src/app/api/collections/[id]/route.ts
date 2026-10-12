@@ -16,7 +16,9 @@ import { consumePaidInvoice, slicePayConfigured, verifySlicePayInvoice } from "@
 import { getQuote } from "@/lib/quotes";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { isValidSolanaAddress } from "@/lib/mint-nft";
-import { collectionHomeChain, isEvmAddress } from "@/lib/chain-registry";
+import { collectionHomeChain, explorerNftUrl, isEvmAddress } from "@/lib/chain-registry";
+import { executeOmnichainRelayerMint } from "@/lib/omnichain-relayer";
+import type { TokenLocation } from "@/lib/types";
 import { consumeDryRun, requireSimulatedDryRun, withClearedMintQuote } from "@/lib/mint-dry-run-store";
 import { parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { collectionAllowsResale, nftPrice } from "@/lib/collection-ui";
@@ -187,7 +189,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         requestedId != null
           ? pre.tokens.find((t) => t.tokenId === requestedId)
           : pre.tokens.find((t) => !tokenIsCommitted(t, pre));
-      const expectedUsd = tokenForPrice ? nftPrice(pre, tokenForPrice) : pre.payments.basePriceUsd;
+      const expectedUsd =
+        dryRun.lineItems?.totalUsd ??
+        (tokenForPrice ? nftPrice(pre, tokenForPrice) : pre.payments.basePriceUsd);
       const method = String(body.method || "slicepay");
       const invoiceId = String(body.invoiceId || "");
       const txSignature = String(body.txSignature || "");
@@ -426,14 +430,75 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (holderDistribution?.collection) collection = holderDistribution.collection;
       }
 
+      let requiresDestinationMint = destMint;
+      let relayerMintTx: string | null = null;
+      let relayerNftUrl: string | null = null;
+
+      if (
+        destMint &&
+        dryRun.executionMode === "relayer" &&
+        (method === "slicepay" || method === "demo") &&
+        mintedTokenIds.length === 1
+      ) {
+        const mintedId = mintedTokenIds[0]!;
+        const mintToken = collection.tokens.find((t) => t.tokenId === mintedId);
+        const uri = mintToken?.metadataUri;
+        if (!uri?.startsWith("http")) {
+          await rollbackMint({
+            id,
+            tokenIds: mintedTokenIds,
+            recipient: recipientAddr,
+            onChain: true,
+          });
+          return NextResponse.json({ error: "Token metadata is not published" }, { status: 400 });
+        }
+        try {
+          const result = await executeOmnichainRelayerMint({
+            collection,
+            dryRun,
+            uri,
+          });
+          const location = dryRun.destination as TokenLocation;
+          collection =
+            (await updateCollection(id, (current) =>
+              applyRelayerMintPatch(current, mintedId, {
+                owner: recipientAddr,
+                location,
+                assetAddress: result.contract,
+                spokeAddress: result.contract,
+                homeDebitTx: result.homeDebitTx,
+                mintTxUrl: result.explorerUrl,
+                reservedBy: null,
+                reservedAt: null,
+              }),
+            )) ?? collection;
+          requiresDestinationMint = false;
+          relayerMintTx = result.mintTxHash;
+          relayerNftUrl = explorerNftUrl(dryRun.destination, result.contract, mintedId);
+        } catch (e) {
+          await rollbackMint({
+            id,
+            tokenIds: mintedTokenIds,
+            recipient: recipientAddr,
+            onChain: true,
+          });
+          const message = e instanceof Error ? e.message : "Omnichain relayer mint failed";
+          console.error("[mint] relayer failed:", e);
+          return NextResponse.json({ error: message }, { status: 500 });
+        }
+      }
+
       return NextResponse.json({
         collection: toPublicCollection(collection),
         mintedTokenIds,
         recipient: recipientAddr,
         requiresOnChainMint: Boolean(txResult),
-        requiresDestinationMint: destMint,
-        dryRunId: destMint ? dryRun.dryRunId : undefined,
+        requiresDestinationMint,
+        relayerMintTx,
+        relayerNftUrl,
+        dryRunId: requiresDestinationMint ? dryRun.dryRunId : undefined,
         destination: dryRun.destination,
+        executionMode: dryRun.executionMode,
         feeBreakdowns,
         mintPaymentWallet: method === "sol" ? getPlatformPublicKey() : null,
         creatorDisburse: creatorDisburse
@@ -971,4 +1036,22 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         : 500;
     return NextResponse.json({ error: message }, { status });
   }
+}
+
+function applyRelayerMintPatch(
+  collection: NonNullable<Awaited<ReturnType<typeof getCollection>>>,
+  tokenId: number,
+  patch: Partial<NonNullable<Awaited<ReturnType<typeof getCollection>>>["tokens"][number]>,
+) {
+  const tokens = collection.tokens.map((t) =>
+    t.tokenId === tokenId ? { ...t, listing: null, ...patch } : t,
+  );
+  const mintedCount = tokens.filter((t) => t.owner).length;
+  return {
+    ...collection,
+    tokens,
+    mintedCount,
+    status: mintedCount >= collection.supply ? ("sold_out" as const) : collection.status,
+    updatedAt: new Date().toISOString(),
+  };
 }

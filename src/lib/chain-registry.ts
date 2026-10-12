@@ -1,4 +1,14 @@
 import type { ChainKey, Collection, MintDestination, TokenLocation } from "./types";
+import { EVM_NFT_CHAIN_CATALOG, EVM_NFT_CHAIN_IDS, isEvmNftChainId } from "./evm-nft-chain-catalog";
+import {
+  collectionHomeLedger,
+  homeLedgerToChainKey,
+  homeLedgerToMintDestination,
+  parseHomeLedger,
+  type HomeLedger,
+  universalHomeEnabled,
+} from "./home-ledger";
+import { evmSpokeChainMeta, mintDestinationToSpokeChain, rpcUrlForSpokeChain } from "./evm-spoke-chains";
 import {
   avalancheL1MintEnabled,
   getAvalancheChainId,
@@ -23,40 +33,63 @@ export type ChainDescriptor = {
 
 export const LAUNCH_HOME_CHAINS: ChainKey[] = ["solana", "avalanche"];
 
-export const MINT_DESTINATIONS: MintDestination[] = ["solana", "avalanche", "avalanche_l1"];
+/** Solana + every catalog EVM when universal home is enabled; else legacy Solana + Avalanche. */
+export const LAUNCH_HOME_OPTIONS: HomeLedger[] = universalHomeEnabled()
+  ? (["solana", ...EVM_NFT_CHAIN_IDS] as HomeLedger[])
+  : (["solana", "avalanche"] as HomeLedger[]);
 
-export const CHAIN_DESCRIPTORS: Record<MintDestination, ChainDescriptor> = {
-  solana: {
-    key: "solana",
-    label: "Solana",
-    nativeSymbol: "SOL",
-    addressFamily: "ed25519",
-    mintDestination: "solana",
-  },
-  avalanche: {
-    key: "avalanche",
-    label: "Avalanche C-Chain",
-    nativeSymbol: "AVAX",
-    addressFamily: "evm",
-    mintDestination: "avalanche",
-  },
-  avalanche_l1: {
-    key: "avalanche_l1",
-    label: "Avalanche L1",
-    nativeSymbol: "AVAX",
-    addressFamily: "evm",
-    mintDestination: "avalanche_l1",
-  },
-};
+export { parseHomeLedger, collectionHomeLedger, homeLedgerToMintDestination, type HomeLedger };
 
-export function collectionHomeChain(collection: Pick<Collection, "chain" | "homeChain">): ChainKey {
-  return collection.homeChain ?? collection.chain ?? "solana";
+export const MINT_DESTINATIONS: MintDestination[] = [
+  "solana",
+  ...EVM_NFT_CHAIN_CATALOG.map((c) => c.id as MintDestination),
+  "avalanche_l1",
+];
+
+function buildChainDescriptors(): Record<MintDestination, ChainDescriptor> {
+  const out = {
+    solana: {
+      key: "solana" as const,
+      label: "Solana",
+      nativeSymbol: "SOL",
+      addressFamily: "ed25519" as AddressFamily,
+      mintDestination: "solana" as const,
+    },
+    avalanche_l1: {
+      key: "avalanche_l1" as const,
+      label: "Avalanche L1",
+      nativeSymbol: "AVAX",
+      addressFamily: "evm" as AddressFamily,
+      mintDestination: "avalanche_l1" as const,
+    },
+  } as Record<MintDestination, ChainDescriptor>;
+
+  for (const def of EVM_NFT_CHAIN_CATALOG) {
+    const id = def.id as MintDestination;
+    out[id] = {
+      key: id,
+      label: def.label,
+      nativeSymbol: def.nativeSymbol,
+      addressFamily: "evm",
+      mintDestination: id,
+    };
+  }
+  return out;
+}
+
+export const CHAIN_DESCRIPTORS: Record<MintDestination, ChainDescriptor> = buildChainDescriptors();
+
+export function collectionHomeChain(collection: Pick<Collection, "chain" | "homeChain" | "homeLedger">): ChainKey {
+  return homeLedgerToChainKey(collectionHomeLedger(collection));
 }
 
 export function collectionMintDestinations(
-  collection: Pick<Collection, "chain" | "homeChain" | "mintDestinations" | "l1RemoteAddress">,
+  collection: Pick<
+    Collection,
+    "chain" | "homeChain" | "homeLedger" | "mintDestinations" | "l1RemoteAddress"
+  >,
 ): MintDestination[] {
-  const home = homeChainToDestination(collectionHomeChain(collection));
+  const home = homeLedgerToMintDestination(collectionHomeLedger(collection));
   const listed = collection.mintDestinations?.filter(isMintDestination) ?? [];
   const set = new Set<MintDestination>([home, ...listed]);
   return MINT_DESTINATIONS.filter((d) => {
@@ -89,11 +122,18 @@ export type ExplorerUrlOpts = {
 export function collectionContractLinks(
   collection: Pick<
     Collection,
-    "chain" | "homeChain" | "coreCollectionAddress" | "onChainCollectionAddress" | "l1RemoteAddress"
+    | "chain"
+    | "homeChain"
+    | "homeLedger"
+    | "coreCollectionAddress"
+    | "onChainCollectionAddress"
+    | "solanaSpokeCoreAddress"
+    | "evmSpokeAddresses"
+    | "l1RemoteAddress"
   >,
   opts?: ExplorerUrlOpts,
 ): CollectionContractLink[] {
-  const home = collectionHomeChain(collection);
+  const ledger = collectionHomeLedger(collection);
   const links: CollectionContractLink[] = [];
   const seen = new Set<string>();
 
@@ -103,33 +143,56 @@ export function collectionContractLinks(
     const key = a.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
+    const explorerName =
+      dest === "solana"
+        ? "Solana Explorer"
+        : dest === "avalanche" || dest === "avalanche_l1"
+          ? "Snowtrace"
+          : CHAIN_DESCRIPTORS[dest]?.label ?? "Explorer";
     links.push({
       id,
       label,
       address: a,
       href: explorerAddressUrl(dest, a, opts),
-      explorerName: dest === "solana" ? "Solana Explorer" : "Snowtrace",
+      explorerName,
     });
   };
 
-  const core = collection.coreCollectionAddress;
-  const evm = collection.onChainCollectionAddress;
+  const homeDest = homeLedgerToMintDestination(ledger);
+  const core = collection.coreCollectionAddress?.trim();
+  const evmHome = collection.onChainCollectionAddress?.trim();
+  if (homeDest === "solana" && core && !isEvmAddress(core)) {
+    add("home", "Solana home", core, "solana");
+  } else if (homeDest !== "solana") {
+    const homeEvm =
+      (ledger === homeDest && evmHome && isEvmAddress(evmHome) ? evmHome : null) ??
+      collection.evmSpokeAddresses?.[homeDest as keyof typeof collection.evmSpokeAddresses]?.trim();
+    if (homeEvm && isEvmAddress(homeEvm)) {
+      add("home", `${CHAIN_DESCRIPTORS[homeDest]?.label ?? homeDest} home`, homeEvm, homeDest);
+    }
+  }
+
+  if (ledger !== "solana") {
+    const solSpoke = collection.solanaSpokeCoreAddress?.trim();
+    if (solSpoke && !isEvmAddress(solSpoke)) {
+      add("solana-spoke", "Solana destination", solSpoke, "solana");
+    }
+  }
+
+  for (const dest of MINT_DESTINATIONS) {
+    if (dest === homeDest || dest === "avalanche_l1" || dest === "solana") continue;
+    const spoke = mintDestinationToSpokeChain(dest);
+    if (!spoke) continue;
+    let addr = collection.evmSpokeAddresses?.[spoke]?.trim();
+    if (dest === "avalanche" && !addr && evmHome && isEvmAddress(evmHome) && ledger !== "avalanche") {
+      addr = evmHome;
+    }
+    if (addr && isEvmAddress(addr)) {
+      add(`spoke-${dest}`, `${CHAIN_DESCRIPTORS[dest]?.label ?? dest} spoke`, addr, dest);
+    }
+  }
+
   const l1 = collection.l1RemoteAddress;
-
-  if (core && !isEvmAddress(core)) {
-    add("solana", "Solana collection", core, "solana");
-  }
-
-  const cChain = evm && isEvmAddress(evm) ? evm : core && isEvmAddress(core) ? core : undefined;
-  if (cChain) {
-    add(
-      "c-chain",
-      home === "avalanche" ? "C-Chain collection" : "C-Chain destination",
-      cChain,
-      "avalanche",
-    );
-  }
-
   if (l1 && isEvmAddress(l1)) {
     add("l1", "Avalanche L1", l1, "avalanche_l1");
   }
@@ -137,13 +200,14 @@ export function collectionContractLinks(
   return links;
 }
 
-export function homeChainToDestination(chain: ChainKey): MintDestination {
+export function homeChainToDestination(chain: ChainKey | HomeLedger): MintDestination {
+  if (isEvmNftChainId(String(chain))) return chain as MintDestination;
   if (chain === "avalanche") return "avalanche";
   return "solana";
 }
 
 export function isMintDestination(value: unknown): value is MintDestination {
-  return value === "solana" || value === "avalanche" || value === "avalanche_l1";
+  return value === "solana" || value === "avalanche_l1" || isEvmNftChainId(String(value));
 }
 
 export function parseMintDestination(value: unknown, fallback: MintDestination = "solana"): MintDestination {
@@ -151,7 +215,14 @@ export function parseMintDestination(value: unknown, fallback: MintDestination =
 }
 
 export function parseHomeChain(value: unknown): ChainKey {
+  if (universalHomeEnabled() && isHomeLedgerValue(value)) {
+    return homeLedgerToChainKey(value);
+  }
   return value === "avalanche" ? "avalanche" : "solana";
+}
+
+function isHomeLedgerValue(value: unknown): value is HomeLedger {
+  return value === "solana" || isEvmNftChainId(String(value));
 }
 
 export function isEvmAddress(addr: string): boolean {
@@ -163,6 +234,16 @@ export function isDestinationWallet(destination: MintDestination, wallet: string
   return isEvmAddress(wallet);
 }
 
+function evmExplorerBase(destination: MintDestination): string | null {
+  if (destination === "solana") return null;
+  if (destination === "avalanche" || destination === "avalanche_l1") {
+    return getAvalancheNetwork() === "mainnet" ? "https://snowtrace.io" : "https://testnet.snowtrace.io";
+  }
+  const spoke = mintDestinationToSpokeChain(destination);
+  if (!spoke) return null;
+  return evmSpokeChainMeta(spoke).explorerUrl ?? null;
+}
+
 export function explorerTxUrl(
   destination: TokenLocation | MintDestination,
   tx: string,
@@ -172,6 +253,11 @@ export function explorerTxUrl(
     const q = opts?.solanaClusterQuery ?? explorerClusterQuery(getSolanaNetwork());
     return `https://explorer.solana.com/tx/${tx}${q}`;
   }
+  if (destination === "avalanche" || destination === "avalanche_l1") {
+    return snowtraceTxUrl(tx, opts?.avalancheNetwork);
+  }
+  const base = evmExplorerBase(destination);
+  if (base) return `${base.replace(/\/$/, "")}/tx/${tx}`;
   return snowtraceTxUrl(tx, opts?.avalancheNetwork);
 }
 
@@ -183,6 +269,14 @@ export function explorerAddressUrl(
   if (destination === "solana") {
     const q = opts?.solanaClusterQuery ?? explorerClusterQuery(getSolanaNetwork());
     return `https://explorer.solana.com/address/${address}${q}`;
+  }
+  if (destination === "avalanche" || destination === "avalanche_l1") {
+    return snowtraceAddressUrl(address, opts?.avalancheNetwork);
+  }
+  const dest = destination as MintDestination;
+  if (isMintDestination(dest)) {
+    const base = evmExplorerBase(dest);
+    if (base) return `${base.replace(/\/$/, "")}/address/${address}`;
   }
   return snowtraceAddressUrl(address, opts?.avalancheNetwork);
 }
@@ -197,19 +291,28 @@ export function explorerNftUrl(
     const q = opts?.solanaClusterQuery ?? explorerClusterQuery(getSolanaNetwork());
     return `https://explorer.solana.com/address/${contract}${q}`;
   }
+  if (destination === "avalanche" || destination === "avalanche_l1") {
+    return snowtraceNftUrl(contract, tokenId, opts?.avalancheNetwork);
+  }
+  if (isMintDestination(destination)) {
+    const base = evmExplorerBase(destination);
+    if (base) return `${base.replace(/\/$/, "")}/nft/${contract}/${tokenId}`;
+  }
   return snowtraceNftUrl(contract, tokenId, opts?.avalancheNetwork);
 }
 
 export function chainLabel(chain: ChainKey | MintDestination | TokenLocation | undefined): string {
-  if (chain === "avalanche_l1") return "Avalanche L1";
-  if (chain === "avalanche") return "Avalanche";
   if (chain === "in_flight") return "In flight";
+  if (chain && isMintDestination(chain)) return CHAIN_DESCRIPTORS[chain].label;
   if (chain === "solana" || !chain) return "Solana";
-  return chain.toUpperCase();
+  return String(chain);
 }
 
 export function evmChainIdForDestination(destination: MintDestination): number | null {
   if (destination === "solana") return null;
+  if (destination === "avalanche_l1") return getAvalancheChainId();
+  const spoke = mintDestinationToSpokeChain(destination);
+  if (spoke) return evmSpokeChainMeta(spoke).chainId;
   return getAvalancheChainId();
 }
 
@@ -221,6 +324,8 @@ export function evmRpcForDestination(destination: MintDestination): string | nul
     if (getAvalancheNetwork() === "fuji") return getAvalancheRpcUrl();
     return null;
   }
+  const spoke = mintDestinationToSpokeChain(destination);
+  if (spoke) return rpcUrlForSpokeChain(spoke);
   return getAvalancheRpcUrl();
 }
 

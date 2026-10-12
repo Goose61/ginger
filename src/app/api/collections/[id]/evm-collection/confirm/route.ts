@@ -3,9 +3,17 @@ import { getCollection, saveCollection } from "@/lib/store";
 import { requireWalletAuthAsync, assertCreatorAuth } from "@/lib/wallet-auth";
 import { avalanchePublicClient, parseCloneFromReceiptLogs } from "@/lib/evm-collection";
 import { snowtraceTxUrl } from "@/lib/avalanche-config";
-import { collectionHomeChain, isEvmAddress } from "@/lib/chain-registry";
+import { isEvmAddress } from "@/lib/chain-registry";
+import { collectionHomeLedger, isEvmHomeLedger } from "@/lib/home-ledger";
 import { toPublicCollection } from "@/lib/public-collection";
-import type { Hex } from "viem";
+import { collectionSpokeAddress, mergeSpokeAddress } from "@/lib/collection-spoke";
+import {
+  evmSpokeChainMeta,
+  parseEvmSpokeChain,
+  rpcUrlForSpokeChain,
+  viemChainForSpokeId,
+} from "@/lib/evm-spoke-chains";
+import { createPublicClient, http, type Hex } from "viem";
 
 export const runtime = "nodejs";
 
@@ -16,15 +24,22 @@ export async function POST(
   try {
     const { id } = await ctx.params;
     const auth = await requireWalletAuthAsync(req);
-    const collection = await getCollection(id);
+    let collection = await getCollection(id);
     if (!collection) return NextResponse.json({ error: "not found" }, { status: 404 });
     assertCreatorAuth(auth, collection.payments.creatorWallet);
-    const body = (await req.json()) as { txHash?: string };
+    const body = (await req.json()) as { txHash?: string; spokeChain?: string };
+    const spokeChain = parseEvmSpokeChain(body.spokeChain);
     const txHash = String(body.txHash || "") as Hex;
     if (!txHash.startsWith("0x")) {
       return NextResponse.json({ error: "txHash required" }, { status: 400 });
     }
-    const client = avalanchePublicClient();
+
+    const rpc = rpcUrlForSpokeChain(spokeChain);
+    const client =
+      spokeChain === "avalanche"
+        ? avalanchePublicClient()
+        : createPublicClient({ chain: viemChainForSpokeId(spokeChain), transport: http(rpc) });
+
     const receipt = await client.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== "success") {
       return NextResponse.json({ error: "Collection transaction failed" }, { status: 400 });
@@ -33,26 +48,34 @@ export async function POST(
     if (!clone) {
       return NextResponse.json({ error: "Could not parse collection address from transaction" }, { status: 400 });
     }
-    const existing = collection.onChainCollectionAddress?.trim();
-    if (existing && isEvmAddress(existing) && existing.toLowerCase() !== clone.toLowerCase()) {
-      return NextResponse.json(
-        { error: "Avalanche collection is already set for this drop" },
-        { status: 409 },
-      );
+
+    const prior = collectionSpokeAddress(collection, spokeChain);
+    if (prior && isEvmAddress(prior) && prior.toLowerCase() !== clone.toLowerCase()) {
+      return NextResponse.json({ error: "Spoke address is already set for this chain" }, { status: 409 });
     }
 
-    collection.onChainCollectionAddress = clone;
-    const home = collectionHomeChain(collection);
-    const core = collection.coreCollectionAddress?.trim();
-    if (home === "avalanche" || !core || isEvmAddress(core)) {
+    collection = mergeSpokeAddress(collection, spokeChain, clone);
+    const home = collectionHomeLedger(collection);
+    if (spokeChain === home && isEvmHomeLedger(home)) {
+      collection.homeLedger = home;
+    }
+    if (spokeChain === "avalanche" && home === "avalanche") {
       collection.coreCollectionAddress = clone;
       collection.coreCollectionTxUrl = snowtraceTxUrl(txHash);
     }
     collection.updatedAt = new Date().toISOString();
+    if (
+      (collection.mintDestinations?.length ?? 0) > 1 ||
+      collection.omnichainMintEnabled
+    ) {
+      collection.omnichainMintEnabled = true;
+    }
     await saveCollection(collection);
     return NextResponse.json({
       collection: toPublicCollection(collection),
       collectionAddress: clone,
+      spokeChain,
+      label: evmSpokeChainMeta(spokeChain).label,
       txHash,
     });
   } catch (e) {

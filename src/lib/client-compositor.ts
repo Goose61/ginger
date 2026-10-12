@@ -3,42 +3,37 @@
  * Port of server compositor logic without sharp / Vercel Blob.
  */
 
-import { assignRarityRanks } from "@/lib/rarity";
 import { getLayer, putImage } from "@/lib/client-asset-store";
+import {
+  assertLayerSupply,
+  createLayerRng,
+  layerDna,
+  maxLayerSupply,
+  rollUniqueAttributeSets,
+  sniffImageMime,
+} from "@/lib/layer-catalog";
 import { buildTokenMetadataJson } from "@/lib/metadata-builders";
 import { parseSidecarJson } from "@/lib/metadata-review";
+import { assignRarityRanks } from "@/lib/rarity";
 import type { GeneratedToken, LayerCatalog, MetadataCreator, RoyaltySplit } from "@/lib/types";
-
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickWeighted(values: LayerCatalog["values"], rng: () => number) {
-  const total = values.reduce((s, v) => s + Math.max(0, v.weight), 0) || 1;
-  let roll = rng() * total;
-  for (const v of values) {
-    roll -= Math.max(0, v.weight);
-    if (roll <= 0) return v;
-  }
-  return values[values.length - 1];
-}
 
 async function loadLayerBitmap(
   collectionId: string,
   traitType: string,
   value: string,
-): Promise<ImageBitmap | null> {
+): Promise<ImageBitmap> {
   const asset = await getLayer(collectionId, traitType, value);
-  if (!asset) return null;
+  if (!asset) {
+    throw new Error(
+      `Missing layer image for ${traitType} / ${value}. Re-upload the layers ZIP in this browser.`,
+    );
+  }
+  const bytes = new Uint8Array(asset.data);
+  const type = sniffImageMime(bytes) || asset.contentType || "image/png";
   try {
-    return await createImageBitmap(new Blob([asset.data], { type: asset.contentType }));
+    return await createImageBitmap(new Blob([bytes], { type }));
   } catch {
-    return null;
+    throw new Error(`Could not read the image for ${traitType} / ${value}. Use PNG, JPG, or WebP.`);
   }
 }
 
@@ -46,44 +41,39 @@ async function compositeLayers(
   collectionId: string,
   stackOrder: string[],
   attributes: { trait_type: string; value: string | number }[],
-  layersByType: Map<string, LayerCatalog>,
-  width = 512,
-  height = 512,
 ): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas not supported");
+  const bitmaps: ImageBitmap[] = [];
+  try {
+    for (const traitType of stackOrder) {
+      const attr = attributes.find((entry) => entry.trait_type === traitType);
+      if (!attr) continue;
+      bitmaps.push(await loadLayerBitmap(collectionId, traitType, String(attr.value)));
+    }
+    if (bitmaps.length === 0) {
+      throw new Error("No trait layers could be drawn. Re-upload the layers ZIP.");
+    }
 
-  ctx.fillStyle = "#1c1612";
-  ctx.fillRect(0, 0, width, height);
+    const width = Math.max(...bitmaps.map((bitmap) => bitmap.width));
+    const height = Math.max(...bitmaps.map((bitmap) => bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.clearRect(0, 0, width, height);
+    for (const bitmap of bitmaps) {
+      ctx.drawImage(bitmap, 0, 0);
+    }
 
-  let drewAny = false;
-  for (const traitType of stackOrder) {
-    const attr = attributes.find((a) => a.trait_type === traitType);
-    if (!attr) continue;
-    const layer = layersByType.get(traitType);
-    const layerValue = layer?.values.find((v) => v.value === String(attr.value));
-    if (!layerValue) continue;
-    const bitmap = await loadLayerBitmap(collectionId, traitType, layerValue.value);
-    if (!bitmap) continue;
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close();
-    drewAny = true;
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Failed to composite image"))),
+        "image/png",
+      );
+    });
+  } finally {
+    for (const bitmap of bitmaps) bitmap.close();
   }
-
-  if (!drewAny) {
-    ctx.fillStyle = "#1c1612";
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Failed to composite image"))),
-      "image/png",
-    );
-  });
 }
 
 export type ClientGenerateOptions = {
@@ -105,35 +95,28 @@ export type ClientGenerateOptions = {
   onProgress?: (done: number, total: number) => void;
 };
 
-function rollAttributes(
-  stackOrder: string[],
-  layersByType: Map<string, LayerCatalog>,
-  rng: () => number,
-): { trait_type: string; value: string }[] {
-  return stackOrder.map((traitType) => {
-    const layer = layersByType.get(traitType);
-    if (!layer || layer.values.length === 0) {
-      return { trait_type: traitType, value: "None" };
-    }
-    const picked = pickWeighted(layer.values, rng);
-    return { trait_type: traitType, value: picked.value };
-  });
-}
-
 /** Generate preview composites (does not persist to IndexedDB). */
 export async function generatePreviewsClient(
   opts: ClientGenerateOptions,
 ): Promise<{ tokenId: number; image: string; attributes: GeneratedToken["attributes"] }[]> {
-  const rng = mulberry32(opts.seed ?? Date.now() % 1_000_000);
-  const count = opts.previewCount ?? 12;
-  const layersByType = new Map(opts.layers.map((l) => [l.traitType, l]));
+  const available = maxLayerSupply(opts.layers, opts.stackOrder);
+  if (available < 1) {
+    throw new Error("Every trait value has weight 0. Set at least one weight above 0 on each trait.");
+  }
+  const count = Math.max(1, Math.min(opts.previewCount ?? 12, opts.supply || available, available));
+  const sets = rollUniqueAttributeSets({
+    stackOrder: opts.stackOrder,
+    layers: opts.layers,
+    count,
+    rng: createLayerRng(opts.seed),
+  });
   const previews: { tokenId: number; image: string; attributes: GeneratedToken["attributes"] }[] = [];
 
-  for (let i = 1; i <= count; i++) {
-    const attributes = rollAttributes(opts.stackOrder, layersByType, rng);
-    const blob = await compositeLayers(opts.collectionId, opts.stackOrder, attributes, layersByType);
+  for (let i = 0; i < sets.length; i++) {
+    const attributes = sets[i];
+    const blob = await compositeLayers(opts.collectionId, opts.stackOrder, attributes);
     previews.push({
-      tokenId: i,
+      tokenId: i + 1,
       image: URL.createObjectURL(blob),
       attributes,
     });
@@ -145,42 +128,31 @@ export async function generatePreviewsClient(
 export async function generateFullCollectionClient(
   opts: ClientGenerateOptions,
 ): Promise<GeneratedToken[]> {
-  const rng = mulberry32(opts.seed ?? Date.now() % 1_000_000);
-  const count = opts.previewCount ?? opts.supply;
-  const layersByType = new Map(opts.layers.map((l) => [l.traitType, l]));
+  const count = assertLayerSupply(opts.layers, opts.stackOrder, opts.previewCount ?? opts.supply);
+  const sets = rollUniqueAttributeSets({
+    stackOrder: opts.stackOrder,
+    layers: opts.layers,
+    count,
+    rng: createLayerRng(opts.seed),
+  });
   const tokens: GeneratedToken[] = [];
-  const seen = new Set<string>();
 
-  for (let i = 1; i <= count; i++) {
-    let attributes: GeneratedToken["attributes"] = [];
-    let dna = "";
-    let attempts = 0;
-    do {
-      attributes = rollAttributes(opts.stackOrder, layersByType, rng);
-      dna = attributes.map((a) => a.value).join("|");
-      attempts += 1;
-    } while (opts.uniqueness && seen.has(dna) && attempts < 200);
-
-    if (opts.uniqueness && seen.has(dna)) {
-      throw new Error(
-        `Could not generate unique DNA for token #${i}. Reduce supply or add more trait values.`,
-      );
-    }
-    seen.add(dna);
-
-    const blob = await compositeLayers(opts.collectionId, opts.stackOrder, attributes, layersByType);
+  for (let i = 0; i < sets.length; i++) {
+    const attributes = sets[i];
+    const tokenId = i + 1;
+    const blob = await compositeLayers(opts.collectionId, opts.stackOrder, attributes);
     const buf = await blob.arrayBuffer();
-    await putImage(opts.collectionId, i, buf, "image/png");
+    await putImage(opts.collectionId, tokenId, buf, "image/png");
 
     tokens.push({
-      tokenId: i,
-      dna,
+      tokenId,
+      dna: layerDna(attributes),
       attributes,
-      imageRelPath: `images/${i}.png`,
-      metadataRelPath: `metadata/${i}.json`,
+      imageRelPath: `images/${tokenId}.png`,
+      metadataRelPath: `metadata/${tokenId}.json`,
     });
 
-    opts.onProgress?.(i, count);
+    opts.onProgress?.(tokenId, count);
   }
 
   const ranked = assignRarityRanks(tokens);

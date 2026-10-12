@@ -5,6 +5,7 @@ import type {
   TokenSidecar,
 } from "./types";
 import { metadataNameFromTemplate } from "./metadata-builders";
+import { maxLayerSupply } from "./layer-catalog";
 
 function isValidSolanaAddress(addr: string): boolean {
   if (!addr || addr.length < 32 || addr.length > 44) return false;
@@ -130,9 +131,41 @@ export function reviewCollectionMetadata(collection: Collection): MetadataReview
 
   const issues: MetadataIssue[] = [];
   const missingSidecarCount = tokens.filter((t) => !t.sidecar?.present).length;
+  const pendingLayers =
+    collection.artPath === "path-b" && collection.layers.length > 0 && tokens.length === 0;
 
-  if (tokens.length === 0) {
+  if (tokens.length === 0 && !pendingLayers) {
     issues.push({ severity: "error", code: "no-tokens", message: "No NFTs in this collection yet." });
+  }
+  if (pendingLayers) {
+    const max = maxLayerSupply(collection.layers, collection.stackOrder);
+    if (collection.supply < 1 || collection.supply > max) {
+      issues.push({
+        severity: "error",
+        code: "layer-supply",
+        message: max < 1
+          ? "Every trait value has weight 0. Set at least one weight above 0 on each trait."
+          : `Supply must be between 1 and ${max.toLocaleString()} (unique combinations from the trait layers).`,
+      });
+    } else {
+      issues.push({
+        severity: "warning",
+        code: "layers-generate-metadata",
+        message: `No metadata files in the ZIP. Go-live creates metadata for ${collection.supply.toLocaleString()} NFTs from the trait layers and the collection settings below.`,
+      });
+      const sampleName = metadataNameFromTemplate(
+        collection.name,
+        collection.nameTemplate,
+        collection.supply,
+      );
+      if (sampleName.length > CORE_NAME_MAX) {
+        issues.push({
+          severity: "warning",
+          code: "token-name-length",
+          message: `NFT names like "${sampleName}" exceed ${CORE_NAME_MAX} characters. Wallets shorten them at mint; the metadata JSON keeps the full name.`,
+        });
+      }
+    }
   }
   if (missingSidecarCount > 0 && missingSidecarCount < tokens.length) {
     const missingIds = tokens.filter((t) => !t.sidecar?.present).map((t) => t.tokenId);

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { promoteFullImage, startFullImage } from "@/lib/image-priority";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import type { Collection, GeneratedToken, MintDestination } from "@/lib/types";
+import type { Collection, GeneratedToken, MintDestination, MintExecutionMode } from "@/lib/types";
+import { collectionOmnichainEnabled, relayerExecutionAvailable } from "@/lib/omnichain";
 import { useWallet } from "./WalletProvider";
 import { useEvmWallet } from "./EvmWalletProvider";
 import { getClientNetwork, type SolanaNetwork } from "@/lib/solana-config";
@@ -66,7 +67,13 @@ export function CollectionMint({ initial }: { initial: Collection }) {
   const [mintDest, setMintDest] = useState<MintDestination>(destinations[0] ?? homeDest);
   const [mintQuote, setMintQuote] = useState<MintQuotePayload | null>(null);
   const [dryRunId, setDryRunId] = useState<string | null>(null);
+  const [executionMode, setExecutionMode] = useState<MintExecutionMode>("relayer");
   const [collection, setCollection] = useState(initial);
+  const omnichainEnabled = useMemo(() => collectionOmnichainEnabled(collection), [collection]);
+  const relayerAvailable = useMemo(
+    () => omnichainEnabled && relayerExecutionAvailable(collection, mintDest),
+    [collection, mintDest, omnichainEnabled],
+  );
   const [selected, setSelected] = useState<GeneratedToken | null>(null);
   const [recipient, setRecipient] = useState("");
   const [checkoutPending, setCheckoutPending] = useState(false);
@@ -244,11 +251,14 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         );
       }
       setMessage("Quoting mint + gas…");
+      const mode: MintExecutionMode =
+        relayerAvailable && executionMode === "relayer" ? "relayer" : "self";
       const quote = await requestMintQuote({
         collectionId: collection.id,
         tokenId: token.tokenId,
         destination: mintDest,
         recipient: recipientWallet,
+        executionMode: mode,
       });
       setMintQuote(quote);
       setMessage("Simulating mint. Ginger will not charge if this fails…");
@@ -257,7 +267,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       setMessage(null);
       return quote;
     },
-    [collection.id, mintDest],
+    [collection.id, mintDest, executionMode, relayerAvailable],
   );
 
   useEffect(() => {
@@ -459,7 +469,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
       const amountUsd =
         kind === "secondary_buy" && token.listing
           ? token.listing.priceUsd
-          : nftPrice(collection, token);
+          : mintQuote?.lineItems.totalUsd ?? nftPrice(collection, token);
       const orderPrefix = kind === "secondary_buy" ? `secondary-${collection.id}-` : `mint-${collection.id}-`;
       const inv = await fetch("/api/slicepay/invoice", {
         method: "POST",
@@ -575,7 +585,20 @@ export function CollectionMint({ initial }: { initial: Collection }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     if (data.collection) setCollection(data.collection);
-    if (data.requiresDestinationMint) {
+    if (data.relayerMintTx) {
+      const feeNote =
+        Array.isArray(data.feeBreakdowns) && data.feeBreakdowns.length > 0
+          ? ` · Holder pool +${formatUsd(
+              data.feeBreakdowns.reduce(
+                (sum: number, b: { holdersUsd: number }) => sum + b.holdersUsd,
+                0,
+              ),
+            )}`
+          : "";
+      setMessage(
+        `Minted #${data.mintedTokenIds.join(", ")} onto ${chainLabel(mintDest)} via omnichain checkout${feeNote}`,
+      );
+    } else if (data.requiresDestinationMint) {
       setMessage("Approve the destination mint in your wallet. You pay this chain’s gas.");
       await completeEvmDestinationMint(token, payer, quoteId);
     } else if (data.requiresOnChainMint) {
@@ -1376,8 +1399,40 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                           ))}
                         </div>
                         <p className="mt-2 text-[11px] text-white/45">
-                          Connect the wallet for that chain. You pay its gas. If you mint off the home chain, you also pay a small home-chain debit in that chain’s wallet. Ginger does not.
+                          {relayerAvailable
+                            ? "Omnichain checkout (SlicePay): Ginger pays destination gas after you pay. Self-serve: you sign home debit + mint in each wallet."
+                            : "Connect the wallet for that chain. You pay its gas. Off-home mints also need a home-chain debit."}
                         </p>
+                      </div>
+                    )}
+                    {relayerAvailable && (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExecutionMode("relayer");
+                            setDryRunId(null);
+                            setMintQuote(null);
+                          }}
+                          className={`rounded-full px-3 py-1 ${
+                            executionMode === "relayer" ? "bg-primary text-white" : "bg-white/10 text-white/60"
+                          }`}
+                        >
+                          Omnichain checkout
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExecutionMode("self");
+                            setDryRunId(null);
+                            setMintQuote(null);
+                          }}
+                          className={`rounded-full px-3 py-1 ${
+                            executionMode === "self" ? "bg-primary text-white" : "bg-white/10 text-white/60"
+                          }`}
+                        >
+                          Self-serve (lower fee)
+                        </button>
                       </div>
                     )}
                     {mintQuote && (
@@ -1385,10 +1440,39 @@ export function CollectionMint({ initial }: { initial: Collection }) {
                         <div className="flex justify-between"><dt>Mint</dt><dd>{formatUsd(mintQuote.lineItems.mintUsd)}</dd></div>
                         <div className="flex justify-between"><dt>Ginger 1%</dt><dd>{formatUsd(mintQuote.lineItems.platformUsd)}</dd></div>
                         <div className="flex justify-between"><dt>Creator</dt><dd>{formatUsd(mintQuote.lineItems.creatorUsd)}</dd></div>
-                        {mintQuote.offHome && mintQuote.lineItems.homeDebitUsd > 0 && (
-                          <div className="flex justify-between"><dt>Home debit gas (you pay)</dt><dd>{formatUsd(mintQuote.lineItems.homeDebitUsd)}</dd></div>
+                        {mintQuote.executionMode === "relayer" ? (
+                          <>
+                            {mintQuote.lineItems.relayerUsd > 0 && (
+                              <div className="flex justify-between">
+                                <dt>Omnichain gas (Ginger)</dt>
+                                <dd>{formatUsd(mintQuote.lineItems.relayerUsd)}</dd>
+                              </div>
+                            )}
+                            {mintQuote.lineItems.omnichainFeeUsd > 0 && (
+                              <div className="flex justify-between">
+                                <dt>Omnichain fee</dt>
+                                <dd>{formatUsd(mintQuote.lineItems.omnichainFeeUsd)}</dd>
+                              </div>
+                            )}
+                            <div className="flex justify-between border-t border-white/10 pt-1 text-white/80">
+                              <dt>SlicePay total</dt>
+                              <dd>{formatUsd(mintQuote.lineItems.totalUsd)}</dd>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {mintQuote.offHome && mintQuote.lineItems.homeDebitUsd > 0 && (
+                              <div className="flex justify-between">
+                                <dt>Home debit gas (you pay)</dt>
+                                <dd>{formatUsd(mintQuote.lineItems.homeDebitUsd)}</dd>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <dt>Dest gas ({mintQuote.destGasSymbol}, you pay)</dt>
+                              <dd>{formatUsd(mintQuote.lineItems.destGasUsd)}</dd>
+                            </div>
+                          </>
                         )}
-                        <div className="flex justify-between"><dt>Dest gas ({mintQuote.destGasSymbol}, you pay)</dt><dd>{formatUsd(mintQuote.lineItems.destGasUsd)}</dd></div>
                       </dl>
                     )}
                     {mintDest === "solana" && collection.payments.giftMintEnabled && (

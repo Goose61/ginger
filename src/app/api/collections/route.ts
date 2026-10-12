@@ -17,10 +17,17 @@ import {
   getEvmMinterPrivateKey,
 } from "@/lib/avalanche-config";
 import {
-  collectionHomeChain,
   collectionMintDestinations,
   isEvmAddress,
 } from "@/lib/chain-registry";
+import { collectionHomeLedger, homeLedgerToMintDestination, isEvmHomeLedger } from "@/lib/home-ledger";
+import {
+  collectionHomeContract,
+  collectionSolanaSpokeAddress,
+  destinationMintContract,
+} from "@/lib/collection-spoke";
+import { evmSpokeChainMeta, mintDestinationToSpokeChain } from "@/lib/evm-spoke-chains";
+import { factoryAddressForSpokeChain } from "@/lib/evm-spoke-chains";
 import { splMintRejectionReason } from "@/lib/spl-mint";
 import { isPublishedFileUri } from "@/lib/irys-shared";
 
@@ -141,6 +148,8 @@ export async function POST(req: NextRequest) {
     chain: body.chain ?? existing.chain,
     homeChain: body.homeChain ?? existing.homeChain ?? body.chain ?? existing.chain,
     mintDestinations: body.mintDestinations ?? existing.mintDestinations,
+    omnichainMintEnabled: body.omnichainMintEnabled ?? existing.omnichainMintEnabled,
+    evmSpokeAddresses: body.evmSpokeAddresses ?? existing.evmSpokeAddresses,
     onChainCollectionAddress:
       body.onChainCollectionAddress ?? existing.onChainCollectionAddress,
     l1RemoteAddress: body.l1RemoteAddress ?? existing.l1RemoteAddress,
@@ -250,53 +259,72 @@ export async function POST(req: NextRequest) {
     }
 
     const dests = collectionMintDestinations(merged);
-    const wantsAvax = dests.includes("avalanche") || dests.includes("avalanche_l1");
-    if (wantsAvax) {
-      if (!getAvalancheFactoryAddress()) {
-        return NextResponse.json(
-          {
-            error:
-              "Avalanche factory is not configured. Deploy with npm run deploy:avalanche-factory and set AVALANCHE_FACTORY_ADDRESS_MAINNET or AVALANCHE_FACTORY_ADDRESS_FUJI.",
-          },
-          { status: 400 },
-        );
-      }
-      if (!getEvmMinterPrivateKey()) {
-        return NextResponse.json(
-          { error: "AVALANCHE_MINTER_KEY is required before Avalanche collections can go live." },
-          { status: 400 },
-        );
-      }
-      if (!merged.onChainCollectionAddress || !isEvmAddress(merged.onChainCollectionAddress)) {
-        return NextResponse.json(
-          {
-            error:
-              "C-Chain collection is missing. Approve the Avalanche collection transaction, then try again.",
-          },
-          { status: 400 },
-        );
-      }
-    }
-    if (dests.includes("avalanche_l1") && !avalancheL1MintEnabled()) {
+    const homeLedger = collectionHomeLedger(merged);
+    const homeDest = homeLedgerToMintDestination(homeLedger);
+
+    const homeContract = collectionHomeContract(merged);
+    if (!homeContract?.address) {
       return NextResponse.json(
         {
           error:
-            "Avalanche L1 minting is not enabled. On mainnet set AVALANCHE_L1_RPC_URL to a dedicated L1 RPC (not C-Chain).",
+            homeLedger === "solana"
+              ? "Solana Core home collection is missing. Approve the collection transaction in your Solana wallet, then try again."
+              : `Home collection on ${homeLedger} is missing. Deploy the home contract, then try again.`,
         },
         { status: 400 },
       );
     }
-    if (collectionHomeChain(merged) === "solana") {
-      const core = merged.coreCollectionAddress?.trim();
-      if (!core || isEvmAddress(core)) {
+
+    for (const dest of dests) {
+      if (dest === homeDest) continue;
+      if (dest === "avalanche_l1") {
+        if (!avalancheL1MintEnabled()) {
+          return NextResponse.json(
+            {
+              error:
+                "Avalanche L1 minting is not enabled. On mainnet set AVALANCHE_L1_RPC_URL to a dedicated L1 RPC (not C-Chain).",
+            },
+            { status: 400 },
+          );
+        }
+        if (!merged.l1RemoteAddress?.trim() || !isEvmAddress(merged.l1RemoteAddress)) {
+          return NextResponse.json({ error: "Avalanche L1 remote address is not configured." }, { status: 400 });
+        }
+        continue;
+      }
+      const spoke = mintDestinationToSpokeChain(dest);
+      if (spoke && !factoryAddressForSpokeChain(spoke) && dest === "avalanche") {
+        if (!getAvalancheFactoryAddress()) {
+          return NextResponse.json(
+            {
+              error:
+                "Avalanche factory is not configured. Deploy with npm run deploy:avalanche-factory and set AVALANCHE_FACTORY_ADDRESS_*.",
+            },
+            { status: 400 },
+          );
+        }
+      }
+      const addr = destinationMintContract(merged, dest);
+      if (!addr) {
+        const label = dest === "solana" ? "Solana spoke Core" : `${evmSpokeChainMeta(spoke!).label} spoke`;
         return NextResponse.json(
-          {
-            error:
-              "Solana Core collection is missing. Approve the collection transaction in your Solana wallet, then try again.",
-          },
+          { error: `${label} is not deployed for this collection.` },
           { status: 400 },
         );
       }
+    }
+
+    if (isEvmHomeLedger(homeLedger) && !getEvmMinterPrivateKey()) {
+      return NextResponse.json(
+        { error: "EVM minter key is required before EVM-home collections can go live." },
+        { status: 400 },
+      );
+    }
+    if (dests.includes("solana") && homeLedger !== "solana" && !collectionSolanaSpokeAddress(merged)) {
+      return NextResponse.json(
+        { error: "Solana destination requires a Solana spoke Core collection." },
+        { status: 400 },
+      );
     }
 
     if (body.featureOnMarket) {
@@ -331,7 +359,7 @@ export async function POST(req: NextRequest) {
     merged.status = "live";
   }
 
-  if (collectionHomeChain(merged) === "solana") {
+  if (collectionHomeLedger(merged) === "solana") {
     const settingCa = body.buybackTokenCa !== undefined;
     const goingLive = body.action === "go-live" && merged.fees.buybackPercent > 0;
     if (settingCa || goingLive) {

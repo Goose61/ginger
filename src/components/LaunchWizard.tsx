@@ -23,6 +23,7 @@ import { readJsonResponse } from "@/lib/fetch-json";
 import {
   assetToObjectUrl,
   clearCollectionAssets,
+  countImages,
   estimateArweaveBytes,
   getImage,
   getLogo,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/client-asset-store";
 import { parseReadyArtZip } from "@/lib/client-zip-import";
 import { parseLayerZipClient } from "@/lib/client-layer-import";
+import { assertLayerSupply, maxLayerSupply } from "@/lib/layer-catalog";
 import {
   generateFullCollectionClient,
   generatePreviewsClient,
@@ -57,7 +59,23 @@ import {
 import { isPublishedFileUri } from "@/lib/irys-shared";
 import { explorerClusterQuery, getClientNetwork } from "@/lib/solana-config";
 import { snowtraceTxUrl } from "@/lib/avalanche-config";
-import { CHAIN_DESCRIPTORS, collectionHomeChain, homeChainToDestination, parseHomeChain } from "@/lib/chain-registry";
+import {
+  CHAIN_DESCRIPTORS,
+  collectionHomeChain,
+  homeChainToDestination,
+  parseHomeChain,
+} from "@/lib/chain-registry";
+import {
+  type HomeLedger,
+  collectionHomeLedger,
+  homeLedgerToChainKey,
+  isEvmHomeLedger,
+  parseHomeLedger,
+  syncHomeFieldsFromLedger,
+} from "@/lib/home-ledger";
+import { collectionHomeEvmAddress, collectionSolanaSpokeAddress } from "@/lib/collection-spoke";
+import { OmnichainMintingPanel } from "@/components/OmnichainMintingPanel";
+import { LaunchZipRequirements } from "@/components/LaunchZipRequirements";
 import { useEvmWallet } from "./EvmWalletProvider";
 import { useWallet } from "./WalletProvider";
 import {
@@ -82,9 +100,14 @@ import {
   buildInitialLaunchDraft,
   forgetLaunchDraft,
   isContinuableLaunch,
+  LAUNCH_WIZARD_VERSION,
   rememberLaunchDraft,
   readRememberedLaunchDraft,
 } from "@/lib/launch-resume";
+import type { EvmNftChainId } from "@/lib/evm-nft-chain-catalog";
+import { deployEvmSpoke } from "@/lib/deploy-evm-spoke-client";
+import { collectionSpokeAddress } from "@/lib/collection-spoke";
+import { evmSpokeChainMeta } from "@/lib/evm-spoke-chains";
 import {
   fetchLaunchCostEstimate,
   formatLaunchBytes,
@@ -100,9 +123,9 @@ import {
 } from "@/lib/price-display";
 
 /* ─── steps ─── */
-const WIZARD_VERSION = 2;
 const TOKEN_PAGE_SIZE = 25;
 const PREFIX_LAYERS = ["Rarity", "Preview"] as const;
+const STANDARD_STEPS = ["Metadata", "Collection", "Payments", "Go live"] as const;
 const SHARED_STEPS = [
   "Metadata",
   "Collection",
@@ -114,16 +137,29 @@ const SHARED_STEPS = [
   "Go live",
 ] as const;
 
-function wizardSteps(mode: "ready" | "layers"): string[] {
-  return mode === "layers" ? [...PREFIX_LAYERS, ...SHARED_STEPS] : [...SHARED_STEPS];
+function wizardSteps(mode: "ready" | "layers", launchAdvanced: boolean): string[] {
+  const core = launchAdvanced ? [...SHARED_STEPS] : [...STANDARD_STEPS];
+  return mode === "layers" ? [...PREFIX_LAYERS, ...core] : core;
 }
 
-function migrateDraftStep(mode: "ready" | "layers", step: number, wizardVersion?: number): number {
-  if (wizardVersion === WIZARD_VERSION) return step;
+function migrateDraftStep(
+  mode: "ready" | "layers",
+  step: number,
+  wizardVersion?: number,
+  launchAdvanced = false,
+): number {
+  if (wizardVersion === LAUNCH_WIZARD_VERSION) return step;
+  const oldSteps =
+    mode === "layers" ? [...PREFIX_LAYERS, ...SHARED_STEPS] : [...SHARED_STEPS];
+  const stepName = oldSteps[step];
+  const newSteps = wizardSteps(mode, launchAdvanced);
+  if (stepName) {
+    const idx = newSteps.indexOf(stepName);
+    if (idx >= 0) return idx;
+  }
   const prefixLen = mode === "layers" ? PREFIX_LAYERS.length : 0;
   if (step < prefixLen) return step;
-  if (step === prefixLen) return prefixLen;
-  return step + 1;
+  return Math.min(step, newSteps.length - 1);
 }
 
 const RARITY_TIERS: TraitRarity[] = ["common", "rare", "epic"];
@@ -259,11 +295,17 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     address: evmAddress,
     connectEvm,
     ensureAvalancheChain,
+    ensureEvmChain,
     sendContractTx,
   } = useEvmWallet();
 
-  const [homeChain, setHomeChain] = useState<ChainKey>("solana");
+  const [homeLedger, setHomeLedger] = useState<HomeLedger>("solana");
+  const homeChain = homeLedgerToChainKey(homeLedger);
+  const setHomeChain = (chain: ChainKey) => setHomeLedger(parseHomeLedger(chain, homeLedger));
   const [mintDestinations, setMintDestinations] = useState<MintDestination[]>(["solana"]);
+  const [launchAdvanced, setLaunchAdvanced] = useState(false);
+  const [spokeDeployAtLaunch, setSpokeDeployAtLaunch] = useState<EvmNftChainId[]>([]);
+  const [spokeDeployTotalUsd, setSpokeDeployTotalUsd] = useState(0);
 
   const [mode, setMode] = useState<Mode>(null);
   const [step, setStep] = useState(0);
@@ -317,7 +359,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   const collectionRef = useRef<Collection | null>(null);
   collectionRef.current = collection;
 
-  const STEPS = mode ? wizardSteps(mode) : [];
+  const STEPS = mode ? wizardSteps(mode, launchAdvanced) : [];
 
   const feesTotal = collection
     ? collection.fees.ownerPercent + collection.fees.holdersPercent +
@@ -332,7 +374,16 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     royaltyBuyback || (collection?.fees.buybackPercent ?? 0) > 0;
 
   const estimatedMintRevenue = collection
-    ? collection.tokens.length * collection.payments.basePriceUsd
+    ? (collection.tokens.length > 0 ? collection.tokens.length : collection.supply) *
+      collection.payments.basePriceUsd
+    : 0;
+
+  const launchTokenCount = collection
+    ? collection.tokens.length > 0
+      ? collection.tokens.length
+      : collection.artPath === "path-b"
+        ? collection.supply
+        : 0
     : 0;
 
   const onGoLiveStep = Boolean(mode && STEPS[step] === "Go live");
@@ -371,7 +422,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     let cancelled = false;
     setLaunchCostsLoading(true);
     setLaunchCostsError(null);
-    void fetchLaunchCostEstimate(publicKey, collection.id, collection.tokens.length)
+    void fetchLaunchCostEstimate(publicKey, collection.id, launchTokenCount, {
+      pendingLayers: mode === "layers" && collection.tokens.length === 0,
+      traitCount: collection.layers.length,
+    })
       .then((est) => {
         if (!cancelled) {
           setLaunchCosts(est);
@@ -391,7 +445,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [onGoLiveStep, collection?.id, collection?.tokens.length, publicKey]);
+  }, [onGoLiveStep, collection?.id, collection?.tokens.length, collection?.supply, collection?.layers.length, launchTokenCount, mode, publicKey]);
 
   const metadataReview = useMemo(
     () => (collection ? reviewCollectionMetadata(collection) : null),
@@ -440,11 +494,30 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         label: "Metadata review errors resolved",
       },
       {
-        ok: !buybackEnabled || Boolean(collection.buybackTokenCa?.trim() && (collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet)),
+        ok:
+          !launchAdvanced ||
+          !buybackEnabled ||
+          Boolean(
+            collection.buybackTokenCa?.trim() &&
+              (collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet),
+          ),
         label: "Buyback token CA + treasury wallet",
       },
     ];
-  }, [collection, publicKey, feesTotal, royaltyOwner, royaltyHolders, royaltyBuyback, royaltySplitTotal, buybackEnabled, metadataReview, mode, needsRezip]);
+  }, [
+    collection,
+    publicKey,
+    feesTotal,
+    royaltyOwner,
+    royaltyHolders,
+    royaltyBuyback,
+    royaltySplitTotal,
+    buybackEnabled,
+    metadataReview,
+    mode,
+    needsRezip,
+    launchAdvanced,
+  ]);
 
   const uniqueTraits = useMemo(
     () => (collection ? buildUniqueTraits(collection.tokens) : []),
@@ -482,15 +555,20 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       metadataConfirmed: src.metadataConfirmed,
       buybackTokenCa: src.buybackTokenCa,
       buybackTreasuryWallet: src.buybackTreasuryWallet,
+      homeChain,
+      mintDestinations,
+      spokeDeployAtLaunch,
       launchDraft: {
         step: nextStep,
         mode,
-        wizardVersion: WIZARD_VERSION,
+        wizardVersion: LAUNCH_WIZARD_VERSION,
+        launchAdvanced,
         royaltyBps,
         royaltySplit,
         royaltyOwner,
         royaltyHolders,
         royaltyBuyback,
+        spokeDeployAtLaunch,
       },
     };
   }
@@ -539,13 +617,17 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   function applyLaunchDraft(col: Collection) {
     const draft = col.launchDraft;
     if (draft) {
-      setStep(migrateDraftStep(draft.mode, draft.step, draft.wizardVersion));
+      const advanced =
+        draft.launchAdvanced ?? (draft.wizardVersion ?? 0) < LAUNCH_WIZARD_VERSION;
+      setLaunchAdvanced(advanced);
+      setStep(migrateDraftStep(draft.mode, draft.step, draft.wizardVersion, advanced));
       setRoyaltyBps(draft.royaltyBps ?? col.royaltyBps ?? 500);
       setRoyaltySplit(draft.royaltySplit);
       setRoyaltyOwner(draft.royaltyOwner);
       setRoyaltyHolders(draft.royaltyHolders);
       setRoyaltyBuyback(draft.royaltyBuyback);
       setMode(draft.mode);
+      setSpokeDeployAtLaunch(col.spokeDeployAtLaunch ?? draft.spokeDeployAtLaunch ?? []);
     } else {
       setMode(col.layers.length > 0 ? "layers" : "ready");
       setStep(0);
@@ -557,9 +639,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     };
     setCollection(withPricing);
     setAllowlistText(col.allowlist?.join("\n") ?? "");
-    if (col.homeChain || col.chain) {
-      const chain = parseHomeChain(col.homeChain ?? col.chain);
-      setHomeChain(chain);
+    if (col.homeLedger || col.homeChain || col.chain) {
+      const ledger = parseHomeLedger(col.homeLedger ?? col.homeChain ?? col.chain);
+      setHomeLedger(ledger);
+      const chain = homeLedgerToChainKey(ledger);
       setMintDestinations(
         col.mintDestinations?.length
           ? col.mintDestinations
@@ -616,7 +699,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
 
   useEffect(() => {
     if (!collection || !mode) return;
-    const stepName = wizardSteps(mode)[step];
+    const stepName = wizardSteps(mode, launchAdvanced)[step];
     if (stepName !== "Payments" && stepName !== "Traits" && stepName !== "Go live") return;
     let cancelled = false;
     void fetch("/api/quotes?usd=1")
@@ -628,7 +711,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [collection?.id, mode, step]);
+  }, [collection?.id, launchAdvanced, mode, step]);
 
   async function bindLaunchSession(
     col: Collection,
@@ -659,11 +742,16 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           launchDraft: {
             ...initial,
             step: nextStep,
+            launchAdvanced,
             royaltySplit,
             royaltyOwner,
             royaltyHolders,
             royaltyBuyback,
+            spokeDeployAtLaunch,
           },
+          homeChain,
+          mintDestinations,
+          spokeDeployAtLaunch,
         }),
       });
       const data = await readJsonResponse<{ collection: Collection; error?: string }>(res);
@@ -990,10 +1078,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         },
       );
 
-      const supply = layers.reduce(
-        (acc, l) => acc * Math.max(1, l.values.length),
-        1,
-      );
+      const supply = maxLayerSupply(layers, stackOrder);
+      if (supply < 1) {
+        throw new Error("No trait layers found in ZIP (use folders like Background/Blue.png)");
+      }
 
       setUploadProgress({
         fileName: file.name,
@@ -1011,7 +1099,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           name: "My collection",
           layers,
           stackOrder,
-          supply: Math.min(supply, 10_000),
+          supply,
           homeChain,
           mintDestinations,
         },
@@ -1239,8 +1327,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
   /* ── go live ── */
   async function goLive() {
     if (!collection) return;
-    const launchHome = collectionHomeChain({ ...collection, homeChain, chain: homeChain });
-    if (launchHome === "avalanche") {
+    const launchHomeLedger = parseHomeLedger(homeLedger, collectionHomeLedger({ ...collection, homeLedger, homeChain, chain: homeChain }));
+    const launchHome = homeLedgerToChainKey(launchHomeLedger);
+    const evmHome = isEvmHomeLedger(launchHomeLedger);
+    if (evmHome) {
       if (!evmAddress) {
         await connectEvm();
         return;
@@ -1254,19 +1344,22 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     setGoLivePhase(null);
     setArweaveUploadDetail(null);
     try {
-      const payout =
-        launchHome === "avalanche"
-          ? evmAddress || collection.payments.creatorWallet
-          : publicKey || collection.payments.creatorWallet;
+      const payout = evmHome
+        ? evmAddress || collection.payments.creatorWallet
+        : publicKey || collection.payments.creatorWallet;
       const royaltySplitData: RoyaltySplit = {
         ownerPercent: royaltyOwner ? royaltySplit.ownerPercent : 0,
         holdersPercent: royaltyHolders ? royaltySplit.holdersPercent : 0,
         buybackPercent: royaltyBuyback ? royaltySplit.buybackPercent : 0,
       };
-      if (buybackEnabled && !collection.buybackTokenCa?.trim()) {
+      if (launchAdvanced && buybackEnabled && !collection.buybackTokenCa?.trim()) {
         throw new Error("Enter the buyback token contract address (CA) before launch.");
       }
-      if (buybackEnabled && !(collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet || payout)) {
+      if (
+        launchAdvanced &&
+        buybackEnabled &&
+        !(collection.buybackTreasuryWallet?.trim() || collection.payments.creatorWallet || payout)
+      ) {
         throw new Error("Enter the treasury wallet that should receive bought tokens.");
       }
       const applied = collectionForGoLive(collection);
@@ -1279,8 +1372,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           payments: {
             ...applied.payments,
             creatorWallet: payout,
-            acceptAvax: launchHome === "avalanche" ? applied.payments.acceptAvax !== false : Boolean(applied.payments.acceptAvax),
-            acceptSol: launchHome === "solana" ? applied.payments.acceptSol !== false : Boolean(applied.payments.acceptSol),
+            acceptAvax: evmHome ? applied.payments.acceptAvax !== false : Boolean(applied.payments.acceptAvax),
+            acceptSol: !evmHome ? applied.payments.acceptSol !== false : Boolean(applied.payments.acceptSol),
           },
           royaltyBps,
           royaltySplit: royaltySplitData,
@@ -1297,21 +1390,28 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
 
       if (logoFile) await storeLogoLocally(current.id);
 
-      if (mode === "layers" && current.tokens.length === 0) {
+      const layerLaunch = mode === "layers";
+      let needsLayerGenerate = layerLaunch && current.tokens.length === 0;
+      if (layerLaunch && current.tokens.length > 0) {
+        const images = await countImages(current.id);
+        needsLayerGenerate = images < current.tokens.length;
+      }
+      if (needsLayerGenerate) {
+        const supply = assertLayerSupply(applied.layers, applied.stackOrder, applied.supply);
         setGoLivePhase("Generating collection images in your browser…");
         const generated = await generateFullCollectionClient({
           collectionId: current.id,
-          name: current.name,
-          description: current.description,
-          nameTemplate: current.nameTemplate,
-          symbol: current.symbol,
-          supply: current.supply,
-          stackOrder: current.stackOrder,
-          layers: current.layers,
+          name: applied.name,
+          description: applied.description,
+          nameTemplate: applied.nameTemplate,
+          symbol: applied.symbol,
+          supply,
+          stackOrder: applied.stackOrder,
+          layers: applied.layers,
           creatorWallet: payout,
           sellerFeeBps: royaltyBps,
           royaltySplit: royaltySplitData,
-          royaltyCreators: current.royaltyCreators,
+          royaltyCreators: applied.royaltyCreators,
           uniqueness: true,
           onProgress: (done, total) => {
             setArweaveUploadDetail(`Generating ${done} / ${total}`);
@@ -1319,8 +1419,17 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         });
         current = await save({
           tokens: generated,
+          layers: applied.layers,
+          stackOrder: applied.stackOrder,
+          supply,
           traitPricing: defaultTraitPricing(generated),
-        }, undefined, { ...current, tokens: generated }) ?? current;
+        }, undefined, {
+          ...applied,
+          tokens: generated,
+          layers: applied.layers,
+          stackOrder: applied.stackOrder,
+          supply,
+        }) ?? current;
       }
 
       const tokenList = current.tokens;
@@ -1337,8 +1446,8 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
 
       if (!alreadyOnArweave && !publicKey) {
         throw new Error(
-          launchHome === "avalanche"
-            ? "Connect a Solana wallet to pay Arweave storage, then use MetaMask or Core for the C-Chain collection."
+          evmHome
+            ? "Connect a Solana wallet to pay Arweave storage, then use an EVM wallet for the home chain collection."
             : "Connect a Solana wallet to pay Arweave storage.",
         );
       }
@@ -1520,14 +1629,14 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         });
       }
 
-      let coreCollectionAddress =
-        launchHome === "avalanche"
-          ? current.coreCollectionAddress ?? current.onChainCollectionAddress
-          : current.coreCollectionAddress;
+      let coreCollectionAddress = evmHome
+        ? current.coreCollectionAddress ?? current.onChainCollectionAddress
+        : current.coreCollectionAddress;
+      let solanaSpokeCoreAddress = current.solanaSpokeCoreAddress;
       let onChainCollectionAddress = current.onChainCollectionAddress;
       let coreCollectionTxUrl = current.coreCollectionTxUrl;
       const wantsAvaxDest =
-        launchHome === "avalanche" ||
+        launchHomeLedger === "avalanche" ||
         mintDestinations.includes("avalanche") ||
         mintDestinations.includes("avalanche_l1");
       let avalancheL1Remote: string | null = null;
@@ -1553,10 +1662,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         setAvalancheL1Enabled(Boolean(net.avalancheL1Enabled));
       }
 
-      const deployAvaxClone = async () => {
+      const deployEvmClone = async (spokeChain: import("@/lib/evm-spoke-chains").EvmSpokeChainId) => {
         if (!evmAddress) await connectEvm();
-        if (!evmAddress) throw new Error("Connect MetaMask or Core to create the Avalanche collection.");
-        await ensureAvalancheChain();
+        if (!evmAddress) throw new Error("Connect MetaMask or Core to create the EVM collection.");
+        const meta = evmSpokeChainMeta(spokeChain);
+        await ensureEvmChain(meta.chainId);
         const evmHeaders = {
           "Content-Type": "application/json",
           ...(await buildAuthHeaders(evmAddress)),
@@ -1564,6 +1674,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         const prepRes = await fetch(`/api/collections/${current.id}/evm-collection/prepare`, {
           method: "POST",
           headers: evmHeaders,
+          body: JSON.stringify({ spokeChain }),
         });
         const prep = await readJsonResponse<{
           to?: `0x${string}`;
@@ -1574,32 +1685,37 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         if (prepRes.status === 409 && prep.collectionAddress) {
           return { address: prep.collectionAddress, txHash: "" as `0x${string}` };
         }
-        if (!prepRes.ok) throw new Error(prep.error || "Could not prepare Avalanche collection");
-        if (!prep.to || !prep.data) throw new Error("Avalanche collection transaction missing.");
+        if (!prepRes.ok) throw new Error(prep.error || `Could not prepare ${meta.label} collection`);
+        if (!prep.to || !prep.data) throw new Error("EVM collection transaction missing.");
         const txHash = await sendContractTx(prep.to, prep.data);
-        const confirmWallet = launchHome === "avalanche" ? evmAddress : publicKey;
-        if (!confirmWallet) throw new Error("Connect the creator wallet to confirm the Avalanche collection.");
+        const confirmWallet = evmHome ? evmAddress : publicKey ?? evmAddress;
+        if (!confirmWallet) throw new Error("Connect the creator wallet to confirm the EVM collection.");
         const confRes = await fetch(`/api/collections/${current.id}/evm-collection/confirm`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(await buildAuthHeaders(confirmWallet)),
           },
-          body: JSON.stringify({ txHash }),
+          body: JSON.stringify({ txHash, spokeChain }),
         });
         const conf = await readJsonResponse<{ collectionAddress?: string; error?: string }>(confRes);
-        if (!confRes.ok) throw new Error(conf.error || "Could not confirm Avalanche collection");
-        if (!conf.collectionAddress) throw new Error("Avalanche collection address missing from confirm.");
+        if (!confRes.ok) throw new Error(conf.error || "Could not confirm EVM collection");
+        if (!conf.collectionAddress) throw new Error("EVM collection address missing from confirm.");
         return { address: conf.collectionAddress, txHash };
       };
 
-      if (launchHome === "avalanche") {
-        if (!coreCollectionAddress) {
-          setGoLivePhase("Creating Avalanche collection. Approve in MetaMask or Core…");
-          const deployed = await deployAvaxClone();
-          coreCollectionAddress = deployed.address;
+      if (evmHome) {
+        const homeAddr = collectionHomeEvmAddress(current, launchHomeLedger);
+        if (!homeAddr && !onChainCollectionAddress) {
+          setGoLivePhase(
+            `Creating ${CHAIN_DESCRIPTORS[launchHomeLedger]?.label ?? launchHomeLedger} home collection. Approve in your wallet…`,
+          );
+          const deployed = await deployEvmClone(launchHomeLedger);
           onChainCollectionAddress = deployed.address;
-          if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+          if (launchHomeLedger === "avalanche") {
+            coreCollectionAddress = deployed.address;
+            if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+          }
         }
       } else if (!coreCollectionAddress) {
         setGoLivePhase("Creating on-chain collection. Approve in your wallet…");
@@ -1611,13 +1727,55 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       }
 
       if (wantsAvaxDest && !onChainCollectionAddress) {
-        setGoLivePhase("Creating C-Chain destination collection. Approve in MetaMask or Core…");
-        const deployed = await deployAvaxClone();
-        onChainCollectionAddress = deployed.address;
-        if (launchHome === "avalanche") {
-          coreCollectionAddress = deployed.address;
-          if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+        const deployAvaxAtGoLive =
+          spokeDeployAtLaunch.includes("avalanche") || spokeDeployAtLaunch.length === 0;
+        if (deployAvaxAtGoLive) {
+          setGoLivePhase("Creating C-Chain destination collection. Approve in MetaMask or Core…");
+          const deployed = await deployEvmClone("avalanche");
+          onChainCollectionAddress = deployed.address;
+          if (launchHomeLedger === "avalanche") {
+            coreCollectionAddress = deployed.address;
+            if (deployed.txHash) coreCollectionTxUrl = snowtraceTxUrl(deployed.txHash);
+          }
         }
+      }
+
+      if (
+        evmHome &&
+        mintDestinations.includes("solana") &&
+        !collectionSolanaSpokeAddress(current) &&
+        !solanaSpokeCoreAddress
+      ) {
+        if (!publicKey) throw new Error("Connect a Solana wallet to create the Solana spoke Core collection.");
+        setGoLivePhase("Creating Solana spoke Core. Approve in Phantom…");
+        const spoke = await signCoreCollectionTx(current.id, network, "spoke");
+        solanaSpokeCoreAddress = spoke.collectionAddress;
+      }
+
+      const extraSpokes = spokeDeployAtLaunch.filter((id) => {
+        if (id === "avalanche") return false;
+        if (!mintDestinations.includes(evmSpokeChainMeta(id).mintDestination)) return false;
+        return !collectionSpokeAddress(current, id);
+      });
+      for (const spokeId of extraSpokes) {
+        const label = evmSpokeChainMeta(spokeId).label;
+        setGoLivePhase(`Deploying ${label} spoke. Approve in your wallet…`);
+        if (!evmAddress) await connectEvm();
+        if (!evmAddress) throw new Error("Connect MetaMask or Core to deploy EVM spokes.");
+        const meta = evmSpokeChainMeta(spokeId);
+        await ensureEvmChain(meta.chainId);
+        const confirmWallet = evmHome ? evmAddress : publicKey ?? evmAddress;
+        if (!confirmWallet) throw new Error("Connect creator wallet to confirm spoke deploy.");
+        const deployed = await deployEvmSpoke({
+          collectionId: current.id,
+          spokeChain: spokeId,
+          evmWallet: evmAddress,
+          sendContractTx,
+          confirmWallet,
+          ensureEvmChain,
+        });
+        current = deployed.collection;
+        setCollection(current);
       }
 
       setGoLivePhase("Finalizing launch…");
@@ -1659,11 +1817,13 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             coreCollectionAddress,
             onChainCollectionAddress:
               onChainCollectionAddress ||
-              (launchHome === "avalanche" ? coreCollectionAddress : current.onChainCollectionAddress),
+              (evmHome ? onChainCollectionAddress ?? coreCollectionAddress : current.onChainCollectionAddress),
             coreCollectionTxUrl,
-            homeChain: launchHome,
+            solanaSpokeCoreAddress,
+            ...syncHomeFieldsFromLedger(launchHomeLedger),
             mintDestinations,
-            chain: launchHome,
+            spokeDeployAtLaunch,
+            omnichainMintEnabled: mintDestinations.length > 1,
             l1RemoteAddress:
               mintDestinations.includes("avalanche_l1")
                 ? current.l1RemoteAddress || avalancheL1Remote || undefined
@@ -1692,7 +1852,12 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         ? l
         : { ...l, values: l.values.map((v) => (v.value === value ? { ...v, weight } : v)) },
     );
-    setCollection({ ...collection, layers });
+    const max = maxLayerSupply(layers, collection.stackOrder);
+    setCollection({
+      ...collection,
+      layers,
+      supply: max > 0 ? Math.min(collection.supply, max) : collection.supply,
+    });
   }
 
   function setTraitRarity(traitType: string, value: string, rarity: TraitRarity) {
@@ -1840,7 +2005,11 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                     publicKey && readRememberedLaunchDraft(publicKey) === c.id;
                   const stepLabel =
                     c.launchDraft?.step != null && c.launchDraft.mode
-                      ? wizardSteps(c.launchDraft.mode)[c.launchDraft.step]
+                      ? wizardSteps(
+                          c.launchDraft.mode,
+                          c.launchDraft.launchAdvanced ??
+                            (c.launchDraft.wizardVersion ?? 0) < LAUNCH_WIZARD_VERSION,
+                        )[c.launchDraft.step]
                       : c.status === "importing"
                         ? "Importing"
                         : "Metadata";
@@ -1895,84 +2064,42 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           </div>
         )}
 
+        <div className="mt-6 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <input
+            id="launch-advanced"
+            type="checkbox"
+            checked={launchAdvanced}
+            onChange={(e) => setLaunchAdvanced(e.target.checked)}
+          />
+          <label htmlFor="launch-advanced" className="text-sm text-white/80">
+            Advanced launch options (traits tuning, fees, reveal, milestones)
+          </label>
+        </div>
+
         <div className="mt-10 rounded-2xl border border-white/15 bg-white/5 p-6">
-          <h2 className="text-lg font-semibold text-white">Home chain</h2>
-          <p className="mt-1 text-sm text-white/60">
-            Collectors mint onto a chain they choose. Home is the supply ledger created at go-live.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(["solana", "avalanche"] as const).map((chain) => (
-              <button
-                key={chain}
-                type="button"
-                onClick={() => {
-                  setHomeChain(chain);
-                  setMintDestinations((prev) => {
-                    const home = homeChainToDestination(chain);
-                    return Array.from(new Set([home, ...prev.filter((d) => d !== "solana" && d !== "avalanche"), home]));
-                  });
-                }}
-                className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  homeChain === chain ? "bg-primary text-white" : "border border-white/15 text-white/70"
-                }`}
-              >
-                {chain === "solana" ? "Solana" : "Avalanche C-Chain"}
-              </button>
-            ))}
-          </div>
-          <p className="mt-4 text-xs text-white/50">Also allow minting onto</p>
-          <div className="mt-2 flex flex-wrap gap-3 text-sm text-white/80">
-            {(["solana", "avalanche", "avalanche_l1"] as const)
-              .filter((dest) => dest !== "avalanche_l1" || avalancheL1Enabled)
-              .map((dest) => (
-              <label key={dest} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={mintDestinations.includes(dest) || dest === homeChainToDestination(homeChain)}
-                  disabled={dest === homeChainToDestination(homeChain)}
-                  onChange={(e) => {
-                    setMintDestinations((prev) => {
-                      const home = homeChainToDestination(homeChain);
-                      const next = e.target.checked
-                        ? Array.from(new Set([...prev, dest, home]))
-                        : prev.filter((d) => d !== dest || d === home);
-                      return next.length ? next : [home];
-                    });
-                  }}
-                />
-                {CHAIN_DESCRIPTORS[dest].label}
-              </label>
-            ))}
-          </div>
-          {(homeChain === "avalanche" ||
-            mintDestinations.includes("avalanche") ||
-            mintDestinations.includes("avalanche_l1")) &&
-            (!avalancheFactory || !avalancheReady) && (
-            <p className="mt-3 text-xs text-amber-200/80">
-              Avalanche factory is not configured on this server. Deploy with{" "}
-              <code className="text-white/80">npm run deploy:avalanche-factory</code> before go-live.
-            </p>
-          )}
-          {(homeChain === "solana" &&
-            (mintDestinations.includes("avalanche") || mintDestinations.includes("avalanche_l1"))) && (
-            <p className="mt-3 text-xs text-white/50">
-              A Solana-only wallet cannot pay C-Chain gas. At go-live you will also connect MetaMask or Core
-              with a little AVAX to deploy the empty destination collection. Ginger does not deploy it for you.
-              Collectors who mint onto Avalanche pay their own AVAX after that.
-            </p>
-          )}
-          {(homeChain === "avalanche" ||
-            mintDestinations.includes("avalanche") ||
-            mintDestinations.includes("avalanche_l1")) &&
-            !evmAddress && (
-            <button
-              type="button"
-              onClick={() => void connectEvm()}
-              className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white"
-            >
-              Connect MetaMask or Core
-            </button>
-          )}
+          <OmnichainMintingPanel
+            variant="launch"
+            collapsible
+            collection={collection ?? undefined}
+            homeChain={homeChain}
+            homeLedger={homeLedger}
+            onHomeLedgerChange={setHomeLedger}
+            mintDestinations={mintDestinations}
+            spokeDeployAtLaunch={spokeDeployAtLaunch}
+            onHomeChainChange={setHomeChain}
+            onMintDestinationsChange={setMintDestinations}
+            onSpokeDeployAtLaunchChange={setSpokeDeployAtLaunch}
+            onSpokeDeployTotalUsdChange={setSpokeDeployTotalUsd}
+            avalancheFactory={avalancheFactory}
+            avalancheReady={avalancheReady}
+            avalancheL1Enabled={avalancheL1Enabled}
+            evmAddress={evmAddress}
+            publicKey={publicKey}
+            connectEvm={connectEvm}
+            ensureAvalancheChain={ensureAvalancheChain}
+            ensureEvmChain={ensureEvmChain}
+            sendContractTx={sendContractTx}
+          />
         </div>
 
         <div className="mt-10 grid gap-6 md:grid-cols-2">
@@ -2010,6 +2137,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 You will be asked to sign once to save this draft (no SOL charge).
               </p>
             )}
+            <LaunchZipRequirements variant="ready" />
           </div>
 
           {/* Trait layers */}
@@ -2045,6 +2173,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 You will be asked to sign once to save this draft (no SOL charge).
               </p>
             )}
+            <LaunchZipRequirements variant="layers" />
           </div>
         </div>
       </div>
@@ -2158,10 +2287,10 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 {layer.values.map((v) => (
                   <label key={v.value} className="mb-2 flex items-center gap-3 text-sm">
                     <span className="w-40 truncate text-white/80">{v.value}</span>
-                    <input type="range" min={1} max={100} value={v.weight}
+                    <input type="range" min={0} max={Math.max(100, v.weight)} value={v.weight}
                       onChange={(e) => updateLayerWeight(layer.traitType, v.value, Number(e.target.value))}
                       className="flex-1" />
-                    <span className="w-10 text-right text-white/60">{v.weight}</span>
+                    <span className="w-12 text-right text-white/60">{v.weight}</span>
                   </label>
                 ))}
               </div>
@@ -2173,12 +2302,32 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
         {mode === "layers" && stepIs("Preview") && collection && (
           <div>
             <h2 className="text-lg font-semibold text-white">Preview generated art</h2>
-            <p className="mt-1 mb-4 text-sm text-white/60">Set supply, then generate a sample batch.</p>
-            <div className="mb-4 flex gap-4">
+            <p className="mt-1 mb-4 text-sm text-white/60">
+              Supply is how many unique NFTs to create. Metadata is written at go-live from these traits.
+            </p>
+            <div className="mb-4 flex flex-wrap items-end gap-4">
               <Field label="Supply">
-                <input type="number" className="input w-32" value={collection.supply}
-                  onChange={(e) => setCollection({ ...collection, supply: Number(e.target.value) })} />
+                <input
+                  type="number"
+                  min={1}
+                  max={maxLayerSupply(collection.layers, collection.stackOrder)}
+                  className="input w-32"
+                  value={collection.supply}
+                  onChange={(e) => {
+                    const max = maxLayerSupply(collection.layers, collection.stackOrder);
+                    const n = Math.floor(Number(e.target.value));
+                    if (!Number.isFinite(n)) return;
+                    setCollection({
+                      ...collection,
+                      supply: max > 0 ? Math.max(1, Math.min(max, n)) : n,
+                    });
+                  }}
+                />
               </Field>
+              <p className="pb-2 text-xs text-white/45">
+                {maxLayerSupply(collection.layers, collection.stackOrder).toLocaleString()} unique combinations
+                (cap 10,000)
+              </p>
             </div>
             <button onClick={() => void generatePreviews()} disabled={busy}
               className="rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:opacity-40">
@@ -2204,7 +2353,9 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
             <div>
               <h2 className="text-lg font-semibold text-white">Metadata review</h2>
               <p className="mt-1 text-sm text-white/60">
-                Confirm names, royalties, creators, and symbol before continuing. Wallets group NFTs from the collection created at go-live.
+                {mode === "layers" && collection.tokens.length === 0
+                  ? "This drop has trait layers and no metadata files. Names, royalties, and creators below are written into every NFT at go-live. Traits come from the layer folders."
+                  : "Confirm names, royalties, creators, and symbol before continuing. Wallets group NFTs from the collection created at go-live."}
               </p>
             </div>
 
@@ -2252,6 +2403,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               </p>
             )}
 
+            {collection.tokens.length > 0 && (
             <div className="space-y-3 border-t border-white/10 pt-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
@@ -2352,6 +2504,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 </div>
               )}
             </div>
+            )}
 
             {metadataReview.samples.length > 0 && (
               <div className="overflow-x-auto rounded-lg border border-white/10 opacity-80">
@@ -3261,7 +3414,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                   </div>
                   <div className="flex justify-between gap-4 text-white/70">
                     <span>
-                      Permanent storage ({collection.tokens.length} NFTs ·{" "}
+                      Permanent storage ({launchTokenCount} NFTs ·{" "}
                       {formatLaunchBytes(launchCosts.totalBytes)})
                     </span>
                     <span className="shrink-0 text-right">
@@ -3293,6 +3446,12 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                     <span>Ginger launch fee</span>
                     <span>$0</span>
                   </div>
+                  {spokeDeployTotalUsd > 0 && (
+                    <div className="flex justify-between text-white/70">
+                      <span>EVM spoke deploys (creator wallet, at go-live)</span>
+                      <span className="shrink-0 text-right">≈ ${spokeDeployTotalUsd.toFixed(2)}</span>
+                    </div>
+                  )}
                   <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
                     <input
                       type="checkbox"
@@ -3365,7 +3524,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
               )}
             </div>
 
-            {/* Early access allowlist */}
+            {launchAdvanced && (
             <div className="rounded-xl border border-white/15 bg-white/5 p-4">
               <div className="mb-2 flex items-center gap-1">
                 <h3 className="text-sm font-semibold text-white">Early access allowlist</h3>
@@ -3404,6 +3563,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
                 <p className="mt-1 text-xs text-white/50">{allowlistMsg}</p>
               )}
             </div>
+            )}
 
             <button disabled={busy || !checklist.every((c) => c.ok)} onClick={() => void goLive()}
               className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-white disabled:opacity-40">

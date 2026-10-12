@@ -66,6 +66,18 @@ export function buildCreatorsFromRoyaltySplit(
   return entries;
 }
 
+/** Metaplex Core on-chain names are limited to 32 bytes. */
+export function fitCoreAssetName(name: string): string {
+  const trimmed = name.trim();
+  const bytes = new TextEncoder().encode(trimmed);
+  if (bytes.length <= 32) return trimmed;
+  let cut = bytes.slice(0, 32);
+  while (cut.length > 0 && (cut[cut.length - 1] & 0xc0) === 0x80) {
+    cut = cut.slice(0, -1);
+  }
+  return new TextDecoder().decode(cut);
+}
+
 export function buildTokenMetadataJson(opts: {
   name: string;
   symbol: string;
@@ -77,13 +89,23 @@ export function buildTokenMetadataJson(opts: {
   royaltySplit?: RoyaltySplit;
   royaltyCreators?: MetadataCreator[];
 }): Record<string, unknown> {
+  const bps = Math.max(0, Math.min(10_000, Math.round(opts.sellerFeeBps)));
+  const attributes = (opts.attributes ?? []).map((attr) => {
+    const row: Record<string, unknown> = {
+      trait_type: String(attr.trait_type),
+      value: attr.value,
+    };
+    if (attr.display_type) row.display_type = attr.display_type;
+    if (attr.max_value != null && Number.isFinite(attr.max_value)) row.max_value = attr.max_value;
+    return row;
+  });
   return {
     name: opts.name,
-    symbol: opts.symbol,
+    symbol: opts.symbol.trim(),
     description: opts.description,
-    seller_fee_basis_points: opts.sellerFeeBps,
+    seller_fee_basis_points: bps,
     image: opts.image,
-    attributes: opts.attributes,
+    attributes,
     properties: {
       files: [{ uri: opts.image, type: "image/png" }],
       category: "image",
@@ -91,7 +113,10 @@ export function buildTokenMetadataJson(opts: {
         opts.creatorWallet,
         opts.royaltySplit,
         opts.royaltyCreators,
-      ),
+      ).map((creator) => ({
+        address: creator.address,
+        share: Math.round(creator.share),
+      })),
     },
   };
 }

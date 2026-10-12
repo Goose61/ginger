@@ -1,6 +1,7 @@
 import type { Collection } from "./types";
 import { buildGiftTransaction } from "./mint-nft";
 import { tokenName } from "./collection-ui";
+import { fitCoreAssetName } from "./metadata-builders";
 import type { SolanaNetwork } from "./solana-config";
 
 /** Build Metaplex Core pending mint for a marketplace token after payment. */
@@ -25,7 +26,7 @@ export async function buildPendingMintForToken(params: {
   const coreCollectionAddress = collection.coreCollectionAddress ?? null;
 
   const txResult = await buildGiftTransaction({
-    name: tokenName(collection, token),
+    name: fitCoreAssetName(tokenName(collection, token)),
     metadataUri: token.metadataUri,
     recipient,
     payer,

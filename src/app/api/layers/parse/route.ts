@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const id = newId();
-    const layers = await persistLayerFiles(id, parsed.files);
+    const layers = await persistLayerFiles(id, parsed);
 
     const collection: Collection = {
       id,

@@ -1,11 +1,20 @@
+import type { EvmNftChainId } from "./evm-nft-chain-catalog";
+
+export type { HomeLedger } from "./home-ledger";
+
 export type ChainKey = "solana" | "avalanche" | "ethereum" | "base" | "polygon";
 
 /** Where an NFT is minted / currently held. */
-export type MintDestination = "solana" | "avalanche" | "avalanche_l1";
+export type MintDestination = "solana" | "avalanche_l1" | EvmNftChainId;
+
+/** Per-chain Ginger spoke clone (EVM). Avalanche C-Chain also uses `onChainCollectionAddress`. */
+export type EvmSpokeAddresses = Partial<Record<EvmNftChainId, string>>;
 
 export type TokenLocation = MintDestination | "in_flight";
 
 /** Persisted mint quote so dry-run + destination mint work across serverless instances. */
+export type MintExecutionMode = "self" | "relayer";
+
 export type ActiveMintQuote = {
   dryRunId: string;
   collectionId: string;
@@ -14,12 +23,15 @@ export type ActiveMintQuote = {
   recipient: string;
   home: string;
   offHome: boolean;
+  executionMode?: MintExecutionMode;
   lineItems: {
     mintUsd: number;
     platformUsd: number;
     creatorUsd: number;
     destGasUsd: number;
     homeDebitUsd: number;
+    relayerUsd: number;
+    omnichainFeeUsd: number;
     bufferUsd: number;
     totalUsd: number;
   };
@@ -350,10 +362,20 @@ export type Collection = {
   chain: ChainKey;
   /** Canonical supply ledger / collection contract chain. Defaults to `chain`. */
   homeChain?: ChainKey;
+  /** Preferred home ledger (Solana or any catalog EVM). Backfilled from `homeChain` when unset. */
+  homeLedger?: import("./home-ledger").HomeLedger;
+  /** Metaplex Core collection when Solana is a mint destination but not home. */
+  solanaSpokeCoreAddress?: string;
   /** Chains collectors may mint onto. Always includes home. */
   mintDestinations?: MintDestination[];
+  /** When true (or when multiple mint destinations), omnichain mint + relayer checkout are offered. */
+  omnichainMintEnabled?: boolean;
   /** C-Chain (or EVM) collection clone; same role as `coreCollectionAddress` on Solana. */
   onChainCollectionAddress?: string;
+  /** Optional spoke contracts on other EVM chains (Base, Polygon, …). */
+  evmSpokeAddresses?: EvmSpokeAddresses;
+  /** EVM spokes the creator chose to deploy during go-live (creator-paid gas). */
+  spokeDeployAtLaunch?: EvmNftChainId[];
   /** Allowlisted ICNFTT remote (Fuji stub or a dedicated mainnet L1). */
   l1RemoteAddress?: string;
   /** Server-only mint quote. Stripped from public APIs. Survives Vercel multi-instance. */
@@ -427,6 +449,8 @@ export type Collection = {
   pendingMint?: PendingMint;
   /** Ephemeral collection keypair for creator-paid Core collection go-live. */
   pendingCoreCollection?: PendingCoreCollection;
+  /** Pending Metaplex Core spoke when Solana is a destination (EVM home). */
+  pendingSolanaSpoke?: PendingCoreCollection;
   /** Blob URL awaiting /api/import/images/process (cleared when import finishes). Never returned on APIs. */
   pendingZipUrl?: string;
   /** Populated while a large ZIP import runs in the background. */
@@ -445,11 +469,14 @@ export type LaunchDraftState = {
   mode: "ready" | "layers";
   /** 2 = shared Metadata step exists. Missing = pre-Metadata wizard; step is remapped on resume. */
   wizardVersion?: number;
+  /** 3 = standard vs advanced launch paths. */
+  launchAdvanced?: boolean;
   royaltyBps: number;
   royaltySplit: RoyaltySplit;
   royaltyOwner: boolean;
   royaltyHolders: boolean;
   royaltyBuyback: boolean;
+  spokeDeployAtLaunch?: EvmNftChainId[];
 };
 
 export type LaunchTemplateId = "pfp" | "1of1" | "meme-token" | "holder-sequel";

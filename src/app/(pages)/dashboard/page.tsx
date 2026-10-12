@@ -11,6 +11,11 @@ import { isLaunchedCreatorCollection } from "@/lib/creator-access";
 import { readJsonResponse } from "@/lib/fetch-json";
 import { tokenIsCommitted } from "@/lib/public-collection";
 import { CollectionContractLinks } from "@/components/CollectionContractLinks";
+import { OmnichainMintingPanel } from "@/components/OmnichainMintingPanel";
+import { useEvmWallet } from "@/components/EvmWalletProvider";
+import { collectionHomeChain, homeChainToDestination } from "@/lib/chain-registry";
+import { collectionHomeLedger } from "@/lib/home-ledger";
+import type { MintDestination } from "@/lib/types";
 
 function canContinueLaunch(c: Collection) {
   return c.status === "draft" || c.status === "importing";
@@ -251,6 +256,16 @@ function DashboardRow({
   const logo = logoImageSrc(c);
   const canGift = c.status === "live";
   const [giftOpen, setGiftOpen] = useState(false);
+  const [omnichainOpen, setOmnichainOpen] = useState(false);
+  const [mintDestinations, setMintDestinations] = useState<MintDestination[]>(
+    c.mintDestinations?.length ? c.mintDestinations : [homeChainToDestination(collectionHomeChain(c))],
+  );
+  useEffect(() => {
+    if (c.mintDestinations?.length) setMintDestinations(c.mintDestinations);
+  }, [c.id, c.mintDestinations]);
+  const { address: evmAddress, connectEvm, ensureAvalancheChain, sendContractTx } = useEvmWallet();
+  const { publicKey } = useWallet();
+  const homeChain = collectionHomeChain(c);
   return (
     <div className="rounded-2xl border border-white/15 bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -306,6 +321,15 @@ function DashboardRow({
               {giftOpen ? "Hide gift" : "Gift NFT"}
             </button>
           )}
+          {!canContinueLaunch(c) && onCollectionUpdate && (
+            <button
+              type="button"
+              onClick={() => setOmnichainOpen((open) => !open)}
+              className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+            >
+              {omnichainOpen ? "Hide omnichain" : "Omnichain"}
+            </button>
+          )}
           {c.blindMint && !c.revealed && !canContinueLaunch(c) && onReveal && (
             <button
               onClick={onReveal}
@@ -316,6 +340,22 @@ function DashboardRow({
           )}
         </div>
       </div>
+      {omnichainOpen && onCollectionUpdate && (
+        <OmnichainMintingPanel
+          variant="dashboard"
+          collection={c}
+          homeChain={homeChain}
+          homeLedger={collectionHomeLedger(c)}
+          mintDestinations={mintDestinations}
+          onMintDestinationsChange={setMintDestinations}
+          onCollectionUpdated={onCollectionUpdate}
+          evmAddress={evmAddress}
+          publicKey={publicKey}
+          connectEvm={connectEvm}
+          ensureAvalancheChain={ensureAvalancheChain}
+          sendContractTx={sendContractTx}
+        />
+      )}
       {giftOpen && onCollectionUpdate && (
         <GiftNftPanel collection={c} onCollectionUpdate={onCollectionUpdate} />
       )}

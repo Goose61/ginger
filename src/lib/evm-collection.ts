@@ -23,6 +23,17 @@ import {
   snowtraceTxUrl,
 } from "./avalanche-config";
 import {
+  type EvmSpokeChainId,
+  factoryAddressForSpokeChain,
+  getEvmNftChainDefinition,
+  mintDestinationToSpokeChain,
+  rpcUrlForSpokeChain,
+  evmSpokeChainMeta,
+  viemChainForSpokeId,
+} from "./evm-spoke-chains";
+import { collectionSpokeAddress } from "./collection-spoke";
+import { explorerTxUrl } from "./chain-registry";
+import {
   gingerFactoryAbi,
   gingerL1RemoteAbi,
   gingerNftAbi,
@@ -32,6 +43,9 @@ import {
 } from "./ginger-nft-abi";
 import type { ChainKey, Collection, MintDestination } from "./types";
 import { collectionHomeChain, homeChainToDestination } from "./chain-registry";
+import type { HomeLedger } from "./home-ledger";
+import { collectionHomeLedger } from "./home-ledger";
+import { collectionHomeEvmAddress } from "./collection-spoke";
 import { registeredL1Remote } from "./l1-allowlist";
 
 export function avalancheViemChain() {
@@ -54,7 +68,7 @@ function l1PublicClient() {
 }
 
 /** On-chain location: home dest → LOC_HOME, L1 → LOC_L1, any other dest → LOC_SPOKE. */
-export function locationByte(dest: MintDestination, home?: ChainKey): number {
+export function locationByte(dest: MintDestination, home?: ChainKey | HomeLedger): number {
   if (dest === "avalanche_l1") return LOCATION_L1;
   if (home && dest === homeChainToDestination(home)) return LOCATION_HOME;
   if (home) return LOCATION_SPOKE;
@@ -95,7 +109,7 @@ export function encodeMintTo(params: {
   tokenId: number;
   uri: string;
   destination: MintDestination;
-  home?: ChainKey;
+  home?: ChainKey | HomeLedger;
 }): Hex {
   return encodeFunctionData({
     abi: gingerNftAbi,
@@ -108,7 +122,7 @@ export function encodeDebit(params: {
   tokenId: number;
   uri: string;
   destination: MintDestination;
-  home?: ChainKey;
+  home?: ChainKey | HomeLedger;
 }): Hex {
   return encodeFunctionData({
     abi: gingerNftAbi,
@@ -241,7 +255,7 @@ export async function signUserMintAuthorization(params: {
   tokenId: number;
   uri: string;
   destination: MintDestination;
-  home?: ChainKey;
+  home?: ChainKey | HomeLedger;
   deadlineSeconds?: number;
 }): Promise<{ deadline: bigint; signature: Hex; data: Hex }> {
   const account = minterAccount();
@@ -292,7 +306,7 @@ export async function signUserDebitAuthorization(params: {
   tokenId: number;
   uri: string;
   destination: MintDestination;
-  home?: ChainKey;
+  home?: ChainKey | HomeLedger;
   deadlineSeconds?: number;
 }): Promise<{ deadline: bigint; signature: Hex; data: Hex }> {
   const account = minterAccount();
@@ -314,16 +328,35 @@ export async function signUserDebitAuthorization(params: {
   return { deadline, signature, data };
 }
 
+export function resolveSpokeChainForEvm(params: {
+  spokeChain?: EvmSpokeChainId;
+  destination?: MintDestination;
+}): EvmSpokeChainId {
+  if (params.spokeChain) return params.spokeChain;
+  if (params.destination === "avalanche_l1") return "avalanche";
+  if (params.destination) {
+    const spoke = mintDestinationToSpokeChain(params.destination);
+    if (spoke) return spoke;
+  }
+  return "avalanche";
+}
+
+function evmPublicClient(spokeChain: EvmSpokeChainId, rpcUrl?: string) {
+  const chain = viemChainForSpokeId(spokeChain);
+  const rpc = rpcUrl ?? rpcUrlForSpokeChain(spokeChain);
+  return createPublicClient({ chain, transport: http(rpc) });
+}
+
 export async function estimateEvmGas(params: {
   to: Address;
   data: Hex;
   account: Address;
   rpcUrl?: string;
+  spokeChain?: EvmSpokeChainId;
+  destination?: MintDestination;
 }): Promise<{ gas: bigint; gasPrice: bigint; feeWei: bigint }> {
-  const client = createPublicClient({
-    chain: avalancheViemChain(),
-    transport: http(params.rpcUrl ?? getAvalancheRpcUrl()),
-  });
+  const spoke = resolveSpokeChainForEvm(params);
+  const client = evmPublicClient(spoke, params.rpcUrl);
   const gas = await client.estimateGas({
     account: params.account,
     to: params.to,
@@ -338,11 +371,11 @@ export async function simulateEvmCall(params: {
   data: Hex;
   account: Address;
   rpcUrl?: string;
+  spokeChain?: EvmSpokeChainId;
+  destination?: MintDestination;
 }): Promise<void> {
-  const client = createPublicClient({
-    chain: avalancheViemChain(),
-    transport: http(params.rpcUrl ?? getAvalancheRpcUrl()),
-  });
+  const spoke = resolveSpokeChainForEvm(params);
+  const client = evmPublicClient(spoke, params.rpcUrl);
   await client.call({
     account: params.account,
     to: params.to,
@@ -350,18 +383,25 @@ export async function simulateEvmCall(params: {
   });
 }
 
-export function factoryAddressOrThrow(): Address {
-  const addr = getAvalancheFactoryAddress();
+export function factoryAddressOrThrow(spokeChain: EvmSpokeChainId = "avalanche"): Address {
+  const addr = factoryAddressForSpokeChain(spokeChain);
   if (!addr) {
+    const meta = evmSpokeChainMeta(spokeChain);
     throw new Error(
-      "Avalanche factory is not configured. Set AVALANCHE_FACTORY_ADDRESS_FUJI (or MAINNET) after deploy.",
+      `${meta.label} factory is not configured. Deploy GingerCollectionFactory and set the EVM_FACTORY_ADDRESS_* env var.`,
     );
   }
   return addr as Address;
 }
 
-export function collectionEvmAddress(collection: Collection): Address | null {
-  const addr = collection.onChainCollectionAddress || collection.coreCollectionAddress;
+export function collectionEvmAddress(
+  collection: Collection,
+  destination?: MintDestination,
+): Address | null {
+  if (destination === "avalanche_l1" || destination === "solana") return null;
+  const spoke = mintDestinationToSpokeChain(destination ?? "avalanche");
+  if (!spoke) return null;
+  const addr = collectionSpokeAddress(collection, spoke);
   if (!addr?.startsWith("0x")) return null;
   return addr as Address;
 }
@@ -374,21 +414,33 @@ export function l1RemoteOrThrow(collection: Collection): Address {
   return addr as Address;
 }
 
-export function minterAccount() {
-  const key = getEvmMinterPrivateKey();
+function minterPrivateKeyHex(spokeChain: EvmSpokeChainId = "avalanche"): Hex {
+  const def = getEvmNftChainDefinition(spokeChain);
+  const suffix = def?.envSuffix;
+  let key = getEvmMinterPrivateKey();
+  if (suffix && typeof process !== "undefined") {
+    const override = process.env[`EVM_MINTER_KEY_${suffix}`]?.trim();
+    if (override) key = override;
+  }
   if (!key) throw new Error("AVALANCHE_MINTER_KEY is not set");
-  const hex = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
-  return privateKeyToAccount(hex);
+  return (key.startsWith("0x") ? key : `0x${key}`) as Hex;
+}
+
+export function minterAccount(spokeChain: EvmSpokeChainId = "avalanche") {
+  return privateKeyToAccount(minterPrivateKeyHex(spokeChain));
 }
 
 export async function sendMinterTx(params: {
   to: Address;
   data: Hex;
   rpcUrl?: string;
+  spokeChain?: EvmSpokeChainId;
+  destination?: MintDestination;
 }): Promise<{ txHash: Hex; explorerUrl: string }> {
-  const account = minterAccount();
-  const chain = avalancheViemChain();
-  const rpc = params.rpcUrl ?? getAvalancheRpcUrl();
+  const spoke = resolveSpokeChainForEvm(params);
+  const account = minterAccount(spoke);
+  const chain = viemChainForSpokeId(spoke);
+  const rpc = params.rpcUrl ?? rpcUrlForSpokeChain(spoke);
   const wallet = createWalletClient({
     account,
     chain,
@@ -402,7 +454,10 @@ export async function sendMinterTx(params: {
   });
   const publicClient = createPublicClient({ chain, transport: http(rpc) });
   await publicClient.waitForTransactionReceipt({ hash });
-  return { txHash: hash, explorerUrl: snowtraceTxUrl(hash) };
+  const dest =
+    params.destination ??
+    (spoke === "avalanche" ? "avalanche" : (spoke as MintDestination));
+  return { txHash: hash, explorerUrl: explorerTxUrl(dest, hash) };
 }
 
 export function parseCloneFromReceiptLogs(logs: { data: Hex; topics: Hex[] }[]): Address | null {
@@ -423,8 +478,12 @@ export function parseCloneFromReceiptLogs(logs: { data: Hex; topics: Hex[] }[]):
   return null;
 }
 
-export function createCollectionTxRequest(collection: Collection, owner: Address) {
-  const factory = factoryAddressOrThrow();
+export function createCollectionTxRequest(
+  collection: Collection,
+  owner: Address,
+  spokeChain: EvmSpokeChainId = "avalanche",
+) {
+  const factory = factoryAddressOrThrow(spokeChain);
   const royaltyReceiver = (collection.payments.creatorWallet.startsWith("0x")
     ? collection.payments.creatorWallet
     : owner) as Address;
@@ -439,11 +498,13 @@ export function createCollectionTxRequest(collection: Collection, owner: Address
   return {
     to: factory,
     data,
-    chainId: getAvalancheChainId(),
+    chainId: evmSpokeChainMeta(spokeChain).chainId,
   };
 }
 
 export function homeContractForDebit(collection: Collection): Address | null {
-  if (collectionHomeChain(collection) !== "avalanche") return null;
-  return collectionEvmAddress(collection);
+  const home = collectionHomeLedger(collection);
+  if (home === "solana") return null;
+  const addr = collectionHomeEvmAddress(collection, home);
+  return addr ? (addr as Address) : null;
 }
