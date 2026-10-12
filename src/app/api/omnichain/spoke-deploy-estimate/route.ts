@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "spokeChainIds required" }, { status: 400 });
     }
 
-    let collection = body.collectionId ? await getCollection(body.collectionId) : null;
+    const collection = body.collectionId ? await getCollection(body.collectionId) : null;
     if (body.collectionId && !collection) {
       return NextResponse.json({ error: "collection not found" }, { status: 404 });
     }
