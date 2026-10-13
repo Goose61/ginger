@@ -6,7 +6,7 @@ export const SITE_URL = SITE.url.replace(/\/$/, "");
 
 export const OG_IMAGE = "/images/ginger.png";
 
-export const HOME_TITLE = "Ginger NFT Marketplace — Launch on Solana or Avalanche";
+export const HOME_TITLE = "Ginger NFT Marketplace | Launch on Solana or Avalanche";
 
 export const DEFAULT_DESCRIPTION =
   "Launch NFT collections on Solana or Avalanche. Collectors mint onto the chain they choose, pay that chain’s gas, and resell on Ginger. Art is stored permanently, and you keep the keys in your wallet.";
@@ -49,7 +49,7 @@ export function clampMeta(text: string, max = 160) {
 
 /** Keep collection titles near the 50–60 character SERP window without cutting the brand. */
 export function collectionPageTitle(name: string) {
-  const suffix = " — Mint on Ginger";
+  const suffix = " | Mint on Ginger";
   const full = `${name}${suffix}`;
   if (full.length <= 60) return full;
   const room = 60 - suffix.length - 1;

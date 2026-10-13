@@ -120,7 +120,7 @@ export default function GiftPage() {
       return;
     }
     try {
-      // Snapshot bytes immediately — File handles go stale after wallet popups on some browsers.
+      // Snapshot bytes immediately: File handles go stale after wallet popups on some browsers.
       const bytes = new Uint8Array(await next.arrayBuffer());
       const imageInfo = await detectImageFromBytes(bytes);
       if (!imageInfo) {

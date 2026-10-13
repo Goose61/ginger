@@ -22,7 +22,7 @@ export async function listCollections(): Promise<Collection[]> {
   return docs.map(asCollection).map((c) => stripExpiredReservations(c).collection);
 }
 
-/** Header “Dashboard” link — tiny projection, no tokens. */
+/** Header “Dashboard” link: tiny projection, no tokens. */
 export async function listCollectionNav(): Promise<
   {
     id: string;

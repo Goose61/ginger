@@ -59,6 +59,6 @@ export async function GET(req: Request) {
     },
     solPrice,
     note:
-      "Storage is charged first. The mint step is a compressed NFT (cNFT) — keep a little SOL for the transaction fee, not account rent.",
+      "Storage is charged first. The mint step is a compressed NFT (cNFT). Keep a little SOL for the transaction fee, not account rent.",
   });
 }

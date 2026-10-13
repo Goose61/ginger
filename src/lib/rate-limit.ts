@@ -10,7 +10,7 @@ export async function rateLimit(
     const db = await getDb();
     const col = db.collection("rate_limits");
 
-    // TTL index — MongoDB auto-purges expired docs
+    // TTL index: MongoDB auto-purges expired docs
     await col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, background: true });
 
     const now = Date.now();

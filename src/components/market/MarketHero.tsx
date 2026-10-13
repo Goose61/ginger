@@ -33,7 +33,7 @@ export function MarketHero({ live }: { live: MarketCard[] }) {
           </h1>
           <p className="mt-5 max-w-lg text-[15px] leading-7 text-ink-body sm:text-base">
             Creators go live on Solana or Avalanche. Collectors mint onto Solana, Avalanche
-            C-Chain, or a Fuji L1 — and pay that chain’s gas. Resale stays here on Ginger.
+            C-Chain, or a Fuji L1, and pay that chain’s gas. Resale stays here on Ginger.
           </p>
 
           <div className="mt-7 max-w-xl">

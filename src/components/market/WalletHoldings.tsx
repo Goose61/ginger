@@ -22,54 +22,60 @@ export function WalletHoldings() {
   const { publicKey } = useWallet();
   const { address: evmAddress } = useEvmWallet();
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  const wallets = [publicKey, evmAddress].filter((wallet): wallet is string => Boolean(wallet));
-
   const load = useCallback(async () => {
-    const connected = [publicKey, evmAddress].filter((wallet): wallet is string => Boolean(wallet));
-    if (connected.length === 0) {
+    const connectedWallets = [publicKey, evmAddress].filter((wallet): wallet is string => Boolean(wallet));
+    if (connectedWallets.length === 0) {
       setHoldings([]);
+      setLoaded(true);
       return;
     }
-    const batches = await Promise.all(
-      connected.map(async (wallet) => {
-        const res = await fetch(`/api/holdings?wallet=${encodeURIComponent(wallet)}`);
-        const data = await res.json();
-        return res.ok ? ((data.holdings ?? []) as Holding[]) : [];
-      }),
-    );
-    const seen = new Set<string>();
-    const next: Holding[] = [];
-    for (const batch of batches) {
-      for (const holding of batch) {
-        const key = `${holding.collectionId}:${holding.tokenId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        next.push(holding);
-      }
-    }
-    next.sort((a, b) => a.collectionName.localeCompare(b.collectionName) || a.tokenId - b.tokenId);
-    setHoldings(next);
-    setPrices((prev) => {
-      const pricesNext = { ...prev };
-      for (const holding of next) {
-        const key = `${holding.collectionId}:${holding.tokenId}`;
-        if (pricesNext[key] == null && holding.listingPriceUsd != null) {
-          pricesNext[key] = String(holding.listingPriceUsd);
+    try {
+      const batches = await Promise.all(
+        connectedWallets.map(async (wallet) => {
+          const res = await fetch(`/api/holdings?wallet=${encodeURIComponent(wallet)}`);
+          const data = await res.json();
+          return res.ok ? ((data.holdings ?? []) as Holding[]) : [];
+        }),
+      );
+      const seen = new Set<string>();
+      const next: Holding[] = [];
+      for (const batch of batches) {
+        for (const holding of batch) {
+          const key = `${holding.collectionId}:${holding.tokenId}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          next.push(holding);
         }
       }
-      return pricesNext;
-    });
+      next.sort((a, b) => a.collectionName.localeCompare(b.collectionName) || a.tokenId - b.tokenId);
+      setHoldings(next);
+      setPrices((prev) => {
+        const pricesNext = { ...prev };
+        for (const holding of next) {
+          const key = `${holding.collectionId}:${holding.tokenId}`;
+          if (pricesNext[key] == null && holding.listingPriceUsd != null) {
+            pricesNext[key] = String(holding.listingPriceUsd);
+          }
+        }
+        return pricesNext;
+      });
+    } catch {
+      setHoldings([]);
+    } finally {
+      setLoaded(true);
+    }
   }, [publicKey, evmAddress]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (wallets.length === 0) return null;
+  if (!loaded || holdings.length === 0) return null;
 
   async function listHolding(holding: Holding) {
     const key = `${holding.collectionId}:${holding.tokenId}`;
@@ -141,12 +147,7 @@ export function WalletHoldings() {
           Pieces this wallet holds on Ginger. List one for sale, or change the price to relist it.
         </p>
       </div>
-      {holdings.length === 0 ? (
-        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/50">
-          This wallet does not hold any Ginger NFTs yet.
-        </p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {holdings.map((holding) => {
             const key = `${holding.collectionId}:${holding.tokenId}`;
             const busy = busyKey === key;
@@ -204,7 +205,6 @@ export function WalletHoldings() {
             );
           })}
         </div>
-      )}
       {message && <p className="text-sm text-white/60">{message}</p>}
     </section>
   );

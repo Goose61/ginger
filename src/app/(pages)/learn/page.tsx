@@ -8,7 +8,7 @@ import { RelatedLinks } from "@/components/seo/RelatedLinks";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Learn — Ginger",
+  title: "Learn | Ginger",
   description:
     "Answers on launching on Solana or Avalanche, minting onto the chain you choose, wallets, permanent storage, secondary sales, and how Ginger handles custody.",
   path: "/learn",

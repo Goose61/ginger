@@ -3,7 +3,7 @@ import { PageFrame } from "@/components/ginger/PageFrame";
 import { MarketHome } from "@/components/MarketHome";
 import { DEFAULT_DESCRIPTION, HOME_TITLE, pageMetadata } from "@/lib/seo";
 
-/** Fetch live collections at request time — requires MONGODB_URI at runtime. */
+/** Fetch live collections at request time: requires MONGODB_URI at runtime. */
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({

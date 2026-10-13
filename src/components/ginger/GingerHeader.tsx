@@ -49,7 +49,7 @@ export function GingerHeader() {
 
   return (
     <header className="bar" id="ginger-bar" data-open={open ? "true" : "false"}>
-      <Link className="brand" href="/" aria-label="Ginger — home">
+      <Link className="brand" href="/" aria-label="Ginger | home">
         {/* Logo sizing is owned by the Ginger shell CSS. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="ginger-logo" src="/images/ginger-mark.webp" alt="Ginger" decoding="async" />

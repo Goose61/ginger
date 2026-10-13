@@ -4,7 +4,7 @@
 
 ## Findings
 
-Live scan: error pages on gingernft.store **do not leak internals**; `/docs`, `/redoc`, `/openapi.json`, actuator, etc. **absent**. `X-Powered-By: Next.js` was present — **`poweredByHeader: false` added**.
+Live scan: error pages on gingernft.store **do not leak internals**; `/docs`, `/redoc`, `/openapi.json`, actuator, etc. **absent**. `X-Powered-By: Next.js` was present: **`poweredByHeader: false` added**.
 
 Many routes still return `err.message` to the client (`String(err)` on solana-proxy, image-thumb, irys-gateway, gift cosign). Those can leak RPC/library strings.
 

@@ -5,7 +5,7 @@ import { isPaidStatus, slicePayConfigured, syncInvoiceStatus } from "@/lib/slice
 
 type Params = { params: Promise<{ invoiceId: string }> };
 
-/** Poll payment state only — no collection/token/order metadata (prevents invoice hijack recon). */
+/** Poll payment state only: no collection/token/order metadata (prevents invoice hijack recon). */
 export async function GET(req: NextRequest, { params }: Params) {
   const ip = getClientIp(req);
   const rl = await rateLimit(`slicepay-status:${ip}`, 120, 60 * 1000);

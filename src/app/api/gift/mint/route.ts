@@ -1,5 +1,5 @@
 /**
- * POST /api/gift/mint — build a mint tx for an existing gift token in the bundle
+ * POST /api/gift/mint: build a mint tx for an existing gift token in the bundle
  * that was uploaded to Arweave but never minted on-chain.
  */
 

@@ -302,7 +302,7 @@ export function OmnichainMintingPanel({
     <>
       <p className={`text-sm text-white/60 ${variant === "dashboard" ? "mt-1" : "mt-1"}`}>
         Home is the supply ledger ({CHAIN_DESCRIPTORS[homeDest].label}). Enable extra chains so collectors can mint
-        there—via omnichain checkout (SlicePay + Ginger pays gas) or self-serve.
+        there, via omnichain checkout (SlicePay + Ginger pays gas) or self-serve.
       </p>
 
       {variant === "launch" && (onHomeChainChange || onHomeLedgerChange) && (
@@ -516,11 +516,13 @@ export function OmnichainMintingPanel({
         <>
           <button
             type="button"
-            className="mt-2 flex w-full items-center justify-between text-left text-sm font-medium text-white"
+            className="flex w-full items-center justify-between gap-4 text-left text-sm font-medium text-white"
             onClick={() => setExpanded((v) => !v)}
           >
             Optional: omnichain minting
-            <span className="text-white/40">{expanded ? "−" : "+"}</span>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 text-2xl leading-none text-white">
+              {expanded ? "−" : "+"}
+            </span>
           </button>
           {expanded && inner}
         </>

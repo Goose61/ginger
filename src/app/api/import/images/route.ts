@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const description = String(form.get("description") || "");
     const creatorWallet = auth.wallet;
 
-    // Blob ZIP: save a lightweight stub — processing runs in /api/import/images/process.
+    // Blob ZIP: save a lightweight stub: processing runs in /api/import/images/process.
     if (zipUrl) {
       const id = newId();
       const stub = buildImportingCollectionStub({

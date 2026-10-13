@@ -155,7 +155,7 @@ async function inspectLive(collectionId: string) {
       }
     }
   } else {
-    console.log("\n  No fee ledger yet — no mints have accrued.");
+    console.log("\n  No fee ledger yet: no mints have accrued.");
   }
 
   console.log("\n  Milestones");
@@ -233,7 +233,7 @@ function runSimulation() {
   console.log("\n5. Carol mints #9 → 90% arms SPL buyback (token purchase, not NFT floor)");
   mintTo(c, 9, CAROL);
   assert(c.treasuryBuybackActive === true, "90% activated treasury buyback");
-  assert(c.tokens.find((t) => t.tokenId === 4)?.owner === BOB, "Bob still owns listed #4 — buyback does not take NFTs");
+  assert(c.tokens.find((t) => t.tokenId === 4)?.owner === BOB, "Bob still owns listed #4: buyback does not take NFTs");
   const spent = applyLedgerBuyback(c, {
     usdSpent: 2.5,
     tokenAmount: 2500,
@@ -252,7 +252,7 @@ function runSimulation() {
 
   console.log("\n✅ Mint, holder rewards, and buyback all passed\n");
   console.log("This proved the in-app economy (USD ledger + milestones).");
-  console.log("On-chain SOL mint still needs Phantom in the browser — use --inspect after a live mint.");
+  console.log("On-chain SOL mint still needs Phantom in the browser: use --inspect after a live mint.");
 }
 
 function runInstantSimulation() {
@@ -265,7 +265,7 @@ function runInstantSimulation() {
   c.feeClaimsOpen = false;
   c.treasuryBuybackActive = false;
 
-  console.log("1. Alice mints #1 — she is not an existing holder, so the pool waits");
+  console.log("1. Alice mints #1: she is not an existing holder, so the pool waits");
   mintTo(c, 1, ALICE);
   assert(c.feeClaimsOpen, "claims open after the first sale");
   assert(c.treasuryBuybackActive, "buyback armed after the first sale");
@@ -273,7 +273,7 @@ function runInstantSimulation() {
   assert(c.feeLedger!.distributionRounds.length === 0, "first buyer does not open a holder round");
   assert(c.feeLedger!.holderTreasuryUsd === 0.5, "holder pool stays until an existing holder can receive it");
 
-  console.log("2. Bob mints #2 — only Alice, who already held #1, receives that pool");
+  console.log("2. Bob mints #2: only Alice, who already held #1, receives that pool");
   mintTo(c, 2, BOB);
   const r1 = c.feeLedger!.distributionRounds[0];
   assert(c.feeLedger!.distributionRounds.length === 1, "round opened on Bob's mint");
@@ -283,10 +283,10 @@ function runInstantSimulation() {
   assert(r1.poolUsd === 1, "round locked both sales' holder pools ($1.00)");
   assert(c.feeLedger!.holderTreasuryUsd === 0, "holder pool emptied into the round");
 
-  console.log("3. Carol mints #3, Alice mints #4 — SPL buyback spends the accrued pool");
+  console.log("3. Carol mints #3, Alice mints #4: SPL buyback spends the accrued pool");
   mintTo(c, 3, CAROL);
   mintTo(c, 4, ALICE);
-  assert(c.tokens.find((t) => t.tokenId === 2)?.owner === BOB, "NFT owners unchanged — buyback is not an NFT floor bid");
+  assert(c.tokens.find((t) => t.tokenId === 2)?.owner === BOB, "NFT owners unchanged: buyback is not an NFT floor bid");
   const pool = c.feeLedger!.buybackTreasuryUsd;
   assert(pool === 2, "4 mints × $0.50 = $2.00 buyback pool");
   const spent = applyLedgerBuyback(c, { usdSpent: pool, tokenAmount: 2000, route: "direct_mint" });

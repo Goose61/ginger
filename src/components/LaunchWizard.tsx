@@ -1191,7 +1191,7 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
     return { ...server, ...patch, tokens: patch.tokens ?? server.tokens } as Collection;
   }
 
-  /** Save collection-level fields only — avoids re-uploading all NFT rows. */
+  /** Save collection-level fields only: avoids re-uploading all NFT rows. */
   async function saveCollectionSettings(from = collectionRef.current) {
     if (!from || !publicKey) return from;
     return save(
@@ -2064,44 +2064,6 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
           </div>
         )}
 
-        <div className="mt-6 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <input
-            id="launch-advanced"
-            type="checkbox"
-            checked={launchAdvanced}
-            onChange={(e) => setLaunchAdvanced(e.target.checked)}
-          />
-          <label htmlFor="launch-advanced" className="text-sm text-white/80">
-            Advanced launch options (traits tuning, fees, reveal, milestones)
-          </label>
-        </div>
-
-        <div className="mt-10 rounded-2xl border border-white/15 bg-white/5 p-6">
-          <OmnichainMintingPanel
-            variant="launch"
-            collapsible
-            collection={collection ?? undefined}
-            homeChain={homeChain}
-            homeLedger={homeLedger}
-            onHomeLedgerChange={setHomeLedger}
-            mintDestinations={mintDestinations}
-            spokeDeployAtLaunch={spokeDeployAtLaunch}
-            onHomeChainChange={setHomeChain}
-            onMintDestinationsChange={setMintDestinations}
-            onSpokeDeployAtLaunchChange={setSpokeDeployAtLaunch}
-            onSpokeDeployTotalUsdChange={setSpokeDeployTotalUsd}
-            avalancheFactory={avalancheFactory}
-            avalancheReady={avalancheReady}
-            avalancheL1Enabled={avalancheL1Enabled}
-            evmAddress={evmAddress}
-            publicKey={publicKey}
-            connectEvm={connectEvm}
-            ensureAvalancheChain={ensureAvalancheChain}
-            ensureEvmChain={ensureEvmChain}
-            sendContractTx={sendContractTx}
-          />
-        </div>
-
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           {/* Finished art */}
           <div className="flex flex-col rounded-2xl border border-white/15 bg-white/5 p-6">
@@ -2269,6 +2231,47 @@ export function LaunchWizard({ resumeId }: { resumeId?: string }) {
       {error && (
         <div className="mt-4 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
           {error}
+        </div>
+      )}
+
+      {step === 0 && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <input
+              id="launch-advanced"
+              type="checkbox"
+              checked={launchAdvanced}
+              onChange={(e) => setLaunchAdvanced(e.target.checked)}
+            />
+            <label htmlFor="launch-advanced" className="text-sm text-white/80">
+              Advanced launch options (traits tuning, fees, reveal, milestones)
+            </label>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/5 p-6">
+            <OmnichainMintingPanel
+              variant="launch"
+              collapsible
+              collection={collection ?? undefined}
+              homeChain={homeChain}
+              homeLedger={homeLedger}
+              onHomeLedgerChange={setHomeLedger}
+              mintDestinations={mintDestinations}
+              spokeDeployAtLaunch={spokeDeployAtLaunch}
+              onHomeChainChange={setHomeChain}
+              onMintDestinationsChange={setMintDestinations}
+              onSpokeDeployAtLaunchChange={setSpokeDeployAtLaunch}
+              onSpokeDeployTotalUsdChange={setSpokeDeployTotalUsd}
+              avalancheFactory={avalancheFactory}
+              avalancheReady={avalancheReady}
+              avalancheL1Enabled={avalancheL1Enabled}
+              evmAddress={evmAddress}
+              publicKey={publicKey}
+              connectEvm={connectEvm}
+              ensureAvalancheChain={ensureAvalancheChain}
+              ensureEvmChain={ensureEvmChain}
+              sendContractTx={sendContractTx}
+            />
+          </div>
         </div>
       )}
 

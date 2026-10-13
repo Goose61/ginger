@@ -2,7 +2,7 @@
  * Client-side Irys uploads using the connected Phantom wallet.
  *
  * Uses @irys/web-upload-solana which routes fund transactions and upload
- * signatures through the injected wallet — no private keys in the app.
+ * signatures through the injected wallet: no private keys in the app.
  *
  * @see https://www.npmjs.com/package/@irys/web-upload-solana
  */
@@ -177,7 +177,7 @@ async function fetchBundlerAddress(devnet: boolean): Promise<string> {
 }
 
 /**
- * Fund the user's Irys account with a fresh blockhash — bypasses the SDK fund()
+ * Fund the user's Irys account with a fresh blockhash: bypasses the SDK fund()
  * path which builds the tx too early (blockhash expires while Phantom popup is open).
  */
 async function fundIrysAccount(params: {
@@ -230,7 +230,7 @@ export function phantomToIrysWallet(phantom: PhantomLike) {
   return {
     publicKey: phantom.publicKey,
     sendTransaction: async () => {
-      throw new Error("Funding uses a custom flow — this should not be called.");
+      throw new Error("Funding uses a custom flow. This should not be called.");
     },
     signMessage: async (message: Uint8Array) => {
       const { signature } = await phantom.signMessage(message, "utf8");
@@ -324,7 +324,7 @@ export async function fundCreatorIrysForBytes(params: {
 
 /**
  * One-time Irys spend approval so the server can bulk-upload without per-file wallet popups.
- * Creator still pays — charges come from the creator's Irys balance, not a platform SOL wallet.
+ * Creator still pays: charges come from the creator's Irys balance, not a platform SOL wallet.
  */
 export async function ensureCreatorIrysUploadDelegate(params: {
   network: SolanaNetwork;
@@ -619,7 +619,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 export const ARWEAVE_SERVER_BATCH_SIZE = 8;
 
-/** Bulk upload via server — creator-funded Irys balance, no per-file wallet signatures. */
+/** Bulk upload via server: creator-funded Irys balance, no per-file wallet signatures. */
 export async function uploadCollectionViaServer(params: {
   collectionId: string;
   wallet: string;

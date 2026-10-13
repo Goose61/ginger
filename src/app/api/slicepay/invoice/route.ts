@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET — report whether SlicePay is configured (safe for client). */
+/** GET: report whether SlicePay is configured (safe for client). */
 export async function GET() {
   return NextResponse.json({
     configured: slicePayConfigured(),

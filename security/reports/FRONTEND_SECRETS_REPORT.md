@@ -4,11 +4,11 @@
 
 ## Findings
 
-- Client env: `NEXT_PUBLIC_SOLANA_NETWORK`, `NEXT_PUBLIC_SOLANA_RPC_URL_*` — public RPC URLs.
+- Client env: `NEXT_PUBLIC_SOLANA_NETWORK`, `NEXT_PUBLIC_SOLANA_RPC_URL_*`: public RPC URLs.
 - Live scan: **no public `.js.map`** on https://www.gingernft.store (15 scripts checked).
 - `productionBrowserSourceMaps` is not enabled in `next.config.ts`.
 - SlicePay API key and Irys/platform secrets are server-only.
-- `/api/network` exposes the **platform public key** and treasury floor — intended.
+- `/api/network` exposes the **platform public key** and treasury floor: intended.
 
 ## What's at risk
 

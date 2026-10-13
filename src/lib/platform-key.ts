@@ -1,5 +1,5 @@
 /**
- * Platform wallet (ARWEAVE_SOLANA_KEY) helpers — update authority for gift mints.
+ * Platform wallet (ARWEAVE_SOLANA_KEY) helpers: update authority for gift mints.
  */
 
 import { Keypair } from "@solana/web3.js";

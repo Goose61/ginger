@@ -280,7 +280,7 @@ async function onChainMint() {
 
   const factory = (process.env.AVALANCHE_FACTORY_ADDRESS_FUJI || process.env.AVALANCHE_FACTORY_ADDRESS || "").trim() as Address | "";
   if (!factory) {
-    console.log("No factory in env — run npm run deploy:avalanche-factory first, then re-run e2e.");
+    console.log("No factory in env: run npm run deploy:avalanche-factory first, then re-run e2e.");
     return;
   }
 

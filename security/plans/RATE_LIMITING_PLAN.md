@@ -3,7 +3,7 @@
 ## Changes
 
 - `src/lib/request-ip.ts` + all previous `x-forwarded-for` split[0] call sites
-- `src/app/api/solana-proxy/route.ts` — 120/min
+- `src/app/api/solana-proxy/route.ts`: 120/min
 
 ## Verification goals
 
@@ -13,4 +13,4 @@
 
 ## Manual verification (for the human)
 
-Burst 15 mint requests from one IP — 429. Confirm Phantom in-app browser still works through the proxy.
+Burst 15 mint requests from one IP: 429. Confirm Phantom in-app browser still works through the proxy.

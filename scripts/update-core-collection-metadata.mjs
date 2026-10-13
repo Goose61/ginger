@@ -165,7 +165,7 @@ console.log("Old URI:", oldUri);
 console.log("Old off-chain name:", oldJson.name, "→", newJson.name);
 
 if (dryRun) {
-  console.log("Dry run — would upload and update on-chain.");
+  console.log("Dry run: would upload and update on-chain.");
   process.exit(0);
 }
 

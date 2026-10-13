@@ -15,7 +15,7 @@ export const GIFT_TX_FEE_LAMPORTS = BigInt(10_000);
 /** Extra buffer so Core estimates err on the safe side. */
 export const GIFT_FEE_BUFFER_LAMPORTS = BigInt(500_000);
 
-/** cNFT mint has no account rent — tx fee + compute/priority buffer. */
+/** cNFT mint has no account rent: tx fee + compute/priority buffer. */
 export const CNFT_MINT_FEE_LAMPORTS = GIFT_TX_FEE_LAMPORTS;
 export const CNFT_MINT_BUFFER_LAMPORTS = BigInt(1_000_000);
 

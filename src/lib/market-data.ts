@@ -23,7 +23,7 @@ async function loadMarketCards() {
 
 /**
  * Shared, 30s-cached market snapshot used by the landing page and the
- * header search endpoint. Never cache empty fallbacks on DB errors — that
+ * header search endpoint. Never cache empty fallbacks on DB errors: that
  * poisons the homepage until revalidate (collections “disappear”).
  */
 export const getMarketCards = unstable_cache(loadMarketCards, [MARKET_CARDS_CACHE_KEY], {

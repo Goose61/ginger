@@ -1,4 +1,4 @@
-/** Safely parse JSON from a fetch Response — avoids opaque "Unexpected end of JSON input" errors. */
+/** Safely parse JSON from a fetch Response: avoids opaque "Unexpected end of JSON input" errors. */
 export async function readJsonResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text.trim()) {

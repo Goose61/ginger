@@ -2,8 +2,8 @@
 
 ## Changes
 
-- `src/middleware.ts` — `object-src 'none'`; `form-action 'self' https://pay.slicechain.io`
-- `next.config.ts` — `poweredByHeader: false`; HSTS/XFO/nosniff/referrer on `/:path*`
+- `src/middleware.ts`: `object-src 'none'`; `form-action 'self' https://pay.slicechain.io`
+- `next.config.ts`: `poweredByHeader: false`; HSTS/XFO/nosniff/referrer on `/:path*`
 
 ## Verification goals
 

@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       network,
       creatorPaysIrys: true,
       serverBulkUpload: isServerBulkArweaveAvailable(),
-      /** Server uploader pubkey — creator grants a one-time Irys spend approval (not a SOL transfer). */
+      /** Server uploader pubkey: creator grants a one-time Irys spend approval (not a SOL transfer). */
       uploadDelegateAddress: getPlatformPublicKey(),
       featuredPayTo: getPlatformPublicKey(),
       featuredFeeUsd: FEATURE_ON_MARKET_USD,

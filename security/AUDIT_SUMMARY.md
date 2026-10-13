@@ -25,18 +25,18 @@ Sensitive files (`.env`, `.git`, dumps) are **not** served on production. No pub
 | 2 | DATABASE_ACCESS | MEDIUM | [report](reports/DATABASE_ACCESS_REPORT.md) | [plan](plans/DATABASE_ACCESS_PLAN.md) |
 | 3 | AUTH_MIDDLEWARE | HIGH | [report](reports/AUTH_MIDDLEWARE_REPORT.md) | [plan](plans/AUTH_MIDDLEWARE_PLAN.md) |
 | 4 | ACCESS_CONTROL | HIGH | [report](reports/ACCESS_CONTROL_REPORT.md) | [plan](plans/ACCESS_CONTROL_PLAN.md) |
-| 5 | FRONTEND_SECRETS | PASS | [report](reports/FRONTEND_SECRETS_REPORT.md) | — |
+| 5 | FRONTEND_SECRETS | PASS | [report](reports/FRONTEND_SECRETS_REPORT.md) | n/a |
 | 6 | SSRF | MEDIUM | [report](reports/SSRF_REPORT.md) | [plan](plans/SSRF_PLAN.md) |
-| 7 | CSRF | PASS | [report](reports/CSRF_REPORT.md) | — |
+| 7 | CSRF | PASS | [report](reports/CSRF_REPORT.md) | n/a |
 | 8 | SECURITY_HEADERS | MEDIUM | [report](reports/SECURITY_HEADERS_REPORT.md) | [plan](plans/SECURITY_HEADERS_PLAN.md) |
-| 9 | CORS | PASS | [report](reports/CORS_REPORT.md) | — |
+| 9 | CORS | PASS | [report](reports/CORS_REPORT.md) | n/a |
 | 10 | RATE_LIMITING | MEDIUM | [report](reports/RATE_LIMITING_REPORT.md) | [plan](plans/RATE_LIMITING_PLAN.md) |
-| 11 | SQL_INJECTION | PASS | [report](reports/SQL_INJECTION_REPORT.md) | — |
-| 12 | XSS | PASS | [report](reports/XSS_REPORT.md) | — |
+| 11 | SQL_INJECTION | PASS | [report](reports/SQL_INJECTION_REPORT.md) | n/a |
+| 12 | XSS | PASS | [report](reports/XSS_REPORT.md) | n/a |
 | 13 | PAYMENT_WEBHOOKS | HIGH | [report](reports/PAYMENT_WEBHOOKS_REPORT.md) | [plan](plans/PAYMENT_WEBHOOKS_PLAN.md) |
 | 14 | FILE_UPLOADS | MEDIUM | [report](reports/FILE_UPLOADS_REPORT.md) | [plan](plans/FILE_UPLOADS_PLAN.md) |
 | 15 | ERROR_HANDLING | MEDIUM | [report](reports/ERROR_HANDLING_REPORT.md) | [plan](plans/ERROR_HANDLING_PLAN.md) |
-| 16 | PASSWORD_HASHING | N/A | [report](reports/PASSWORD_HASHING_REPORT.md) | — |
+| 16 | PASSWORD_HASHING | N/A | [report](reports/PASSWORD_HASHING_REPORT.md) | n/a |
 | 17 | DEPENDENCIES | HIGH | [report](reports/DEPENDENCIES_REPORT.md) | [plan](plans/DEPENDENCIES_PLAN.md) |
 
 ## Critical issues
@@ -70,6 +70,6 @@ See [manual-checklist.md](../../../vibe-check-main/manual-checklist.md). Highest
 2. Confirm `ALLOWED_ORIGINS` and `SLICEPAY_WEBHOOK_SECRET` are set on Vercel.
 3. After deploy: `python3 vibe-check-main/skills/vibe-check/scripts/check.py https://www.gingernft.store`
 4. As creator A, confirm you cannot GET creator B’s draft by ID.
-5. Replay an old SOL transfer signature against mint — must 402.
+5. Replay an old SOL transfer signature against mint: must 402.
 6. Two-wallet IDOR test on mint / secondary / gift.
 7. `npm audit` and decide which high/critical transitives to upgrade (sharp, next, wallet-adapter-trezor).

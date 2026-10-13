@@ -13,7 +13,7 @@ Applied on: collections POST, mint, waitlist, creator-gift, gift POST/prepare/co
 Still unscoped or weakly scoped:
 
 - `POST /api/solana-proxy` now 120/min/IP (was unlimited)
-- Gift confirm PATCH, confirm-mint, quotes, image-thumb, irys-gateway — no dedicated limiter
+- Gift confirm PATCH, confirm-mint, quotes, image-thumb, irys-gateway: no dedicated limiter
 - Wallet auth / mint payer field can still be rotated to evade per-wallet mint limits (`mint:${payer}`)
 
 ## What's at risk

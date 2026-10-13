@@ -210,7 +210,7 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
-  /* Section eyebrow — the only place the mono uppercase kicker should appear. */
+  /* Section eyebrow: the only place the mono uppercase kicker should appear. */
   .eyebrow {
     font-family: var(--font-mono, ui-monospace);
     font-size: 11px;

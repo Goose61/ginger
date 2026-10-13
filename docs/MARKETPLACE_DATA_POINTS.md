@@ -1,4 +1,4 @@
-# Crypgo / The Crust — Marketplace Data Points
+# Crypgo / The Crust | Marketplace Data Points
 
 Reference sheet for comparing The Crust against other NFT marketplaces (Magic Eden Launchpad, Tensor, OpenSea, Metaplex Studio, etc.). Values reflect the codebase as of September 2026.
 
@@ -11,10 +11,10 @@ Reference sheet for comparing The Crust against other NFT marketplaces (Magic Ed
 | Data point | The Crust (Crypgo) |
 |---|---|
 | **Chain** | Solana only (Metaplex **Core** collections) |
-| **Product model** | Launch + primary mint + in-ecosystem secondary — collections **do not graduate** to another site |
-| **Launch fee** | **$0** — no Crypgo launch/platform listing fee |
+| **Product model** | Launch + primary mint + in-ecosystem secondary: collections **do not graduate** to another site |
+| **Launch fee** | **$0**: no Crypgo launch/platform listing fee |
 | **Who pays Arweave** | **Creator** at Go Live (one-time, from connected wallet) |
-| **Payment processing** | **Absorbed by platform** — SlicePay/card checkout surcharge is **not** passed to buyers or creators |
+| **Payment processing** | **Absorbed by platform**: SlicePay/card checkout surcharge is **not** passed to buyers or creators |
 
 ---
 
@@ -44,7 +44,7 @@ Defined in `src/lib/platform-fees.ts`:
 
 ## Creator-configurable revenue (locks at launch)
 
-### Primary mint split (`fees` — must sum to 100%)
+### Primary mint split (`fees`: must sum to 100%)
 
 | Bucket | Default | Configurable |
 |---|---|---|
@@ -78,17 +78,17 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 | Cost item | How it works |
 |---|---|
 | **Crypgo launch fee** | **$0** |
-| **Arweave permanent storage** | **Pass-through** — creator pays **actual Irys/Arweave price in SOL** at Go Live |
+| **Arweave permanent storage** | **Pass-through**: creator pays **actual Irys/Arweave price in SOL** at Go Live |
 | **UI rough estimate** | `~$0.006/MB`; formula: `(tokens × 201 KB) / 1024 × $0.006`, minimum **$0.05** |
 | **Actual byte estimate** | Sum of image bytes + `~900 bytes × 2 × token count` (image + metadata uploads) via `estimateArweaveBytes()` |
-| **Large collections** | One **SOL payment to platform wallet** + **server bulk upload** (batches of 8) — avoids per-file wallet signatures |
+| **Large collections** | One **SOL payment to platform wallet** + **server bulk upload** (batches of 8): avoids per-file wallet signatures |
 | **Storage payment buffer** | **+2%** SOL when paying platform for bulk upload |
 | **Solana tx fees at launch** | UI shows **~$0.01** (negligible) |
 | **Collection creation on-chain** | Metaplex Core collection tx (platform co-signs; rent/fees from infra wallet) |
 
-**Rule of thumb:** For a **600-piece** drop, expect roughly **~$0.70–$2+ in storage** depending on image size (wizard heuristic), **plus** small SOL network fees — **not** a percentage of mint revenue.
+**Rule of thumb:** For a **600-piece** drop, expect roughly **~$0.70–$2+ in storage** depending on image size (wizard heuristic), **plus** small SOL network fees: **not** a percentage of mint revenue.
 
-### Gift mint (`/gift`) — separate from collection launch
+### Gift mint (`/gift`): separate from collection launch
 
 | Cost item | Amount |
 |---|---|
@@ -109,7 +109,7 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 | **Base mint price** | **$25 USD** | Quoted in USD; SOL at spot |
 | **Trait surcharges** | **+$0 to +$X per trait** | Per-trait `priceModifier` in USD |
 | **Milestone price increase** | **+10% of current base** | When `mint_price_increase` milestone fires |
-| **Bundle discount** | Milestone flag only | `enable_bundle_mint` toggles feature — **no fixed discount % in code yet** |
+| **Bundle discount** | Milestone flag only | `enable_bundle_mint` toggles feature: **no fixed discount % in code yet** |
 | **Meme coin / SPL discount** | **0%** | Wizard: same USD value, no discount (`pizzaDiscountPercent` forced to 0) |
 
 ---
@@ -118,7 +118,7 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 
 | Method | Primary mint | Secondary |
 |---|---|---|
-| **SlicePay** (card / USDC via checkout) | Yes | Yes — **required** in production |
+| **SlicePay** (card / USDC via checkout) | Yes | Yes: **required** in production |
 | **SOL** (spot-priced transfer to creator wallet) | Yes | No |
 | **USDC** (direct) | Toggle in wizard | Via SlicePay only in practice |
 | **Custom SPL / meme coin** | Toggle in wizard | **Not wired in checkout UI** |
@@ -144,16 +144,16 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 | Feature | Status |
 |---|---|
 | **Native secondary listings** | Yes (milestone-gated: `enable_secondary`) |
-| **Blind mint + reveal** | Yes — manual, % sold, sell-out, datetime, staggered (~10% batches) |
+| **Blind mint + reveal** | Yes: manual, % sold, sell-out, datetime, staggered (~10% batches) |
 | **Allowlist / public mint** | Yes |
 | **Gift mint to another wallet** | Yes (milestone or launch toggle) |
-| **Holder lounge / snapshots** | Yes — milestone-driven |
-| **Trait browser / rarity chart** | Yes — milestone-driven |
-| **Treasury floor buyback** | Yes — uses buyback treasury USD balance |
-| **Holder fee claims** | Yes — pro-rata by NFT count at distribution snapshot |
-| **Referral bonus boost** | Partial — milestone sets **14-day** boost window; **no % defined in code** |
-| **Bundle mint discount** | Partial — flag only; **no discount % implemented** |
-| **Discord role sync / SPL airdrop** | Partial — milestone flags (pending/backend hooks) |
+| **Holder lounge / snapshots** | Yes: milestone-driven |
+| **Trait browser / rarity chart** | Yes: milestone-driven |
+| **Treasury floor buyback** | Yes: uses buyback treasury USD balance |
+| **Holder fee claims** | Yes: pro-rata by NFT count at distribution snapshot |
+| **Referral bonus boost** | Partial: milestone sets **14-day** boost window; **no % defined in code** |
+| **Bundle mint discount** | Partial: flag only; **no discount % implemented** |
+| **Discord role sync / SPL airdrop** | Partial: milestone flags (pending/backend hooks) |
 
 ---
 
@@ -172,7 +172,7 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 | **Upfront launch storage (est.)** | **~$0.70–$2+** (size-dependent) |
 | **Crypgo launch fee** | **$0** |
 
-**Secondary example — $100 resale, 5% royalty, 100% to creator royalty split:**
+**Secondary example: $100 resale, 5% royalty, 100% to creator royalty split:**
 
 - Crypgo: **$0.50**
 - Royalties: **$5.00**
@@ -196,7 +196,7 @@ Default split constant: `DEFAULT_CREATOR_FEE_SPLIT` in `src/lib/platform-fees.ts
 - **Solana / Metaplex Core only** (not EVM multi-chain)
 - **Secondary checkout is SlicePay-centric** in production (not full crypto-native secondary yet)
 - Some wizard/marketing features (**bundle discount, referral %, SPL mint, USDC direct**) are **partially implemented or flag-only**
-- Fee/royalty routing is largely **in-app ledger + Metaplex metadata** — compare carefully to marketplaces with enforced on-chain royalties
+- Fee/royalty routing is largely **in-app ledger + Metaplex metadata**: compare carefully to marketplaces with enforced on-chain royalties
 
 ---
 

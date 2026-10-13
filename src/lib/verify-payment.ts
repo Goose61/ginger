@@ -96,7 +96,7 @@ export async function verifySolPayment(
     if (!tx?.meta || tx.meta.err) {
       return {
         ok: false,
-        error: "Transaction failed or not found yet — wait a few seconds and contact support if SOL left your wallet",
+        error: "Transaction failed or not found yet. Wait a few seconds and contact support if SOL left your wallet",
       };
     }
 

@@ -2,7 +2,7 @@
 
 ## Changes
 
-- `next.config.ts` — `poweredByHeader: false`
+- `next.config.ts`: `poweredByHeader: false`
 
 Follow-up: wrap API `catch` blocks with a shared `publicError()`.
 

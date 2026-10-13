@@ -7,7 +7,7 @@
 `src/middleware.ts`:
 
 - Production with empty `ALLOWED_ORIGINS` does **not** echo Origin.
-- Production with allowlist only reflects listed origins (else first allowlist entry — not the request origin).
+- Production with allowlist only reflects listed origins (else first allowlist entry: not the request origin).
 - Methods: `GET, POST, PATCH, OPTIONS` (DELETE is used for drafts; browsers may preflight DELETE without it on the allow list). Worth adding `DELETE`.
 - Live scan: foreign origin not allowed on page or static asset.
 
@@ -15,7 +15,7 @@
 
 ## What's at risk
 
-If `ALLOWED_ORIGINS` is unset in a misconfigured production deploy, CORS origin is omitted (fail closed). Local dev reflects any origin — expected.
+If `ALLOWED_ORIGINS` is unset in a misconfigured production deploy, CORS origin is omitted (fail closed). Local dev reflects any origin: expected.
 
 DELETE preflight might fail from a browser on another allowlisted origin; same-origin Next.js fetches are unaffected.
 

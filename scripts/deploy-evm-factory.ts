@@ -108,7 +108,7 @@ function minterPrivateKeyHex(def: EvmNftChainDefinition): Hex {
   const raw = override || (process.env.AVALANCHE_MINTER_KEY ?? "").trim();
   if (!raw) {
     fail(
-      `Set AVALANCHE_MINTER_KEY in .env.local (or EVM_MINTER_KEY_${suffix}) — hex private key that pays deploy gas.`,
+      `Set AVALANCHE_MINTER_KEY in .env.local (or EVM_MINTER_KEY_${suffix}): hex private key that pays deploy gas.`,
     );
   }
   return (raw.startsWith("0x") ? raw : `0x${raw}`) as Hex;
@@ -192,7 +192,7 @@ async function main() {
   console.log(`# EVM_RELAYER_ENABLED_${def.envSuffix}=false`);
   console.log("\nFund this address with POL on Polygon for relayer mints:");
   console.log(account.address);
-  console.log("\nMinter private key stays in .env.local — do not commit or paste in chat.");
+  console.log("\nMinter private key stays in .env.local: do not commit or paste in chat.");
 }
 
 main().catch((e) => {

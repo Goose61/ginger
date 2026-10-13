@@ -11,7 +11,7 @@ export type LaunchCostEstimate = {
   /** Irys byte-price quote (before bundler buffer). */
   irysBaseSol: number;
   irysBundlerBufferSol: number;
-  /** Irys quote + 10% bundler buffer — funded directly from creator wallet. */
+  /** Irys quote + 10% bundler buffer: funded directly from creator wallet. */
   irysTotalSol: number;
   gasSol: number;
   totalSol: number;

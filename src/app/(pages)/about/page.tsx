@@ -10,7 +10,7 @@ import {
   pageMetadata,
 } from "@/lib/seo";
 
-const TITLE = "About Ginger — NFT Marketplace on Solana and Avalanche";
+const TITLE = "About Ginger | NFT Marketplace on Solana and Avalanche";
 const DESCRIPTION =
   "Ginger is an NFT marketplace for launching collections on Solana or Avalanche, minting onto the chain you choose, and reselling in one place. You keep custody in your wallet.";
 

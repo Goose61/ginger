@@ -6,7 +6,7 @@ const Logo: React.FC = () => {
     <Link
       href="/"
       className="inline-flex min-w-0 shrink-0 items-center py-0.5 sm:py-1"
-      aria-label="Ginger — NFT marketplace"
+      aria-label="Ginger | NFT marketplace"
     >
       <Image
         src="/images/ginger-mark.webp"

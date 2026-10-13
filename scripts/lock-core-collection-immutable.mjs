@@ -232,7 +232,7 @@ const collections =
     ? [{ label: "Custom collection", address: process.argv[customIdx + 1].trim() }]
     : DEFAULT_COLLECTIONS;
 
-console.log(`${dryRun ? "DRY RUN" : "EXECUTE"} — lock Core assets with ImmutableMetadata`);
+console.log(`${dryRun ? "DRY RUN" : "EXECUTE"}: lock Core assets with ImmutableMetadata`);
 console.log("Platform:", platformSigner.publicKey);
 console.log("RPC:", rpc);
 console.log("");
@@ -258,13 +258,13 @@ for (const { label, address } of collections) {
     try {
       detail = await fetchAsset(umi, asset.id);
     } catch (err) {
-      console.log(`  ? ${asset.name}: fetch failed — ${err instanceof Error ? err.message : err}`);
+      console.log(`  ? ${asset.name}: fetch failed: ${err instanceof Error ? err.message : err}`);
       failed += 1;
       continue;
     }
 
     if (detail.immutableMetadata) {
-      console.log(`  — ${asset.name}: already immutable`);
+      console.log(` : ${asset.name}: already immutable`);
       skipped += 1;
       continue;
     }

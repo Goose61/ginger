@@ -55,9 +55,9 @@ export function LaunchZipRequirements({ variant }: { variant: Variant }) {
               <>
                 <li>Folder name = trait type; file name (no ext) = trait value</li>
                 <li>Optional weight in the file name: Blue#40.png (value Blue, weight 40)</li>
-                <li>No metadata JSON needed — Ginger writes it from the traits at go-live</li>
+                <li>No metadata JSON needed. Ginger writes it from the traits at go-live</li>
                 <li>PNG with transparency recommended. JPG and WebP work too</li>
-                <li>Root-level images are ignored — use trait folders</li>
+                <li>Root-level images are ignored. Use trait folders</li>
               </>
             )}
           </ul>

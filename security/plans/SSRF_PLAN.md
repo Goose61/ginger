@@ -2,9 +2,9 @@
 
 ## Changes
 
-- `src/app/api/image-thumb/route.ts` — validate `upstream.url` after follow
-- `src/app/api/solana-proxy/route.ts` — rate limit + body cap
-- `src/app/api/slicepay/invoice/route.ts` — redirect allowlist
+- `src/app/api/image-thumb/route.ts`: validate `upstream.url` after follow
+- `src/app/api/solana-proxy/route.ts`: rate limit + body cap
+- `src/app/api/slicepay/invoice/route.ts`: redirect allowlist
 
 ## Verification goals
 

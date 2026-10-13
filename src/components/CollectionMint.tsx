@@ -1705,18 +1705,14 @@ function OwnedListings({
   const owned = collection.tokens.filter(
     (token) => isTokenSold(token, collection) && walletOwnsToken(token.owner, publicKey, evmAddress),
   );
+  if (owned.length === 0) return null;
   return (
     <section className="mt-12">
       <h2 className="text-3xl text-white sm:text-4xl">Your NFTs</h2>
       <p className="mt-2 text-sm text-white/50">
         List a piece you hold, or set a new price to relist it. It stays in your wallet until it sells.
       </p>
-      {owned.length === 0 ? (
-        <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/50">
-          This wallet does not hold any NFTs from {collection.name}.
-        </p>
-      ) : (
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {owned.map((token) => (
             <article key={token.tokenId} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               <button type="button" className="block w-full text-left" onClick={() => onOpen(token)}>
@@ -1766,7 +1762,6 @@ function OwnedListings({
             </article>
           ))}
         </div>
-      )}
     </section>
   );
 }

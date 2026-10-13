@@ -1,4 +1,4 @@
-/** Phantom browse deeplink — opens this page inside Phantom's in-app browser. */
+/** Phantom browse deeplink: opens this page inside Phantom's in-app browser. */
 export { buildPhantomBrowseUrl } from "@/lib/connect-wallets";
 
 export function isMobileDevice(): boolean {

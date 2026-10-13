@@ -4,7 +4,7 @@ import { collectionMarketStats, type CollectionMarketStats } from "./collection-
 import { isStandaloneGiftRecord } from "./gift-bundle";
 import { isHiddenFromMarket } from "./hidden-from-market";
 
-/** Collection fields the Market grid needs — never the full token array. */
+/** Collection fields the Market grid needs: never the full token array. */
 export type MarketCard = {
   id: string;
   slug: string;

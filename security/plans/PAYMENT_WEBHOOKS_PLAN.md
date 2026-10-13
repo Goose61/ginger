@@ -2,8 +2,8 @@
 
 ## Changes
 
-- `src/lib/verify-payment.ts` — recency + transfer instruction
-- `src/app/api/slicepay/webhook/route.ts` — `secretsEqual`
+- `src/lib/verify-payment.ts`: recency + transfer instruction
+- `src/app/api/slicepay/webhook/route.ts`: `secretsEqual`
 
 ## Verification goals
 
@@ -16,5 +16,5 @@
 ## Manual verification (for the human)
 
 1. Pay a small SOL mint on **devnet**; confirm success.
-2. Replay the same signature — rejected.
-3. Replay a funding tx to the platform wallet — rejected.
+2. Replay the same signature: rejected.
+3. Replay a funding tx to the platform wallet: rejected.

@@ -12,7 +12,7 @@ export const GIFT_EXTERNAL_URL = "https://gingernft.store";
 export const GIFT_DESCRIPTION =
   "A 1/1 $PIZZA collectible from Dough Boi. Minted on Solana.";
 
-/** App / bundle display label — not written into Arweave JSON. */
+/** App / bundle display label: not written into Arweave JSON. */
 export const GIFT_COLLECTION_DISPLAY_NAME = "Dough Boi";
 
 const SPAM_WORDS = /\b(gifts?|airdrop|free|claim|winner)\b/gi;
@@ -183,7 +183,7 @@ export function mergeCustomGiftMetadata(
   return JSON.stringify(merged, null, 2);
 }
 
-/** Build final metadata JSON — custom file or generated defaults. */
+/** Build final metadata JSON: custom file or generated defaults. */
 export function buildGiftMetadataForUpload(
   params: GiftMetadataParams,
   custom?: Record<string, unknown> | null,

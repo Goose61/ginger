@@ -24,7 +24,7 @@ SOL verification still does not bind **sender** to `body.payer`.
 
 ### Demo path
 
-`method: "demo"` is rejected when SlicePay is configured (`slicePayConfigured()` is true whenever merchant id is non-empty — always, via default merchant id).
+`method: "demo"` is rejected when SlicePay is configured (`slicePayConfigured()` is true whenever merchant id is non-empty: always, via default merchant id).
 
 ## What's at risk
 

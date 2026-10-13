@@ -1,5 +1,5 @@
 /**
- * Mainnet smoke test — platform wallet → Jupiter → creator treasury (minimal SOL).
+ * Mainnet smoke test: platform wallet → Jupiter → creator treasury (minimal SOL).
  *
  * Cheapest path (buyback only, ~$0.10):
  *   1. node scripts/create-mainnet-smoke-wallet.mjs   (optional; mint mode only)
@@ -32,7 +32,7 @@ const ROOT = path.resolve(process.cwd());
 const PAYER_PATH = path.join(ROOT, ".mainnet-smoke-wallet.json");
 const BASE = (process.env.BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const RPC = process.env.SOLANA_RPC_URL_MAINNET ?? "https://api.mainnet.solana.com";
-/** USDC — always routable on Jupiter mainnet. */
+/** USDC: always routable on Jupiter mainnet. */
 const SMOKE_BUYBACK_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SMOKE_BUYBACK_USD = 0.1;
 const MIN_PLATFORM_SOL = 0.008;
@@ -177,7 +177,7 @@ async function runPlan(collectionId: string) {
 
   const collection = await loadCollection(collectionId);
   const platform = getMintPaymentRecipient();
-  if (!platform) fail("ARWEAVE_SOLANA_KEY missing — platform wallet not configured");
+  if (!platform) fail("ARWEAVE_SOLANA_KEY missing: platform wallet not configured");
 
   const creator = collection.payments.creatorWallet?.trim();
   if (!creator) fail("Collection has no creatorWallet");
@@ -199,7 +199,7 @@ async function runPlan(collectionId: string) {
   const payer = loadPayer();
 
   console.log("\n═══════════════════════════════════════════════════════════");
-  console.log(" MAINNET SMOKE TEST — funding plan (minimal amounts)");
+  console.log(" MAINNET SMOKE TEST: funding plan (minimal amounts)");
   console.log("═══════════════════════════════════════════════════════════\n");
   console.log(`Server:     ${BASE}`);
   console.log(`Collection: ${collection.name} (${collection.id})`);
@@ -224,18 +224,18 @@ async function runPlan(collectionId: string) {
         `   Send:     ${MINT_BUFFER_SOL} SOL  (mint ~${mintQuoteSol.toFixed(6)} SOL for $${cheapestUsd} + fees)`,
       );
     } else {
-      console.log("   Note:     collection sold out — skip mint test, use --buyback only");
+      console.log("   Note:     collection sold out: skip mint test, use --buyback only");
     }
     console.log("   Why:      pays platform on mint; platform disburses creator + buyback\n");
   } else {
-    console.log("2) PAYER wallet (optional — only for --mint)");
+    console.log("2) PAYER wallet (optional: only for --mint)");
     console.log("   Run:      node scripts/create-mainnet-smoke-wallet.mjs");
     console.log(`   Send:     ${MINT_BUFFER_SOL} SOL to the new address\n`);
   }
 
   console.log("3) CREATOR / treasury wallet");
   console.log(`   Address:  ${treasury}`);
-  console.log("   Send:     0 SOL — receives USDC from buyback automatically\n");
+  console.log("   Send:     0 SOL: receives USDC from buyback automatically\n");
 
   console.log("── Commands (after funding platform) ──\n");
   console.log(`  npm run smoke:mainnet:setup -- --collection ${collectionId}`);
@@ -295,11 +295,11 @@ async function runMint(collectionId: string) {
   await assertMainnetServer();
 
   const payer = loadPayer();
-  if (!payer) fail("No .mainnet-smoke-wallet.json — run: node scripts/create-mainnet-smoke-wallet.mjs");
+  if (!payer) fail("No .mainnet-smoke-wallet.json: run: node scripts/create-mainnet-smoke-wallet.mjs");
 
   const collection = await loadCollection(collectionId);
   const available = (collection.tokens ?? []).find((t) => !t.owner && !t.reservedBy);
-  if (!available) fail("No unminted tokens — use --buyback only");
+  if (!available) fail("No unminted tokens: use --buyback only");
 
   const { nftPrice } = await import("../src/lib/collection-ui");
   const { getMintPaymentRecipient } = await import("../src/lib/platform-disbursement");
@@ -365,7 +365,7 @@ async function runMint(collectionId: string) {
   }
 
   if (!buyback?.purchased) {
-    fail("Mint succeeded but buyback did not run — check buybackTokenCa and platform SOL");
+    fail("Mint succeeded but buyback did not run: check buybackTokenCa and platform SOL");
   }
   console.log("\n✅ Full mainnet mint → platform → creator + Jupiter buyback passed\n");
 }

@@ -123,7 +123,7 @@ bundle.updatedAt = now;
 delete bundle.pendingMint;
 
 if (dryRun) {
-  console.log(`Dry run — would merge ${standalone.length} records into bundle (${tokens.length} tokens total).`);
+  console.log(`Dry run: would merge ${standalone.length} records into bundle (${tokens.length} tokens total).`);
   await client.close();
   process.exit(0);
 }

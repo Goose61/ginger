@@ -67,7 +67,7 @@ async function main() {
     );
   } else {
     console.warn(
-      `WARNING: ${BUYBACK_TOKEN_CA} is not a mainnet account — Jupiter buyback may fail unless this is the correct SPL mint.`,
+      `WARNING: ${BUYBACK_TOKEN_CA} is not a mainnet account: Jupiter buyback may fail unless this is the correct SPL mint.`,
     );
   }
 }

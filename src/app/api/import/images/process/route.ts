@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-/** Heavy ZIP → images import — returns immediately; job runs for up to 5 minutes. */
+/** Heavy ZIP → images import: returns immediately; job runs for up to 5 minutes. */
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { collectionId?: string };

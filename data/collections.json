@@ -2,7 +2,7 @@
   {
     "id": "63e44ab3-47ec-4ab9-b395-b31f8340377e",
     "slug": "dough-boi-devnet-test",
-    "name": "Dough Boi — Devnet Test",
+    "name": "Dough Boi | Devnet Test",
     "symbol": "DOUGH",
     "description": "25-piece devnet test collection. Proof that the launch, mint, and market stack works end-to-end.",
     "nameTemplate": "Dough Boi #{id}",

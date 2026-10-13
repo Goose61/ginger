@@ -1,6 +1,6 @@
 /**
- * Client-safe helpers derived from MarketCard. No DB / next/cache imports here —
- * these are shared by server components, API routes and client UI alike.
+ * Client-safe helpers derived from MarketCard. No DB / next/cache imports here.
+ * These are shared by server components, API routes and client UI alike.
  */
 import type { MarketCard } from "./market-card";
 
@@ -35,7 +35,7 @@ export function marketStatus(
   return "minting";
 }
 
-/** Slim payload for the global search dialog — no tokens, no attributes. */
+/** Slim payload for the global search dialog: no tokens, no attributes. */
 export type SearchItem = {
   id: string;
   slug: string;

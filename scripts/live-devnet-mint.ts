@@ -67,7 +67,7 @@ function loadEnvLocal() {
 
 function loadWallet() {
   if (!fs.existsSync(WALLET_PATH)) {
-    fail("No .devnet-wallet.json — run npm run create:devnet-wallet first");
+    fail("No .devnet-wallet.json: run npm run create:devnet-wallet first");
   }
   const raw = JSON.parse(fs.readFileSync(WALLET_PATH, "utf8")) as {
     publicKey: string;
@@ -305,7 +305,7 @@ async function main() {
 
   let mintTx = "";
   if (requiresOnChainMint) {
-    console.log("  on-chain mint required — preparing tx");
+    console.log("  on-chain mint required: preparing tx");
     const prep = await api("/api/gift/prepare-sign", {
       method: "POST",
       body: JSON.stringify({ collectionId: collection.id, payer, network: "devnet" }),

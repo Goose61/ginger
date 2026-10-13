@@ -1,11 +1,11 @@
 # Ginger Security Assessment Report
 
 **Assessment type:** Level A (structured self-assessment) + Level B (automated tooling + manual code review)  
-**Product:** Ginger NFT marketplace — https://www.gingernft.store  
+**Product:** Ginger NFT marketplace: https://www.gingernft.store  
 **Repository:** `github.com/Goose61/ginger`  
 **Commit assessed:** `974734c` (main)  
 **Report date:** 29 September 2026  
-**Assessor:** Ginger engineering (internal — not an independent third-party audit)
+**Assessor:** Ginger engineering (internal: not an independent third-party audit)
 
 ---
 
@@ -57,7 +57,7 @@ Ginger is a Next.js marketplace on Vercel that mints **Metaplex Core** NFTs on S
 - Solana validator / RPC provider security
 - MongoDB Atlas physical infrastructure
 - Formal smart-contract audit (Metaplex Core is standard; custom economics are app-layer)
-- Compressed NFTs (Bubblegum) — not implemented
+- Compressed NFTs (Bubblegum): not implemented
 
 ---
 
@@ -85,7 +85,7 @@ Collector/Creator wallet
   Ginger web (Vercel)
         ├── MongoDB (collections, invoices, feedback)
         ├── Platform wallet (co-sign mints, treasury ops)
-        ├── Arweave/Irys (permanent metadata — creator/minter paid)
+        ├── Arweave/Irys (permanent metadata: creator/minter paid)
         └── SlicePay hosted checkout (card/USDC)
                 │
                 ▼
@@ -100,20 +100,20 @@ Collector/Creator wallet
 
 | ID | Severity | Domain | Finding | Status |
 |----|----------|--------|---------|--------|
-| PAY-01 | Critical | SOL payments | Historical balance-delta accepted as mint payment (replay) | **Fixed** — transfer + recency check |
-| PAY-02 | High | SlicePay | Invoice not bound to collection/token/payer | **Fixed** — `32a7095` |
-| PAY-03 | High | SlicePay webhook | Trusted webhook body without API re-verify | **Fixed** — `confirmInvoicePaidFromSlicePay` |
-| PAY-04 | Medium | SlicePay status | Public status leaked invoice metadata | **Fixed** — minimal response + rate limit |
-| AC-01 | High | Access control | Unauthenticated buyback / holder reward spend | **Fixed** — creator auth required |
-| AC-02 | High | IDOR | Draft collections readable by UUID | **Fixed** — 404 unless creator |
-| AC-03 | High | IDOR | Nav API listed all drafts | **Fixed** — live/sold_out only |
-| AC-04 | Medium | Allowlist | Unsigned `payer` field can bypass allowlist | **Open** — bind to wallet signature |
-| SEC-01 | High | Secrets | Platform key in local env (rotation if exposed) | **Operational** — not in git |
-| SEC-02 | Medium | MongoDB | Atlas `0.0.0.0/0` network access | **Accepted** — standard for Vercel |
+| PAY-01 | Critical | SOL payments | Historical balance-delta accepted as mint payment (replay) | **Fixed**: transfer + recency check |
+| PAY-02 | High | SlicePay | Invoice not bound to collection/token/payer | **Fixed**: `32a7095` |
+| PAY-03 | High | SlicePay webhook | Trusted webhook body without API re-verify | **Fixed**: `confirmInvoicePaidFromSlicePay` |
+| PAY-04 | Medium | SlicePay status | Public status leaked invoice metadata | **Fixed**: minimal response + rate limit |
+| AC-01 | High | Access control | Unauthenticated buyback / holder reward spend | **Fixed**: creator auth required |
+| AC-02 | High | IDOR | Draft collections readable by UUID | **Fixed**: 404 unless creator |
+| AC-03 | High | IDOR | Nav API listed all drafts | **Fixed**: live/sold_out only |
+| AC-04 | Medium | Allowlist | Unsigned `payer` field can bypass allowlist | **Open**: bind to wallet signature |
+| SEC-01 | High | Secrets | Platform key in local env (rotation if exposed) | **Operational**: not in git |
+| SEC-02 | Medium | MongoDB | Atlas `0.0.0.0/0` network access | **Accepted**: standard for Vercel |
 | WEB-01 | Medium | Headers | CSP gaps, `X-Powered-By` | **Fixed** |
 | WEB-02 | Medium | SSRF | Image thumb followed off-allowlist redirects | **Fixed** |
-| WEB-03 | Medium | Rate limit | Spoofable `X-Forwarded-For` | **Fixed** — Vercel-trusted IP |
-| DEP-01 | Medium | Dependencies | Transitive highs in Solana/wallet stack | **Open** — monitor upgrades |
+| WEB-03 | Medium | Rate limit | Spoofable `X-Forwarded-For` | **Fixed**: Vercel-trusted IP |
+| DEP-01 | Medium | Dependencies | Transitive highs in Solana/wallet stack | **Open**: monitor upgrades |
 | CHN-01 | Info | On-chain | Metaplex Core only; no cNFT support | **By design** |
 
 Detailed per-domain notes remain in [`security/reports/`](reports/) and remediation plans in [`security/plans/`](plans/).
@@ -122,14 +122,14 @@ Detailed per-domain notes remain in [`security/reports/`](reports/) and remediat
 
 ## Controls verified
 
-- **No secrets in client bundle** — sensitive env vars are server-only
-- **No SQL** — MongoDB structured queries; no string-built queries
-- **CSRF** — JSON APIs + wallet auth; no session cookies on public pages
-- **CORS** — not wildcard; `ALLOWED_ORIGINS` on production
-- **File uploads** — magic-byte validation, size caps on logos
-- **Demo mint path** — disabled when SlicePay merchant configured
-- **Immutable metadata** — default on Core mints (`b49a584`)
-- **Production webhook** — fails closed without `SLICEPAY_WEBHOOK_SECRET`
+- **No secrets in client bundle**: sensitive env vars are server-only
+- **No SQL**: MongoDB structured queries; no string-built queries
+- **CSRF**: JSON APIs + wallet auth; no session cookies on public pages
+- **CORS**: not wildcard; `ALLOWED_ORIGINS` on production
+- **File uploads**: magic-byte validation, size caps on logos
+- **Demo mint path**: disabled when SlicePay merchant configured
+- **Immutable metadata**: default on Core mints (`b49a584`)
+- **Production webhook**: fails closed without `SLICEPAY_WEBHOOK_SECRET`
 
 ---
 
@@ -155,17 +155,17 @@ Most highs trace to **`bigint-buffer`** / Solana transitive chain. Next.js upgra
 3. Verify Resend domain + `RESEND_API_KEY` for feedback email
 4. Re-run live header scan after deploy
 5. Two-wallet IDOR test on mint / secondary / gift flows
-6. Replay old SOL tx against mint — must reject (402)
+6. Replay old SOL tx against mint: must reject (402)
 
 ---
 
 ## Residual risks & roadmap
 
-1. **Allowlist payer binding** — recommend wallet-signed payer before allowlist check
-2. **Independent pentest** — scheduled when moving beyond public beta
-3. **Dependency churn** — ongoing `npm audit` review
-4. **Platform wallet** — operational SOL; compromise affects co-sign + treasury
-5. **Beta status** — features and economics still evolving; use at own risk
+1. **Allowlist payer binding**: recommend wallet-signed payer before allowlist check
+2. **Independent pentest**: scheduled when moving beyond public beta
+3. **Dependency churn**: ongoing `npm audit` review
+4. **Platform wallet**: operational SOL; compromise affects co-sign + treasury
+5. **Beta status**: features and economics still evolving; use at own risk
 
 ---
 
@@ -173,7 +173,7 @@ Most highs trace to **`bigint-buffer`** / Solana transitive chain. Next.js upgra
 
 | Date | Commit | Change |
 |------|--------|--------|
-| 2026-09-21 | — | Initial vibe-check audit (`AUDIT_SUMMARY.md`) |
+| 2026-09-21 | n/a | Initial vibe-check audit (`AUDIT_SUMMARY.md`) |
 | 2026-09-28 | `32a7095` | SlicePay fulfillment hardening |
 | 2026-09-29 | `974734c` | Consolidated public assessment (this report) |
 

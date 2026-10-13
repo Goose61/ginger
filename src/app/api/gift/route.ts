@@ -1,6 +1,6 @@
 /**
- * POST /api/gift  — build Bubblegum V2 (cNFT) mint tx from client-uploaded Arweave URIs
- * PATCH /api/gift — confirm on-chain mint after wallet signature
+ * POST /api/gift : build Bubblegum V2 (cNFT) mint tx from client-uploaded Arweave URIs
+ * PATCH /api/gift: confirm on-chain mint after wallet signature
  *
  * Each gift appends a token to the shared gift bundle collection (Market UI).
  */

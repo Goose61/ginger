@@ -97,7 +97,7 @@ export function coverImageSrc(collection: Collection) {
   return thumbSrc(tokenImageSrc(collection, token), 640);
 }
 
-/** Sold = minted or held in an active checkout — never inferred from mintedCount order alone. */
+/** Sold = minted or held in an active checkout: never inferred from mintedCount order alone. */
 export function isTokenSold(token: GeneratedToken, collection: Collection) {
   return tokenIsCommitted(token, collection);
 }

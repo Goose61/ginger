@@ -159,7 +159,7 @@ export type FeeSplit = {
   ownerPercent: number;
   holdersPercent: number;
   buybackPercent: number;
-  /** @deprecated Fixed platform fees — see platform-fees.ts. Kept for legacy records; always 0. */
+  /** @deprecated Fixed platform fees: see platform-fees.ts. Kept for legacy records; always 0. */
   platformPercent?: number;
   locked: boolean;
 };

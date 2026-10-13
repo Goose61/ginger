@@ -90,7 +90,7 @@ export function getAvalancheL1RpcUrl(from?: EnvLike): string {
 
 /**
  * Fuji uses the C-Chain ICNFTT stub. Mainnet L1 minting requires a dedicated
- * L1 RPC — never the C-Chain URL, which would double-mint on C-Chain.
+ * L1 RPC: never the C-Chain URL, which would double-mint on C-Chain.
  */
 export function avalancheL1MintEnabled(from?: EnvLike): boolean {
   const e = from ?? env();

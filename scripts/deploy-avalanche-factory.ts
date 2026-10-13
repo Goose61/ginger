@@ -181,7 +181,7 @@ async function main() {
   console.log(`AVALANCHE_FACTORY_ADDRESS=${factoryAddr}`);
   if (remoteAddr) console.log(`AVALANCHE_L1_REMOTE_ADDRESS=${remoteAddr}`);
   console.log(`AVALANCHE_PLATFORM_WALLET=${account.address}`);
-  console.log("\nAVALANCHE_MINTER_KEY is already in .env.local — leave it there, do not paste it in the shell.");
+  console.log("\nAVALANCHE_MINTER_KEY is already in .env.local: leave it there, do not paste it in the shell.");
 }
 
 main().catch((e) => {

@@ -26,7 +26,7 @@ function pickEnv(...values: (string | undefined)[]): string | undefined {
   return undefined;
 }
 
-/** Active cluster — defaults to devnet when unset (safer for testing). */
+/** Active cluster: defaults to devnet when unset (safer for testing). */
 export function getSolanaNetwork(from?: EnvLike): SolanaNetwork {
   const e = from ?? env();
   // Server runtime: prefer SOLANA_NETWORK. Browser: prefer NEXT_PUBLIC_*.
@@ -43,7 +43,7 @@ export function parseNetwork(value: unknown): SolanaNetwork {
 }
 
 /**
- * Server-side treasury/payment operations always follow SOLANA_NETWORK — never
+ * Server-side treasury/payment operations always follow SOLANA_NETWORK: never
  * trust the client hint alone (defaults to devnet and would skip Jupiter).
  */
 export function serverNetwork(clientHint?: unknown): SolanaNetwork {
@@ -78,7 +78,7 @@ export function getRpcUrl(network?: SolanaNetwork, from?: EnvLike): string {
   );
 }
 
-/** Direct cluster RPC URL — server-side only. Browser code must use getRpcUrl() (proxy). */
+/** Direct cluster RPC URL: server-side only. Browser code must use getRpcUrl() (proxy). */
 export function getDirectRpcUrl(network?: SolanaNetwork, from?: EnvLike): string {
   const e = from ?? env();
   const net = network ?? getSolanaNetwork(e);
@@ -115,7 +115,7 @@ let clientNetworkCache: SolanaNetwork | null = null;
 let clientNetworkPromise: Promise<SolanaNetwork> | null = null;
 
 /**
- * Cluster the live server is configured for — fetched at runtime from /api/network.
+ * Cluster the live server is configured for: fetched at runtime from /api/network.
  * Prefer this over getSolanaNetwork() in browser code so Vercel env changes apply
  * without rebuilding (NEXT_PUBLIC_* is inlined at build time).
  */

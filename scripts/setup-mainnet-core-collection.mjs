@@ -120,7 +120,7 @@ const secret = rawKey.trim().startsWith("[")
 const keypair = Keypair.fromSecretKey(secret);
 const pubkey = keypair.publicKey.toBase58();
 
-console.log("=== Dough Boi — Mainnet Core Collection Setup ===\n");
+console.log("=== Dough Boi | Mainnet Core Collection Setup ===\n");
 console.log(`Platform wallet (update authority): ${pubkey}`);
 console.log(`Mainnet RPC: ${rpc}\n`);
 
@@ -136,7 +136,7 @@ if (balance < MIN_BALANCE_LAMPORTS) {
 }
 
 if (dryRun) {
-  console.log("\n✓ Dry run OK — wallet funded, ready to create collection.");
+  console.log("\n✓ Dry run OK: wallet funded, ready to create collection.");
   process.exit(0);
 }
 

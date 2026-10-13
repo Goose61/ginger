@@ -184,7 +184,7 @@ export function WalletMenu({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      /* clipboard blocked — no-op */
+      /* clipboard blocked: no-op */
     }
   };
 

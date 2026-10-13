@@ -4,7 +4,7 @@ import { getAddress, hexToBytes, isAddress, recoverMessageAddress } from "viem";
 import { getAvalancheChainId } from "./avalanche-config";
 
 const AUTH_PREFIX = "Dough Boi Auth: ";
-/** Long uploads (600+ Arweave files) can run 60–90+ minutes — keep auth valid for the session. */
+/** Long uploads (600+ Arweave files) can run 60–90+ minutes: keep auth valid for the session. */
 export const AUTH_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 const MAX_AGE_MS = AUTH_MAX_AGE_MS;
 

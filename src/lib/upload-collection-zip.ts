@@ -1,4 +1,4 @@
-/** Upload a collection ZIP — uses Vercel Blob client for files >4MB (serverless body limit). */
+/** Upload a collection ZIP: uses Vercel Blob client for files >4MB (serverless body limit). */
 
 import { readJsonResponse } from "./fetch-json";
 import type { CollectionUploadProgressState } from "@/components/CollectionUploadProgress";

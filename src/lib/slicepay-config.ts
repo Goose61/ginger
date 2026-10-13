@@ -1,7 +1,7 @@
 /**
- * SlicePay hosted checkout — https://slicechain.io/website-pay-widget/
+ * SlicePay hosted checkout: https://slicechain.io/website-pay-widget/
  *
- * merchantId is public (checkout URLs / embed). apiKey is secret — server-only;
+ * merchantId is public (checkout URLs / embed). apiKey is secret: server-only;
  * gateway create-invoice and payment-status require it.
  */
 
@@ -59,7 +59,7 @@ export function slicePayCheckoutInvoiceUrl(invoiceId: string): string {
   return url.toString();
 }
 
-/** Option B — hosted URL with cart params (amount can be edited in the browser). */
+/** Option B: hosted URL with cart params (amount can be edited in the browser). */
 export function slicePayHostedCheckoutUrl(params: {
   merchantId: string;
   amountUsd: number;

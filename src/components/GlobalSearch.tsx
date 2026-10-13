@@ -45,7 +45,7 @@ function pushRecent(id: string) {
     const next = [id, ...readRecents().filter((v) => v !== id)].slice(0, MAX_RECENT);
     window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
   } catch {
-    /* private mode / SSR — ignore */
+    /* private mode / SSR: ignore */
   }
 }
 

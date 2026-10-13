@@ -17,7 +17,7 @@ function sharpLoads() {
 }
 
 if (!sharpLoads()) {
-  console.log("[postinstall] sharp missing — rebuilding optional native bindings…");
+  console.log("[postinstall] sharp missing: rebuilding optional native bindings…");
   execSync("npm rebuild sharp --include=optional", { stdio: "inherit" });
 }
 

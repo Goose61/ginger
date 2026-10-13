@@ -101,7 +101,7 @@ export function WalletConnectModal({ open, onOpenChange, excludeWalletIds }: Pro
     const w = matchWallet(adapterNames);
     if (!w) return false;
     if (w.readyState === WalletReadyState.Installed) return true;
-    // On mobile Safari/Chrome, Loadable wallets need the in-app browser — not adapter connect.
+    // On mobile Safari/Chrome, Loadable wallets need the in-app browser: not adapter connect.
     if (mobile && !isInWalletBrowser(id)) return false;
     return w.readyState === WalletReadyState.Loadable;
   }
@@ -114,7 +114,7 @@ export function WalletConnectModal({ open, onOpenChange, excludeWalletIds }: Pro
     const installed = w?.readyState === WalletReadyState.Installed;
     const inApp = isInWalletBrowser(id);
 
-    // MetaMask on mobile: external browsers cannot complete connect — open in-app dapp browser.
+    // MetaMask on mobile: external browsers cannot complete connect: open in-app dapp browser.
     if (mobile && pageUrl && id === "metamask" && !inApp) {
       openWalletBrowseUrl(id, pageUrl);
       return;

@@ -12,7 +12,7 @@ Notable:
 
 | Package | Severity | Notes |
 |---------|----------|--------|
-| `next` 15.5.23 | critical | Windows-hosted unauthenticated RCE (this app is Linux/Vercel — lower practical risk, still patch) |
+| `next` 15.5.23 | critical | Windows-hosted unauthenticated RCE (this app is Linux/Vercel: lower practical risk, still patch) |
 | `protobufjs` | critical | Transitive via Trezor (`@solana/wallet-adapter-wallets`) |
 | `sharp` | high | libvips CVEs in 2026 advisories |
 | `bigint-buffer` | high | Overflow in `@solana/buffer-layout-utils` chain |

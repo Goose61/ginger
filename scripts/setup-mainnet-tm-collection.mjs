@@ -180,7 +180,7 @@ const secret = rawKey.trim().startsWith("[")
 const keypair = Keypair.fromSecretKey(secret);
 const pubkey = keypair.publicKey.toBase58();
 
-console.log("=== Dough Boi — Mainnet Token Metadata Collection Setup ===\n");
+console.log("=== Dough Boi | Mainnet Token Metadata Collection Setup ===\n");
 console.log(`Platform wallet (update authority): ${pubkey}`);
 console.log(`Mainnet RPC: ${rpc}\n`);
 
@@ -197,7 +197,7 @@ if (balance < MIN_BALANCE_LAMPORTS) {
 }
 
 if (dryRun) {
-  console.log("\n✓ Dry run OK — wallet funded, ready to create TM collection.");
+  console.log("\n✓ Dry run OK: wallet funded, ready to create TM collection.");
   process.exit(0);
 }
 
@@ -213,7 +213,7 @@ if (skipUpload) {
     console.error("\n❌ --skip-upload requires GIFT_COLLECTION_URI in .env.local or --uri=<arweave-url>");
     process.exit(1);
   }
-  console.log(`   Skipping upload — reusing metadata: ${metadataUri}`);
+  console.log(`   Skipping upload: reusing metadata: ${metadataUri}`);
 } else {
   const logoPath = path.join(process.cwd(), "public/images/logo/logo.svg");
   if (!fs.existsSync(logoPath)) {

@@ -35,7 +35,7 @@ function getBackpack(): BackpackProvider | null {
 
 export const BackpackWalletName = "Backpack" as WalletName<"Backpack">;
 
-/** Desktop Backpack extension — Wallet Standard also auto-detects it when installed. */
+/** Desktop Backpack extension: Wallet Standard also auto-detects it when installed. */
 export class BackpackWalletAdapter extends BaseMessageSignerWalletAdapter {
   name = BackpackWalletName;
   url = "https://backpack.app";

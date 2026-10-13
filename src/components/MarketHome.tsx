@@ -25,7 +25,7 @@ export async function MarketHome() {
   try {
     ({ live, listings, giftBundle } = await getMarketCards());
     // If Mongo timed out during a background revalidate, Next may serve a poisoned
-    // empty cache entry — refetch once uncached before rendering an empty market.
+    // empty cache entry: refetch once uncached before rendering an empty market.
     if (live.length === 0) {
       const fresh = await getMarketCardsFresh();
       if (fresh.live.length > 0) {

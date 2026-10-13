@@ -12,4 +12,4 @@ None required for a launch blocker. Follow-up: magic-byte check in `import-image
 
 ## Manual verification (for the human)
 
-Upload a 15 MB logo — 413. Upload a real PNG — 200.
+Upload a 15 MB logo: 413. Upload a real PNG: 200.

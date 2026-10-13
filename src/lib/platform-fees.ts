@@ -1,6 +1,6 @@
 /**
  * Fixed Ginger marketplace fees (not creator-configurable).
- * SlicePay / checkout processor costs are absorbed by the platform — never passed to buyers or creators.
+ * SlicePay / checkout processor costs are absorbed by the platform: never passed to buyers or creators.
  */
 
 /** Primary mint platform fee (% of mint price). */

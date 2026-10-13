@@ -1,7 +1,7 @@
 /**
  * Unified file storage layer.
  *
- * Production (BLOB_READ_WRITE_TOKEN set):  uses Vercel Blob — public CDN URLs.
+ * Production (BLOB_READ_WRITE_TOKEN set):  uses Vercel Blob: public CDN URLs.
  * Development (no token):                  writes to data/staging/ and returns
  *                                          /api/assets-blob/<pathname> URLs.
  */

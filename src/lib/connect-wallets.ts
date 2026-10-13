@@ -131,7 +131,7 @@ export function mustOpenWalletInAppBrowser(id: WalletOptionId): boolean {
 
 /**
  * Opens the current page in a wallet's in-app browser.
- * Must run synchronously inside a user click — universal links fail when
+ * Must run synchronously inside a user click: universal links fail when
  * triggered from async callbacks (Safari / iOS).
  */
 export function openWalletBrowseUrl(id: WalletOptionId, pageUrl: string): void {

@@ -98,8 +98,8 @@ function loadPayer(network: "devnet" | "mainnet"): Keypair {
   if (!fs.existsSync(file)) {
     fail(
       network === "mainnet"
-        ? "No .mainnet-smoke-wallet.json — run: npm run create:mainnet-smoke-wallet"
-        : "No .devnet-wallet.json — run: npm run create:devnet-wallet",
+        ? "No .mainnet-smoke-wallet.json: run: npm run create:mainnet-smoke-wallet"
+        : "No .devnet-wallet.json: run: npm run create:devnet-wallet",
     );
   }
   const raw = JSON.parse(fs.readFileSync(file, "utf8")) as { secretKeyBase58: string };

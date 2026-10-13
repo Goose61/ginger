@@ -19,7 +19,7 @@ export function collectionLayersDir(id: string) {
   return path.join(LAYERS_DIR, id);
 }
 
-// /tmp paths — writable on Vercel serverless, ephemeral per invocation
+// /tmp paths: writable on Vercel serverless, ephemeral per invocation
 export function tmpCollectionDir(id: string) {
   return path.join("/tmp", "staging", id);
 }

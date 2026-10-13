@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Update Token Metadata collection NFT (parent) — Phantom uses its on-chain name
+ * Update Token Metadata collection NFT (parent): Phantom uses its on-chain name
  * as the primary Collectibles group label and may spam-score the whole collection.
  *
  * Usage: node scripts/update-tm-collection-metadata.mjs [--dry-run]
@@ -178,7 +178,7 @@ console.log("Old URI:", oldUri);
 console.log("Old off-chain name:", oldJson.name, "→", newJson.name);
 
 if (dryRun) {
-  console.log("Dry run — would upload and update on-chain.");
+  console.log("Dry run: would upload and update on-chain.");
   process.exit(0);
 }
 

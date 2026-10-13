@@ -4,9 +4,9 @@
 
 Already in this audit:
 
-- `src/app/api/collections/route.ts` — nav filter; strip privileged POST fields; freeze live tokens
-- `src/app/api/collections/[id]/route.ts` — draft GET auth; buyback/distribute auth
-- `src/lib/upload-collection-zip.ts`, LaunchWizard — pass auth when polling imports
+- `src/app/api/collections/route.ts`: nav filter; strip privileged POST fields; freeze live tokens
+- `src/app/api/collections/[id]/route.ts`: draft GET auth; buyback/distribute auth
+- `src/lib/upload-collection-zip.ts`, LaunchWizard: pass auth when polling imports
 
 Still open:
 
@@ -21,6 +21,6 @@ Still open:
 
 ## Manual verification (for the human)
 
-1. Create draft as wallet A; GET `/api/collections/{id}` logged out — 404.
-2. Wallet B with A’s collection id, signed as B — 404/401.
-3. Allowlist-only drop: pay as B while setting payer to A — should fail after the remaining fix.
+1. Create draft as wallet A; GET `/api/collections/{id}` logged out: 404.
+2. Wallet B with A’s collection id, signed as B: 404/401.
+3. Allowlist-only drop: pay as B while setting payer to A: should fail after the remaining fix.

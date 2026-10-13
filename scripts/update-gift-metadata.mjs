@@ -165,7 +165,7 @@ async function updateMint({ umi, rpc, uploader, platformSigner, mint, dryRun }) 
     );
   }
   if (!onChain.isMutable) {
-    throw new Error(`Metadata for ${mint} is immutable — cannot update URI`);
+    throw new Error(`Metadata for ${mint} is immutable: cannot update URI`);
   }
 
   const res = await fetch(oldUri);
@@ -191,7 +191,7 @@ async function updateMint({ umi, rpc, uploader, platformSigner, mint, dryRun }) 
   );
 
   if (dryRun) {
-    console.log("Dry run — no upload or on-chain update.");
+    console.log("Dry run: no upload or on-chain update.");
     return null;
   }
 

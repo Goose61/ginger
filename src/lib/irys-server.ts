@@ -302,7 +302,7 @@ async function buildSignedDataItem(
   return { item, id };
 }
 
-/** Upload to Arweave via platform Irys wallet — no browser wallet signatures. */
+/** Upload to Arweave via platform Irys wallet: no browser wallet signatures. */
 export async function uploadToArweaveServer(
   data: Buffer,
   contentType: string,

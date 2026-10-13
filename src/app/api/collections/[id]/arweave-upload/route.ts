@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    /** Creator-funded Irys balance — server signs bytes, creator pays via Irys approval. */
+    /** Creator-funded Irys balance: server signs bytes, creator pays via Irys approval. */
     const paidBy = auth.wallet;
 
     const uploaded: Record<number, { imageUri: string; metadataUri: string }> = {};

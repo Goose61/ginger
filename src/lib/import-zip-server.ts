@@ -22,7 +22,7 @@ export function isBlobZipUrl(url: string): boolean {
   }
 }
 
-/** Stream a ZIP to disk — avoids loading large archives into memory. */
+/** Stream a ZIP to disk: avoids loading large archives into memory. */
 export async function downloadZipToTempFile(zipUrl: string): Promise<string> {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "zip-import-"));
   const tmpPath = path.join(tmpDir, "upload.zip");
@@ -154,7 +154,7 @@ export async function readZipTextEntry(zipPath: string, targetName: string): Pro
   return buf ? buf.toString("utf8") : null;
 }
 
-/** Read images one at a time — single ZIP pass, flat memory for large collections. */
+/** Read images one at a time: single ZIP pass, flat memory for large collections. */
 export async function readZipImagesSequential(
   zipPath: string,
   images: ZipImageEntry[],
@@ -214,7 +214,7 @@ export async function readZipImagesSequential(
   });
 }
 
-/** Read full ZIP into memory — used by layer parse (smaller archives). */
+/** Read full ZIP into memory: used by layer parse (smaller archives). */
 export async function loadZipBufferFromImportForm(form: FormData): Promise<Buffer> {
   const zipUrl = String(form.get("zipUrl") || "").trim();
   const file = form.get("file");
@@ -236,7 +236,7 @@ export async function loadZipBufferFromImportForm(form: FormData): Promise<Buffe
   return Buffer.from(await file.arrayBuffer());
 }
 
-/** Small direct uploads (≤4 MB) — load into memory with JSZip. */
+/** Small direct uploads (≤4 MB): load into memory with JSZip. */
 export async function loadZipFromImportForm(form: FormData): Promise<JSZip> {
   const zipUrl = String(form.get("zipUrl") || "").trim();
   const file = form.get("file");

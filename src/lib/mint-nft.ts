@@ -363,7 +363,7 @@ function assertUserSignedGiftMintTx(
     return;
   }
 
-  // Wallet modified the tx (e.g. compute budget) — relaxed checks above are sufficient.
+  // Wallet modified the tx (e.g. compute budget): relaxed checks above are sufficient.
 }
 
 export async function simulateSignedTransaction(

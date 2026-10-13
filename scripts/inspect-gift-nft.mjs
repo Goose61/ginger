@@ -163,7 +163,7 @@ async function inspectMint(umi, rpc, mint) {
         ...(name.toLowerCase().includes("gift") ? ['On-chain name contains "Gift"'] : []),
         ...(!collection?.verified ? ["Collection not verified on-chain"] : []),
         ...(creators.some((c) => !c.verified) ? ["Unverified creator on-chain"] : []),
-        ...(!meta.isMutable ? ["Metadata is immutable — URI cannot be updated"] : []),
+        ...(!meta.isMutable ? ["Metadata is immutable: URI cannot be updated"] : []),
       ],
     },
   };

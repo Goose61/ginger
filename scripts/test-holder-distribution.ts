@@ -73,7 +73,7 @@ function b58decode(s: string) {
 }
 
 function loadPayer() {
-  if (!fs.existsSync(PAYER_PATH)) fail("No .devnet-wallet.json — run npm run create:devnet-wallet");
+  if (!fs.existsSync(PAYER_PATH)) fail("No .devnet-wallet.json: run npm run create:devnet-wallet");
   const raw = JSON.parse(fs.readFileSync(PAYER_PATH, "utf8")) as { secretKeyBase58: string };
   return Keypair.fromSecretKey(b58decode(raw.secretKeyBase58));
 }
@@ -197,7 +197,7 @@ async function ensureCollection(creator: string): Promise<Collection> {
   loadEnvLocal();
   const { getCollection, saveCollection, newId, slugify } = await import("../src/lib/store");
   const dough = await getCollection("dough-boi");
-  if (!dough) fail("Dough Boi not in Mongo — need published metadata URIs to copy");
+  if (!dough) fail("Dough Boi not in Mongo: need published metadata URIs to copy");
   const source = (dough.tokens ?? [])
     .filter((t) => t.metadataUri?.startsWith("http") && t.tokenId !== 37)
     .slice(0, 6);
@@ -370,7 +370,7 @@ async function ensureBuybackSplMint(payer: Keypair, conn: Connection): Promise<s
   const { createMint } = await import("@solana/spl-token");
   const { getPlatformSecretKey } = await import("../src/lib/platform-key");
   const secret = getPlatformSecretKey();
-  if (!secret) fail("ARWEAVE_SOLANA_KEY missing — needed as mint authority for the test SPL");
+  if (!secret) fail("ARWEAVE_SOLANA_KEY missing: needed as mint authority for the test SPL");
   const platform = Keypair.fromSecretKey(secret);
   const platformSol = (await conn.getBalance(platform.publicKey)) / LAMPORTS_PER_SOL;
   if (platformSol < 0.05) {
@@ -430,7 +430,7 @@ async function runBuybackTest(collectionId: string, payer: Keypair, creator: Key
     }
   }
   if (pool <= 0) {
-    console.log("Buyback pool empty — topping up ledger for devnet swap test");
+    console.log("Buyback pool empty: topping up ledger for devnet swap test");
     loadEnvLocal();
     const { updateCollection } = await import("../src/lib/store");
     await updateCollection(collectionId, (c) => {

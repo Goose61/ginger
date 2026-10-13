@@ -8,7 +8,7 @@
 - ZIP import: 500 MB, wallet auth, Blob content-type ZIP, random suffix (`blob/upload`).
 - Gift images: client uploads to Arweave; server checks URI prefix `http` or `/api/`.
 - Assets routes block `..` and resolve under `STAGING_DIR`.
-- Logo may fall back to **inline `data:` URL in Mongo** if Irys is down and file ≤ 2.5 MB — large documents / XSS-via-data if ever rendered unsafely (currently used as `src`).
+- Logo may fall back to **inline `data:` URL in Mongo** if Irys is down and file ≤ 2.5 MB: large documents / XSS-via-data if ever rendered unsafely (currently used as `src`).
 
 Magic bytes on ZIP contents (per-image) should be verified during import; layer parse trusts PNG-in-folder layout.
 

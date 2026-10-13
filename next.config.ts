@@ -55,13 +55,13 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "gateway.irys.xyz" },
       { protocol: "https", hostname: "arweave.net" },
     ],
-    // unoptimized: false — let Next.js optimize images (better for Vercel)
+    // unoptimized: false: let Next.js optimize images (better for Vercel)
   },
   eslint: {
     // Re-enable ESLint during builds so CI catches real issues
     ignoreDuringBuilds: false,
   },
-  // Do not externalize sharp or @irys/bundles — Turbopack/Vercel must bundle them.
+  // Do not externalize sharp or @irys/bundles: Turbopack/Vercel must bundle them.
   serverExternalPackages: ["yauzl"],
   transpilePackages: [
     "@solana/wallet-adapter-base",

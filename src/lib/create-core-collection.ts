@@ -283,7 +283,7 @@ export async function cosignAndSubmitCoreCollectionTransaction(params: {
     throw new Error("Pending collection key does not match stored address.");
   }
 
-  // Only the new collection account signs — updateAuthority is a pubkey, not a signer.
+  // Only the new collection account signs: updateAuthority is a pubkey, not a signer.
   tx.sign([collectionKp]);
 
   await simulateSignedTransaction(tx, params.network);

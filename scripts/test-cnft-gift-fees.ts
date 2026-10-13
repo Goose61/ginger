@@ -21,5 +21,5 @@ console.log(
 console.log(
   bubblegumGiftConfigured()
     ? "✓ BUBBLEGUM_TREE_ADDRESS is set"
-    : "ℹ BUBBLEGUM_TREE_ADDRESS unset — run npm run setup:bubblegum-tree before live gifts",
+    : "ℹ BUBBLEGUM_TREE_ADDRESS unset: run npm run setup:bubblegum-tree before live gifts",
 );

@@ -395,6 +395,6 @@ if (perAssetFees.length && grandNeedLock > 0) {
 }
 
 if (grandSimFail > 0) {
-  console.log("\nSome simulations failed — likely wrong update authority or asset already locked.");
+  console.log("\nSome simulations failed: likely wrong update authority or asset already locked.");
   process.exitCode = 1;
 }

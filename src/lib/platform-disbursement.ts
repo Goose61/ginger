@@ -89,7 +89,7 @@ export async function transferCreatorShareFromPlatform(params: {
 }
 
 const HOLDERS_PER_TX = 12;
-/** Conservative v0 multi-transfer fee per batch — deducted from the holder pool. */
+/** Conservative v0 multi-transfer fee per batch: deducted from the holder pool. */
 const HOLDER_DIST_FEE_LAMPORTS_PER_BATCH = 8_000;
 
 export type HolderDistributionResult = {

@@ -5,7 +5,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { RelatedLinks } from "@/components/seo/RelatedLinks";
 import { SITE_URL, breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 
-const TITLE = "Ginger Security — How the NFT Marketplace Is Protected";
+const TITLE = "Ginger Security | How the NFT Marketplace Is Protected";
 const DESCRIPTION =
   "How Ginger protects collectors and creators: wallet custody, verified payments, marketplace controls, and the public security report.";
 

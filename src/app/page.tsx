@@ -3,7 +3,7 @@ import { GingerHero } from "@/components/ginger/GingerHero";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Ginger — See beyond now",
+  title: "Ginger | See beyond now",
   description: "Everything you need to discover, understand, and explore what is out there.",
   path: "/",
 });

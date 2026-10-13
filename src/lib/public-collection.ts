@@ -164,7 +164,7 @@ export function toPublicCollection(collection: Collection): Collection {
   };
 }
 
-/** List rows for dashboard/market APIs — omit token/layer payloads unless a draft needs them. */
+/** List rows for dashboard/market APIs: omit token/layer payloads unless a draft needs them. */
 export function toPublicListCollection(
   collection: Collection,
   opts?: { includeArt?: boolean },

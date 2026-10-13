@@ -108,7 +108,7 @@ const authoritySigner = createSignerFromKeypair(umi, authorityKeypair);
 umi.use(keypairIdentity(authorityKeypair));
 
 const pubkey = authoritySigner.publicKey.toString();
-console.log("=== Dough Boi — Bubblegum V2 gift tree ===\n");
+console.log("=== Dough Boi | Bubblegum V2 gift tree ===\n");
 console.log(`Network: ${network}`);
 console.log(`Platform (tree creator / collection authority): ${pubkey}`);
 console.log(`RPC: ${rpc}\n`);
@@ -121,7 +121,7 @@ if (balance.value < MIN_BALANCE_LAMPORTS) {
 }
 
 if (dryRun) {
-  console.log("\n✓ Dry run OK — wallet funded.");
+  console.log("\n✓ Dry run OK: wallet funded.");
   process.exit(0);
 }
 
