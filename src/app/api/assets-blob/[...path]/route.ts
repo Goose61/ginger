@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
-import { STAGING_DIR } from "@/lib/paths";
+import { isInsideDir, STAGING_DIR } from "@/lib/paths";
 
 type Params = { params: Promise<{ path: string[] }> };
 
@@ -20,8 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 
   const filePath = path.join(STAGING_DIR, rel);
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(STAGING_DIR))) {
+  if (!isInsideDir(filePath, STAGING_DIR)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

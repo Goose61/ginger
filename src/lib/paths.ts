@@ -6,6 +6,13 @@ export const STAGING_DIR = path.join(DATA_DIR, "staging");
 export const LAYERS_DIR = path.join(DATA_DIR, "layers");
 
 // Persistent staging paths (local dev only)
+/** True when filePath stays inside rootDir. A bare prefix check would allow a sibling like staging-other. */
+export function isInsideDir(filePath: string, rootDir: string): boolean {
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(filePath);
+  return resolved === root || resolved.startsWith(root + path.sep);
+}
+
 export function collectionDir(id: string) {
   return path.join(STAGING_DIR, id);
 }

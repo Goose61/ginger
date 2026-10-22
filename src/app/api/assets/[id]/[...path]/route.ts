@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
-import { collectionDir, STAGING_DIR } from "@/lib/paths";
+import { collectionDir, isInsideDir, STAGING_DIR } from "@/lib/paths";
 import sharp from "sharp";
 
 type Params = { params: Promise<{ id: string; path: string[] }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id, path: segments } = await params;
+  if (!id || id.includes("..") || id.includes("/") || id.includes("\\")) {
+    return NextResponse.json({ error: "invalid path" }, { status: 400 });
+  }
 
   if (segments[0] === "placeholder") {
     const png = await sharp({
@@ -27,10 +30,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 
   const filePath = path.join(collectionDir(id), rel);
-
-  // Ensure the resolved path stays within STAGING_DIR
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(STAGING_DIR))) {
+  if (!isInsideDir(filePath, STAGING_DIR)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

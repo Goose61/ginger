@@ -144,9 +144,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         throw new Error("This wallet cannot sign transactions. Try Phantom, Solflare, Backpack, or MetaMask.");
       }
 
+      const authHeaders = await buildAuthHeaders(publicKey);
       const prep = await fetch("/api/gift/prepare-sign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ collectionId, payer: publicKey, network }),
       });
       const prepData = await readJsonResponse<{ txBase64?: string; error?: string }>(prep);
@@ -162,7 +163,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       const res = await fetch("/api/gift/cosign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           collectionId,
           signedTxBase64: signedB64,

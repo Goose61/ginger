@@ -28,6 +28,7 @@ import {
 import { explorerClusterQuery, parseNetwork, serverNetwork } from "@/lib/solana-config";
 import { verifyMintTransaction } from "@/lib/verify-mint";
 import { toPublicCollection } from "@/lib/public-collection";
+import { assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
 
 export const runtime = "nodejs";
 
@@ -70,6 +71,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Image must be uploaded first" }, { status: 400 });
   if (!metadataUri.startsWith("http") && !metadataUri.startsWith("/api/"))
     return NextResponse.json({ error: "Metadata must be uploaded first" }, { status: 400 });
+
+  try {
+    assertPayerAuth(requireWalletAuth(req), payer);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unauthorized";
+    return NextResponse.json({ error: message }, { status: 401 });
+  }
 
   const nftName = giftMintName(name);
 
@@ -163,6 +171,15 @@ export async function PATCH(req: NextRequest) {
   const token = findGiftToken(collection, tokenId);
   if (!token)
     return NextResponse.json({ error: "Gift token not found in bundle" }, { status: 404 });
+
+  try {
+    const auth = requireWalletAuth(req);
+    const from = token.attributes?.find((a) => a.trait_type === "From")?.value;
+    if (typeof from === "string" && from.trim()) assertPayerAuth(auth, from.trim());
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unauthorized";
+    return NextResponse.json({ error: message }, { status: 401 });
+  }
 
   const verified = await verifyMintTransaction(
     txSignature,

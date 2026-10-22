@@ -16,6 +16,7 @@ import { resolvePendingMint } from "@/lib/gift-pending";
 import { serverNetwork } from "@/lib/solana-config";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
+import { assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,6 +44,12 @@ export async function POST(req: NextRequest) {
     }
     if (!payer || !isValidSolanaAddress(payer)) {
       return NextResponse.json({ error: "Valid payer wallet required" }, { status: 400 });
+    }
+    try {
+      assertPayerAuth(requireWalletAuth(req), payer);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unauthorized";
+      return NextResponse.json({ error: message }, { status: 401 });
     }
 
     const collection = await getCollection(collectionId);

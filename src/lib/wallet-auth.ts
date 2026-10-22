@@ -55,18 +55,29 @@ function hostFromOrigin(origin: string | null): string {
 }
 
 export function siweMessageFromRequest(req: Request, wallet: string, timestamp: number): string | null {
-  const domain =
-    req.headers.get("x-auth-domain")?.trim() ||
-    hostFromOrigin(req.headers.get("origin")) ||
-    req.headers.get("host")?.trim() ||
-    "";
-  const uri =
-    req.headers.get("x-auth-uri")?.trim() ||
-    req.headers.get("origin")?.trim() ||
-    (domain ? `https://${domain}` : "");
-  if (!domain || !uri || !isAddress(wallet, { strict: false })) return null;
+  // Domain comes from the host that received the request. A client-supplied
+  // X-Auth-Domain is accepted only when it is that same host, so a signature
+  // captured on another site cannot be replayed here.
+  const host = req.headers.get("host")?.trim() || "";
+  if (!host || !isAddress(wallet, { strict: false })) return null;
+
+  const claimedDomain = req.headers.get("x-auth-domain")?.trim() || "";
+  if (claimedDomain && claimedDomain !== host) return null;
+
+  const origin = req.headers.get("origin")?.trim() || "";
+  const claimedUri = req.headers.get("x-auth-uri")?.trim() || "";
+  let uri = "";
+  if (claimedUri) {
+    if (hostFromOrigin(claimedUri) !== host) return null;
+    uri = claimedUri;
+  } else if (origin && hostFromOrigin(origin) === host) {
+    uri = origin;
+  } else {
+    uri = `https://${host}`;
+  }
+
   return siweMessage({
-    domain,
+    domain: host,
     address: wallet,
     uri,
     chainId: getAvalancheChainId(),

@@ -8,6 +8,7 @@ import { uploadGiftWithPhantom } from "@/lib/irys-client";
 import { readJsonResponse } from "@/lib/fetch-json";
 import { buildGiftMetadataForUpload, GIFT_NAME, parseGiftMetadataFile } from "@/lib/gift-metadata";
 import { giftBundleHref } from "@/lib/gift-bundle";
+import { buildAuthHeaders } from "@/lib/wallet-auth-client";
 
 type FeeBreakdown = {
   user: {
@@ -295,9 +296,10 @@ export default function GiftPage() {
 
       // ── Step 2: build partially-signed mint tx ────────────────────────
       setStage("building");
+      const authHeaders = await buildAuthHeaders(publicKey);
       const res = await fetch("/api/gift", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           name: name.trim() || GIFT_NAME,
           recipient: recipient.trim(),
@@ -339,7 +341,7 @@ export default function GiftPage() {
       setStage("confirming");
       const confirmRes = await fetch("/api/gift", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           collectionId: data.collectionId,
           tokenId: data.tokenId,

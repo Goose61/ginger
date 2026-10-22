@@ -3,6 +3,7 @@ import { newId, saveCollection } from "@/lib/store";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 import { buildImportingCollectionStub } from "@/lib/import-collection-stub";
+import { isBlobZipUrl } from "@/lib/import-zip-server";
 import { requireWalletAuth } from "@/lib/wallet-auth";
 import { toPublicCollection } from "@/lib/public-collection";
 import type { Collection } from "@/lib/types";
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
 
     if (!zipUrl && !(file instanceof File)) {
       return NextResponse.json({ error: "ZIP of images required" }, { status: 400 });
+    }
+    if (zipUrl && !isBlobZipUrl(zipUrl)) {
+      return NextResponse.json({ error: "ZIP URL is not from Blob storage" }, { status: 400 });
     }
     if (uploadBytes > MAX_UPLOAD_BYTES) {
       return NextResponse.json({ error: "Upload too large (max 500 MB)" }, { status: 413 });

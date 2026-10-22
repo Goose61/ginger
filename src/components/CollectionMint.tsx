@@ -386,10 +386,11 @@ export function CollectionMint({ initial }: { initial: Collection }) {
         pendingOnChainToken?.tokenId ??
         col.tokens[0]?.tokenId;
 
+      const authHeaders = await buildAuthHeaders(publicKey);
       if (!col.pendingMint || col.pendingMint.tokenId !== resolvedTokenId) {
         const res = await fetch("/api/gift/mint", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({
             collectionId: col.id,
             tokenId: resolvedTokenId,
@@ -417,7 +418,7 @@ export function CollectionMint({ initial }: { initial: Collection }) {
 
       const confirm = await fetch(confirmEndpoint, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           collectionId: col.id,
           tokenId: resolvedTokenId,

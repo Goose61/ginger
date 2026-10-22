@@ -75,7 +75,7 @@ function resolveUpstream(raw: string, origin: string): URL | null {
   }
   try {
     const url = new URL(raw);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    if (url.protocol !== "https:") return null;
     if (!isAllowedAbsoluteUrl(url)) return null;
     return url;
   } catch {

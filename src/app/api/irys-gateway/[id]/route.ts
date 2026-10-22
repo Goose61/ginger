@@ -25,6 +25,14 @@ export async function GET(
     if (!upstream.ok) {
       return NextResponse.json({ error: "Upstream not found" }, { status: upstream.status });
     }
+    const finalHost = new URL(upstream.url).hostname.toLowerCase();
+    const allowedHost =
+      finalHost === "gateway.irys.xyz" ||
+      finalHost === "arweave.net" ||
+      finalHost.endsWith(".datasprite-cdn.com");
+    if (!allowedHost) {
+      return NextResponse.json({ error: "Upstream not found" }, { status: 502 });
+    }
 
     const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
     const headers = new Headers({

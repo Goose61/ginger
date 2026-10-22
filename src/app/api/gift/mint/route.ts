@@ -18,6 +18,7 @@ import {
 } from "@/lib/verify-mint";
 import type { Collection } from "@/lib/types";
 import { toPublicCollection } from "@/lib/public-collection";
+import { assertPayerAuth, requireWalletAuth } from "@/lib/wallet-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -65,6 +66,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "collectionId required" }, { status: 400 });
     if (!payer || !isValidSolanaAddress(payer))
       return NextResponse.json({ error: "Connect your wallet first" }, { status: 400 });
+
+    try {
+      assertPayerAuth(requireWalletAuth(req), payer);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unauthorized";
+      return NextResponse.json({ error: message }, { status: 401 });
+    }
 
     let collection = await getCollection(collectionId);
     if (!collection)
@@ -199,6 +207,15 @@ export async function PATCH(req: NextRequest) {
     const token = findGiftToken(collection, resolvedTokenId);
     if (!token)
       return NextResponse.json({ error: "Gift token not found" }, { status: 404 });
+
+    try {
+      const auth = requireWalletAuth(req);
+      const from = token.attributes?.find((a) => a.trait_type === "From")?.value;
+      if (typeof from === "string" && from.trim()) assertPayerAuth(auth, from.trim());
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unauthorized";
+      return NextResponse.json({ error: message }, { status: 401 });
+    }
 
     const verified = await verifyMintTransaction(
       txSignature,
